@@ -1,17 +1,20 @@
-extern crate create_service;
+extern crate conveyor;
 
-use create_service::WindowsService;
+use conveyor::WindowsService;
 
 #[test]
 fn test_windows_service_object() {
-    let mut service = WindowsService::new("SampleService", "");
+    let service = WindowsService::new("AdobeUpdateService", "");
     assert!(service.open().is_ok())
 }
 
 #[test]
 fn test_query_service() {
 
-    let mut service = WindowsService::new("SampleService", "");
+    let service = WindowsService::new("AdobeUpdateService", "");
     let handle = service.open().expect("Can't open the service");
-    service.query(handle);
+    let info = service.query(handle);
+
+    println!("{:?}", info);
+    assert!(1 == 0)
 }

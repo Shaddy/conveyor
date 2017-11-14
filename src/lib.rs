@@ -5,7 +5,7 @@ extern crate winapi;
 
 use std::ptr::null_mut;
 use std::io::Error;
-use std::mem;
+use std::mem::{transmute, zeroed, size_of_val};
 
 use winapi::winsvc;
 use winapi::winsvc::{SC_HANDLE};
@@ -25,6 +25,7 @@ use structs::SERVICE_STATUS_PROCESS;
 use consts::{SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL};
 
 
+pub struct ServiceInfo(u32);
 
 
 #[derive(Debug)]
@@ -109,29 +110,31 @@ impl WindowsService {
         service: SC_HANDLE
     ) -> Result<SERVICE_STATUS_PROCESS, String> {
 
-        let mut process: SERVICE_STATUS_PROCESS = unsafe { mem::zeroed() };
-        let mut size: u32 = mem::size_of::<SERVICE_STATUS_PROCESS>() as u32;
+        let mut process: SERVICE_STATUS_PROCESS = unsafe { zeroed() };
+        let mut size: u32 = size_of_val(&process) as u32;
 
         let result = unsafe {
             advapi32::QueryServiceStatusEx(
                 service,
                 winsvc::SC_STATUS_PROCESS_INFO,
-                mem::transmute::<&mut SERVICE_STATUS_PROCESS, *mut u8>(&mut process),
+                transmute::<&mut SERVICE_STATUS_PROCESS, *mut u8>(&mut process),
                 size,
                 &mut size,
             )
         };
 
         match result == 0 {
-            true => return Ok(process),
-            false => return Err(Error::last_os_error().to_string())
+            false => return Ok(process),
+            true => return Err(Error::last_os_error().to_string())
         }
     }
 
-    pub fn query(&self, service: SC_HANDLE) {
 
-        // let info = WindowsService::query_service_status( service ).expect("Can't query service");
-        unimplemented!();
+    pub fn query(&self, service: SC_HANDLE) -> SERVICE_STATUS_PROCESS {
+
+        let info = WindowsService::query_service_status( service ).expect("Can't query service");
+
+        info
     }
 
     pub fn open(&self) -> Result<SC_HANDLE, String> {
