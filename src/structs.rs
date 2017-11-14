@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, dead_code)]
 
 use winapi::minwindef::{DWORD};
-use std::num::FromPrimitive;
 
 
 STRUCT!{
@@ -21,15 +20,28 @@ STRUCT!{
 pub type LPSERVICE_STATUS_PROCESS = *mut SERVICE_STATUS_PROCESS;
 
 
-#[derive(FromPrimitive)]
-enum ServiceType {
-    FileSystemDriver,
-    KernelDriver,
-    Win32OwnProcess,
-    Win32ShareProcess
+#[derive(Debug, PartialEq)]
+pub struct ServiceInfo {
+    pub kind: ServiceType,
+    pub status: ServiceStatus,
+    pub pid: u32,
+    pub flags: u32
 }
 
-enum ServiceStatus {
+impl From<SERVICE_STATUS_PROCESS> for ServiceInfo {
+    fn from(info: SERVICE_STATUS_PROCESS) -> Self {
+        ServiceInfo {
+            kind: ServiceType::from_bits(info.dwServiceType)
+            .expect("Unable to parse dwServiceType"),
+            status: ServiceStatus::from(info.dwCurrentState),
+            pid: info.dwProcessId,
+            flags: info.dwServiceFlags
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ServiceStatus {
     ServiceRunning,
     PausePending,
     ContinuePending,
@@ -40,9 +52,18 @@ enum ServiceStatus {
     Stopped
 }
 
-impl SERVICE_STATUS_PROCESS {
-    fn status(&self) -> ServiceStatus {
-        match self.dwCurrentState {
+bitflags! {
+    pub struct ServiceType: u32 {
+        const FILE_SYSTEM_DRIVER       = 0b00000001;
+        const KERNEL_DRIVER            = 0x00000002;
+        const WIN32_OWN_PROCESS        = 0x00000010;
+        const WIN32_SHARE_PROCESS      = 0x00000020;
+    }
+}
+
+impl From<u32> for ServiceStatus {
+    fn from(value: u32) -> Self {
+        match value {
             1 => ServiceStatus::Stopped,
             2 => ServiceStatus::StartPending,
             3 => ServiceStatus::StopPending,
@@ -50,18 +71,8 @@ impl SERVICE_STATUS_PROCESS {
             5 => ServiceStatus::ContinuePending,
             6 => ServiceStatus::PausePending,
             7 => ServiceStatus::Paused,
-            _ => panic!("ServiceStatus can't convert {}", self.dwCurrentState)
+            _ => panic!("Unable to convert value: {} to ServiceStatus", value)
         }
-    }
 
-    fn service_type(&self) -> ServiceType {
-        match self.dwServiceType {
-            1 => ServiceType::KernelDriver,
-            2 => ServiceType::FileSystemDriver,
-         0x10 => ServiceType::Win32OwnProcess,
-         0x20 => ServiceType::Win32ShareProcess,
-         _ => panic!("Dude, this is NOT a service type...")
-        }
     }
 }
-

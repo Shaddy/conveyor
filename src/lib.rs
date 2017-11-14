@@ -15,22 +15,25 @@ use winapi::winsvc::{SC_HANDLE};
 #[macro_use]
 mod macros;
 
+#[macro_use]
+extern crate bitflags;
+
+
 mod consts;
-mod structs;
+pub mod structs;
 mod traits;
 
 
 use traits::EncodeUtf16;
-use structs::SERVICE_STATUS_PROCESS;
+use structs::{SERVICE_STATUS_PROCESS, ServiceInfo};
 use consts::{SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL};
 
 
-pub struct ServiceInfo(u32);
-
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ServiceError {
     ServiceAlreadyExists,
+    ServiceDoesNotExist,
+    AccessViolation,
     GenericError,
 }
 
@@ -90,7 +93,7 @@ impl WindowsService {
     }
 
     pub fn install(&mut self) {
-        if let Err(err) = self.create_service() {
+        if let Err(err) = self.create() {
             match err {
                 ServiceError::ServiceAlreadyExists => {
                     println!("Failed to install {:?}: Service already exists.", self.name);
@@ -130,14 +133,14 @@ impl WindowsService {
     }
 
 
-    pub fn query(&self, service: SC_HANDLE) -> SERVICE_STATUS_PROCESS {
+    pub fn query(&self, service: SC_HANDLE) -> ServiceInfo {
 
         let info = WindowsService::query_service_status( service ).expect("Can't query service");
 
-        info
+        ServiceInfo::from(info)
     }
 
-    pub fn open(&self) -> Result<SC_HANDLE, String> {
+    pub fn open(&self) -> Result<SC_HANDLE, ServiceError> {
         let handle = unsafe {
             advapi32::OpenServiceW(
                 self.manager.handle,
@@ -147,13 +150,33 @@ impl WindowsService {
         };
 
         if handle.is_null() {
-            return Err(Error::last_os_error().to_string());
+            return Err(WindowsService::service_error())
         }
 
         Ok(handle)
     }
 
-    pub fn create_service(&self) -> Result<SC_HANDLE, ServiceError> {
+    fn service_error() -> ServiceError {
+        match Error::last_os_error().raw_os_error() {
+            Some(1073) => return ServiceError::ServiceAlreadyExists,
+            Some(1060) => return ServiceError::ServiceDoesNotExist,
+            Some(5) => return ServiceError::AccessViolation,
+            _ => return ServiceError::GenericError,
+        }
+    }
+
+    pub fn exists(&self) -> bool {
+        match self.open() {
+            Err(ServiceError::AccessViolation) => {
+                println!("INFO: Access violation while opening service.");
+                return false
+            },
+            Err(_) => false,
+            Ok(_) => true
+        }
+    }
+
+    pub fn create(&self) -> Result<SC_HANDLE, ServiceError> {
         let handle = unsafe {
             advapi32::CreateServiceW(
                 self.manager.handle,                    // handle
@@ -173,10 +196,7 @@ impl WindowsService {
         };
 
         if handle.is_null() {
-            match Error::last_os_error().raw_os_error() {
-                Some(1073) => return Err(ServiceError::ServiceAlreadyExists),
-                _ => return Err(ServiceError::GenericError),
-            }
+            return Err(WindowsService::service_error())
         }
 
         Ok(handle)
