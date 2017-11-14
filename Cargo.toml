@@ -1,0 +1,13 @@
+[package]
+name = "conveyor"
+version = "0.1.0"
+authors = ["Sherab Giovannini <sherab.giovannini@byteheed.com>"]
+
+[dependencies]
+winapi = "0.2.8"
+advapi32-sys = "0.2.0"
+kernel32-sys = "0.2.2"
+clap = "2.27.1"
+termcolor = "0.3"
+slog = "*"
+slog-term = "2.2.0"
