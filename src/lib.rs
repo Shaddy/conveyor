@@ -1,27 +1,36 @@
 extern crate advapi32;
 extern crate winapi;
 
-use std::ptr::null_mut;
-use std::ffi::OsStr;
-use std::io::Error;
-use std::iter::once;
-use std::os::windows::ffi::OsStrExt;
-use winapi::winsvc;
-use winapi::winsvc::{SC_HANDLE, SC_STATUS_TYPE};
-use winapi::minwindef::DWORD;
+// external namespaces
 
-pub const SERVICE_KERNEL_DRIVER: DWORD = 0x00000001;
-pub const SERVICE_DEMAND_START: DWORD = 0x00000003;
-pub const SERVICE_ERROR_NORMAL: DWORD = 0x00000001;
+use std::ptr::null_mut;
+use std::io::Error;
+use std::mem;
+
+use winapi::winsvc;
+use winapi::winsvc::{SC_HANDLE};
+
+// custom namespaces
+
+#[macro_use]
+mod macros;
+
+mod consts;
+mod structs;
+mod traits;
+
+
+use traits::EncodeUtf16;
+use structs::SERVICE_STATUS_PROCESS;
+use consts::{SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL};
+
+
+
 
 #[derive(Debug)]
 pub enum ServiceError {
     ServiceAlreadyExists,
     GenericError,
-}
-
-fn wide_null_string(data: &str) -> Vec<u16> {
-    OsStr::new(data).encode_wide().chain(once(0)).collect()
 }
 
 #[derive(Debug)]
@@ -91,50 +100,45 @@ impl WindowsService {
     }
 
     pub fn start(&self) {
-        let handle = self.open_service().expect("Can't open service");
+        // let handle = self.open().expect("Can't open service");
+        unimplemented!();
     }
 
 
     fn query_service_status(
-        service: SC_HANDLE,
-        status_type: SC_STATUS_TYPE,
-        buffer: &mut [u8],
-    ) -> bool {
-        let mut size: u32 = buffer.len() as u32;
+        service: SC_HANDLE
+    ) -> Result<SERVICE_STATUS_PROCESS, String> {
+
+        let mut process: SERVICE_STATUS_PROCESS = unsafe { mem::zeroed() };
+        let mut size: u32 = mem::size_of::<SERVICE_STATUS_PROCESS>() as u32;
 
         let result = unsafe {
             advapi32::QueryServiceStatusEx(
                 service,
-                status_type,
-                buffer.as_mut_ptr(),
+                winsvc::SC_STATUS_PROCESS_INFO,
+                mem::transmute::<&mut SERVICE_STATUS_PROCESS, *mut u8>(&mut process),
                 size,
                 &mut size,
             )
         };
 
-        result > 0
-    }
-
-    pub fn query_service(&self, service: SC_HANDLE) {
-
-        // TODO: construct a structure that matches with SC_STATUS_PROCESS_INFO
-        let mut vec = Vec::with_capacity(1000 as usize);
-
-        if WindowsService::query_service_status(
-            service,
-            winsvc::SC_STATUS_PROCESS_INFO,
-            vec.as_mut_slice(),
-        )
-        {
-            WindowsService::close_service_handle(service);
+        match result == 0 {
+            true => return Ok(process),
+            false => return Err(Error::last_os_error().to_string())
         }
     }
 
-    fn open_service(&self) -> Result<SC_HANDLE, String> {
+    pub fn query(&self, service: SC_HANDLE) {
+
+        // let info = WindowsService::query_service_status( service ).expect("Can't query service");
+        unimplemented!();
+    }
+
+    pub fn open(&self) -> Result<SC_HANDLE, String> {
         let handle = unsafe {
             advapi32::OpenServiceW(
                 self.manager.handle,
-                wide_null_string(&self.name).as_ptr(),
+                self.name.encode_utf16_null().as_ptr(),
                 winsvc::SERVICE_ALL_ACCESS,
             )
         };
@@ -147,19 +151,16 @@ impl WindowsService {
     }
 
     pub fn create_service(&self) -> Result<SC_HANDLE, ServiceError> {
-        let name: Vec<u16> = wide_null_string(&self.name);
-        let binary_path: Vec<u16> = wide_null_string(&self.path);
-
         let handle = unsafe {
             advapi32::CreateServiceW(
                 self.manager.handle,                    // handle
-                name.as_ptr(),              // service name
-                name.as_ptr(),              // display name
+                self.name.encode_utf16_null().as_ptr(),              // service name
+                self.name.encode_utf16_null().as_ptr(),              // display name
                 winsvc::SERVICE_ALL_ACCESS, // desired access
                 SERVICE_KERNEL_DRIVER,      // service type
                 SERVICE_DEMAND_START,       // start type
                 SERVICE_ERROR_NORMAL,       // error control
-                binary_path.as_ptr(),       // binary path
+                self.path.encode_utf16_null().as_ptr(),              // binary path
                 null_mut(),                 // load order
                 null_mut(),                 // tag id
                 null_mut(),                 // dependencies
