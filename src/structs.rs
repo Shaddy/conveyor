@@ -19,13 +19,21 @@ STRUCT!{
 
 pub type LPSERVICE_STATUS_PROCESS = *mut SERVICE_STATUS_PROCESS;
 
+// SERVICE_STATUS_PROCESS wrapper in a rusty way.
+//
+// Pending:
+//
+// - Add enumerators for dwControlsAccepted.
+// - Add proper 'system' discriminator
+//   ( Could exists a case where service is system but is not running, so flags would be 0 )
+// - Add proper timing dwWaitHint estimation.
 
 #[derive(Debug, PartialEq)]
 pub struct ServiceInfo {
     pub kind: ServiceType,
     pub status: ServiceStatus,
     pub pid: u32,
-    pub flags: u32
+    pub system: bool
 }
 
 impl From<SERVICE_STATUS_PROCESS> for ServiceInfo {
@@ -35,7 +43,7 @@ impl From<SERVICE_STATUS_PROCESS> for ServiceInfo {
             .expect("Unable to parse dwServiceType"),
             status: ServiceStatus::from(info.dwCurrentState),
             pid: info.dwProcessId,
-            flags: info.dwServiceFlags
+            system: info.dwServiceFlags == 1
         }
     }
 }
@@ -54,7 +62,7 @@ pub enum ServiceStatus {
 
 bitflags! {
     pub struct ServiceType: u32 {
-        const FILE_SYSTEM_DRIVER       = 0b00000001;
+        const FILE_SYSTEM_DRIVER       = 0x00000001;
         const KERNEL_DRIVER            = 0x00000002;
         const WIN32_OWN_PROCESS        = 0x00000010;
         const WIN32_SHARE_PROCESS      = 0x00000020;

@@ -31,10 +31,12 @@ use consts::{SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL};
 
 #[derive(Debug, PartialEq)]
 pub enum ServiceError {
+    DeletePending,
     ServiceAlreadyExists,
     ServiceDoesNotExist,
     AccessViolation,
-    GenericError,
+    InvalidHandle,
+    UnknownError(i32),
 }
 
 #[derive(Debug)]
@@ -92,6 +94,11 @@ impl WindowsService {
         }
     }
 
+    pub fn remove(&mut self) {
+        self.delete().expect("Can't remove service");
+        println!("Service {:?} has been successfully removed", self.name);
+    }
+
     pub fn install(&mut self) {
         if let Err(err) = self.create() {
             match err {
@@ -100,12 +107,39 @@ impl WindowsService {
                 }
                 _ => println!("Failed to install {:?}: unknown error {:?}", self.name, err),
             }
+        } else {
+            println!("Service {:?} has been successfully installed", self.name);
+        }
+    }
+
+    pub fn stop(&self) {
+        let _service = self.open().expect("Unable to open service");
+
+        let result = false;
+
+        // In stop case we should call to ControlService functions for each service dependencie.
+
+        if !result {
+            println!("Can't stop service ({}): {:?}", self.name, WindowsService::service_error())
         }
     }
 
     pub fn start(&self) {
-        // let handle = self.open().expect("Can't open service");
-        unimplemented!();
+        let _service = self.open().expect("Unable to open service");
+
+        // TODO: Find or implement StartServiceW
+        let result = false;
+        // let result = unsafe {
+        //     advapi32::StartServiceW(
+        //         service,
+        //         0,
+        //         null_mut(),
+        //     )
+        // };
+
+        if !result {
+            println!("Can't start service ({}): {:?}", self.name, WindowsService::service_error())
+        }
     }
 
 
@@ -158,10 +192,13 @@ impl WindowsService {
 
     fn service_error() -> ServiceError {
         match Error::last_os_error().raw_os_error() {
+            Some(1072) => return ServiceError::DeletePending,
             Some(1073) => return ServiceError::ServiceAlreadyExists,
             Some(1060) => return ServiceError::ServiceDoesNotExist,
             Some(5) => return ServiceError::AccessViolation,
-            _ => return ServiceError::GenericError,
+            Some(6) => return ServiceError::InvalidHandle,
+            Some(code) => return ServiceError::UnknownError(code),
+            _ => panic!("Can't retrieve OS Error, panicking!")
         }
     }
 
@@ -174,6 +211,18 @@ impl WindowsService {
             Err(_) => false,
             Ok(_) => true
         }
+    }
+
+    pub fn delete(&self) -> Result<SC_HANDLE, ServiceError> {
+        let handle = self.open().expect("Can't open service");
+        let success = unsafe { advapi32::DeleteService(handle) == 0 };
+
+        if success {
+            return Err(WindowsService::service_error())
+        }
+
+        Ok(handle)
+
     }
 
     pub fn create(&self) -> Result<SC_HANDLE, ServiceError> {
