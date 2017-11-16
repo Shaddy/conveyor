@@ -2,72 +2,63 @@ extern crate conveyor;
 extern crate slog;
 
 use std;
+// use std::path::PathBuf;
 use self::conveyor::WindowsService;
 
 use slog::*;
 
+fn full_driver_path(name: &str) -> String {
+    let mut path = std::env::current_dir().expect("error getting current dir");
+    path.push(format!("{}.sys", name));
+    path.to_str().expect("Failed to convert to string").to_string()
+}
+
 pub fn query_service(name: &str, logger: &Logger) {
     debug!(logger, "querying {:?}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    println!("{:?}", WindowsService::new(name, path.to_str().unwrap()).query());
+    println!("{:?}", WindowsService::new(name, &full_driver_path(name)).query());
 }
 
 pub fn stop_service(name: &str, logger: &Logger) {
     debug!(logger, "stopping {:?}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).stop();
+    WindowsService::new(name, &full_driver_path(name)).stop();
 }
 
 pub fn start_service(name: &str, logger: &Logger) {
     debug!(logger, "starting {:?}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).start();
+    WindowsService::new(name, &full_driver_path(name)).start();
 }
 
 pub fn install_service(name: &str, logger: &Logger) {
     debug!(logger, "installing {:?}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).install();
+    WindowsService::new(name, &full_driver_path(name)).install();
 }
 
 pub fn remove_service(name: &str, logger: &Logger) {
     debug!(logger, "removing {:?}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).remove();
+    WindowsService::new(name, &full_driver_path(name)).remove();
 }
 
 pub fn update_service(name: &str, logger: &Logger) {
     debug!(logger, "updating {}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
+    let service = WindowsService::new(name, &full_driver_path(name));
 
-    WindowsService::new(name, path.to_str().unwrap()).remove();
-    WindowsService::new(name, path.to_str().unwrap()).install();
+    if service.exists() {
+        service.remove().install();
+    } else {
+        service.install();
+    }
 }
 
 pub fn run_service(name: &str, logger: &Logger) {
     debug!(logger, "udpating & starting => {:?}", name);
 
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    let service = WindowsService::new(name, path.to_str().unwrap());
+    let service = WindowsService::new(name, &full_driver_path(name));
 
     if service.exists() {
         service.stop().remove().install().start();
