@@ -1,11 +1,9 @@
-extern crate conveyor;
-extern crate slog;
+// Copyright © ByteHeed.  All rights reserved.
 
 use std;
-// use std::path::PathBuf;
-use self::conveyor::WindowsService;
+use super::core::WindowsService;
 
-use slog::*;
+use super::slog::*;
 
 fn full_driver_path(name: &str) -> String {
     let mut path = std::env::current_dir().expect("error getting current dir");

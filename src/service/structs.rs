@@ -1,20 +1,8 @@
+// Copyright © ByteHeed.  All rights reserved.
 #![allow(non_camel_case_types, non_snake_case, dead_code)]
 
-use winapi::minwindef::{DWORD};
+use super::winapi::minwindef::{DWORD};
 
-pub mod ffi {
-    use winapi::winsvc::{SC_HANDLE};
-    use winapi::minwindef::{BOOL, DWORD};
-    use winapi::winnt::{LPCWSTR};
-    #[link(name = "advapi32")]
-    extern "stdcall" {
-        pub fn StartServiceW(
-            hService: SC_HANDLE,
-            dwNumServiceArgs: DWORD,
-            lpServiceArgVectors: LPCWSTR
-        ) -> BOOL;
-    }
-}
 
 STRUCT!{
     #[derive(Debug)]

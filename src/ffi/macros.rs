@@ -1,3 +1,5 @@
+// Copyright © ByteHeed.  All rights reserved.
+
 #[macro_export]
 macro_rules! STRUCT {
     ($(#[$attrs:meta])* struct $name:ident {

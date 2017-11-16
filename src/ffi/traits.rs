@@ -1,3 +1,5 @@
+// Copyright © ByteHeed.  All rights reserved.
+
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 

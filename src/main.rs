@@ -1,3 +1,7 @@
+// Copyright © ByteHeed.  All rights reserved.
+
+
+extern crate conveyor;
 extern crate clap;
 extern crate termcolor;
 extern crate slog;
@@ -5,7 +9,9 @@ extern crate slog_term;
 
 use slog::*;
 
-mod services;
+use conveyor::service;
+
+// mod service;
 
 use std::process;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -41,18 +47,22 @@ fn services(matches: &ArgMatches, logger: Logger) {
     let mut services: Vec<&str> = "lynxv memguard sentry".split(" ").collect();
 
     let action: &Fn(&str, &Logger) = match matches.subcommand_name() {
-        Some("install") => { &services::install },
-        Some("remove")  => { &services::remove },
-        Some("update")  => { &services::update },
-        Some("start")   => { &services::start },
-        Some("run")     => { &services::run },
-        Some("stop")    => { &services::stop },
-        Some("query")   => { &services::query },
-        _               => panic!("{}", matches.usage())
+        Some("install") => { &service::install },
+        Some("remove")  => { &service::remove },
+        Some("update")  => { &service::update },
+        Some("start")   => { &service::start },
+        Some("run")     => { &service::run },
+        Some("stop")    => { &service::stop },
+        Some("query")   => { &service::query },
+        _               => {
+            println!("{}", matches.usage());
+            std::process::exit(0);
+        }
+
     };
 
     // if an action is a stop, just reverse the order to proper unload services
-    if ptr::eq(action, &services::stop) {
+    if ptr::eq(action, &service::stop) {
         services = services.into_iter().rev().collect();
     } 
 
@@ -64,26 +74,26 @@ fn services(matches: &ArgMatches, logger: Logger) {
 
 fn memoryguard_protect(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand_name() {
-        Some("tokenguard")          => _not_implemented_command(logger),
-        Some("hotpatching")         => _not_implemented_command(logger),
-        Some("analyzer")         => _not_implemented_command(logger),
-        _                           => println!("{}", matches.usage())
+        Some("tokenguard")    => _not_implemented_command(logger),
+        Some("hotpatching")   => _not_implemented_command(logger),
+        Some("analyzer")      => _not_implemented_command(logger),
+        _                     => println!("{}", matches.usage())
     }
 }
 
 fn memoryguard_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand_name() {
-        Some("stealtoken")          => _not_implemented_command(logger),
-        Some("cve-2017-6074")       => _not_implemented_command(logger),
-        _                           => println!("{}", matches.usage())
+        Some("stealtoken")     => _not_implemented_command(logger),
+        Some("cve-2017-6074")  => _not_implemented_command(logger),
+        _                      => println!("{}", matches.usage())
     }
 }
 
 fn test(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("lynxvisor", Some(subcommand))       => _not_implemented_subcommand(subcommand, logger),
-        ("memoryguard", Some(subcommand))     => memoryguard_tests(subcommand, logger),
-        _                                     => println!("{}", matches.usage())
+        ("lynxvisor", Some(subcommand))    => _not_implemented_subcommand(subcommand, logger),
+        ("memoryguard", Some(subcommand))  => memoryguard_tests(subcommand, logger),
+        _                                  => println!("{}", matches.usage())
     }
 }
 

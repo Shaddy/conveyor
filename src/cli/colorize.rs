@@ -1,3 +1,5 @@
+// Copyright © ByteHeed.  All rights reserved.
+
 use std::io::Write;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
