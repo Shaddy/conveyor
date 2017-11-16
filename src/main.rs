@@ -1,6 +1,8 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 
+use conveyor::{service, iochannel};
+
 extern crate conveyor;
 extern crate clap;
 extern crate termcolor;
@@ -8,8 +10,6 @@ extern crate slog;
 extern crate slog_term;
 
 use slog::*;
-
-use conveyor::service;
 
 // mod service;
 
@@ -82,10 +82,11 @@ fn memoryguard_protect(matches: &ArgMatches, logger: Logger) {
 }
 
 fn memoryguard_tests(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand_name() {
-        Some("stealtoken")     => _not_implemented_command(logger),
-        Some("cve-2017-6074")  => _not_implemented_command(logger),
-        _                      => println!("{}", matches.usage())
+    match matches.subcommand() {
+        ("stealtoken", Some(matches))       => _not_implemented_command(logger),
+        ("cve-2017-6074", Some(matches))    => _not_implemented_command(logger),
+        ("device", Some(matches))           => iochannel::iochannel_tests(matches, logger),
+        _                                   => println!("{}", matches.usage())
     }
 }
 
@@ -135,7 +136,8 @@ fn main() {
                             .version("0.1")
                             .author("Sherab G. <sherab.giovannini@byteheed.com>")
                             .subcommand(SubCommand::with_name("stealtoken").about("performs a privilege scalation"))
-                            .subcommand(SubCommand::with_name("cve-2017-6074").about("exploits DCCP protocol implementation")))
+                            .subcommand(SubCommand::with_name("cve-2017-6074").about("exploits DCCP protocol implementation"))
+                            .subcommand(conveyor::iochannel::device_subcommand()))
         .subcommand(SubCommand::with_name("memoryguard")
                             .about("enable protection features")
                             .version("0.1")
