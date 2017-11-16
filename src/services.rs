@@ -13,37 +13,37 @@ fn full_driver_path(name: &str) -> String {
     path.to_str().expect("Failed to convert to string").to_string()
 }
 
-pub fn query_service(name: &str, logger: &Logger) {
+pub fn query(name: &str, logger: &Logger) {
     debug!(logger, "querying {:?}", name);
 
     println!("{:?}", WindowsService::new(name, &full_driver_path(name)).query());
 }
 
-pub fn stop_service(name: &str, logger: &Logger) {
+pub fn stop(name: &str, logger: &Logger) {
     debug!(logger, "stopping {:?}", name);
 
     WindowsService::new(name, &full_driver_path(name)).stop();
 }
 
-pub fn start_service(name: &str, logger: &Logger) {
+pub fn start(name: &str, logger: &Logger) {
     debug!(logger, "starting {:?}", name);
 
     WindowsService::new(name, &full_driver_path(name)).start();
 }
 
-pub fn install_service(name: &str, logger: &Logger) {
+pub fn install(name: &str, logger: &Logger) {
     debug!(logger, "installing {:?}", name);
 
     WindowsService::new(name, &full_driver_path(name)).install();
 }
 
-pub fn remove_service(name: &str, logger: &Logger) {
+pub fn remove(name: &str, logger: &Logger) {
     debug!(logger, "removing {:?}", name);
 
     WindowsService::new(name, &full_driver_path(name)).remove();
 }
 
-pub fn update_service(name: &str, logger: &Logger) {
+pub fn update(name: &str, logger: &Logger) {
     debug!(logger, "updating {}", name);
 
     let service = WindowsService::new(name, &full_driver_path(name));
@@ -55,7 +55,7 @@ pub fn update_service(name: &str, logger: &Logger) {
     }
 }
 
-pub fn run_service(name: &str, logger: &Logger) {
+pub fn run(name: &str, logger: &Logger) {
     debug!(logger, "udpating & starting => {:?}", name);
 
     let service = WindowsService::new(name, &full_driver_path(name));

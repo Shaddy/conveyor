@@ -9,6 +9,7 @@ mod services;
 
 use std::process;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use std::ptr;
 
 fn get_logger(matches: &ArgMatches) -> Logger {
     let _level = match matches.occurrences_of("verbose") {
@@ -36,22 +37,28 @@ fn _not_implemented_subcommand(matches: &ArgMatches, logger: Logger) {
 }
 
 
-fn for_each_service(logger: Logger, service_action: &Fn(&str, &Logger)) {
-    service_action("lynxv", &logger);
-    service_action("memguard", &logger);
-}
-
 fn services(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand_name() {
-        Some("install") => { for_each_service(logger, &services::install_service) },
-        Some("remove")  => { for_each_service(logger, &services::remove_service) },
-        Some("update")  => { for_each_service(logger, &services::update_service) },
-        Some("start")   => { for_each_service(logger, &services::start_service) },
-        Some("run")     => { for_each_service(logger, &services::run_service) },
-        Some("stop")    => { for_each_service(logger, &services::stop_service) },
-        Some("query")    => { for_each_service(logger, &services::query_service) },
-        _               => println!("{}", matches.usage())
-    }
+    let mut services: Vec<&str> = "lynxv memguard sentry".split(" ").collect();
+
+    let action: &Fn(&str, &Logger) = match matches.subcommand_name() {
+        Some("install") => { &services::install },
+        Some("remove")  => { &services::remove },
+        Some("update")  => { &services::update },
+        Some("start")   => { &services::start },
+        Some("run")     => { &services::run },
+        Some("stop")    => { &services::stop },
+        Some("query")   => { &services::query },
+        _               => panic!("{}", matches.usage())
+    };
+
+    // if an action is a stop, just reverse the order to proper unload services
+    if ptr::eq(action, &services::stop) {
+        services = services.into_iter().rev().collect();
+    } 
+
+    services.iter().for_each(|service| {
+        action(service, &logger);
+    });
 }
 
 
