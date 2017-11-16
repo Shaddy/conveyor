@@ -15,16 +15,8 @@ use super::winapi::{HANDLE,
 
 use super::winapi::minwinbase::{OVERLAPPED};
 
-
 use ffi::traits::EncodeUtf16;
 
-use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
-
-
-pub fn device_subcommand() -> App<'static, 'static> {
-    SubCommand::with_name("device").about("tests all device related functionality")
-}
 
 pub struct Device {
     name: String
@@ -49,6 +41,7 @@ impl Device {
         };
 
         if handle == INVALID_HANDLE_VALUE {
+            // TODO: Build a generic win32 error parser.
             panic!("Invalid handle!!!!");
         }
 
@@ -61,6 +54,7 @@ impl Device {
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
 
+        // TODO: Create a channel for input/ouput buffers
         let success = unsafe {
             kernel32::DeviceIoControl(
                 device,
@@ -77,14 +71,3 @@ impl Device {
     }
 }
 
-
-pub fn iochannel_tests(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand_name() {
-        Some("open")  => open_device(logger),
-        _             => println!("{}", matches.usage())
-    }
-}
-
-fn open_device(logger: Logger) {
-    Device::new("/devices/memguard").call(0);
-}
