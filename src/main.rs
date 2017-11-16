@@ -1,14 +1,14 @@
 extern crate clap;
 extern crate termcolor;
-extern crate conveyor;
 extern crate slog;
 extern crate slog_term;
 
 use slog::*;
 
+mod services;
+
 use std::process;
 use clap::{App, Arg, ArgMatches, SubCommand};
-use conveyor::WindowsService;
 
 fn get_logger(matches: &ArgMatches) -> Logger {
     let _level = match matches.occurrences_of("verbose") {
@@ -35,33 +35,6 @@ fn _not_implemented_subcommand(matches: &ArgMatches, logger: Logger) {
     }
 }
 
-fn install_service(name: &str, logger: &Logger) {
-    debug!(logger, "installing {}", name);
-
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).install();
-}
-
-fn remove_service(name: &str, logger: &Logger) {
-    debug!(logger, "removing {}", name);
-
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).remove();
-}
-
-fn update_service(name: &str, logger: &Logger) {
-    debug!(logger, "updating {}", name);
-
-    let mut path = std::env::current_dir().expect("error getting current dir");
-    path.push(format!("{}.sys", name));
-
-    WindowsService::new(name, path.to_str().unwrap()).remove();
-    WindowsService::new(name, path.to_str().unwrap()).install();
-}
 
 fn for_each_service(logger: Logger, service_action: &Fn(&str, &Logger)) {
     service_action("lynxv", &logger);
@@ -70,9 +43,13 @@ fn for_each_service(logger: Logger, service_action: &Fn(&str, &Logger)) {
 
 fn services(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand_name() {
-        Some("install") => { for_each_service(logger, &install_service) },
-        Some("remove") => { for_each_service(logger, &remove_service) },
-        Some("update") => { for_each_service(logger, &update_service) },
+        Some("install") => { for_each_service(logger, &services::install_service) },
+        Some("remove")  => { for_each_service(logger, &services::remove_service) },
+        Some("update")  => { for_each_service(logger, &services::update_service) },
+        Some("start")   => { for_each_service(logger, &services::start_service) },
+        Some("run")     => { for_each_service(logger, &services::run_service) },
+        Some("stop")    => { for_each_service(logger, &services::stop_service) },
+        Some("query")    => { for_each_service(logger, &services::query_service) },
         _               => println!("{}", matches.usage())
     }
 }
@@ -130,8 +107,12 @@ fn main() {
                             .version("0.1")
                             .author("Sherab G. <sherab.giovannini@byteheed.com>")
                             .subcommand(SubCommand::with_name("install").about("installs lynxv.sys and memguard.sys"))
-                            .subcommand(SubCommand::with_name("remove").about("removes lynxv.sys and memguard.sys"))
-                            .subcommand(SubCommand::with_name("update").about("updates lynxv.sys and memguard.sys")))
+                            .subcommand(SubCommand::with_name("run").about("stops, reinstalls and starts all services"))
+                            .subcommand(SubCommand::with_name("remove").about("deletes services"))
+                            .subcommand(SubCommand::with_name("update").about("reinstalls services"))
+                            .subcommand(SubCommand::with_name("start").about("starts services"))
+                            .subcommand(SubCommand::with_name("query").about("query services"))
+                            .subcommand(SubCommand::with_name("stop").about("stops services")))
         .subcommand(SubCommand::with_name("tests")
                             .about("controls testing features")
                             .version("0.1")
