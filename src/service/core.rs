@@ -24,6 +24,7 @@ pub enum ServiceError {
     DeletePending,
     ServiceDisabled,
     ServiceAlreadyExists,
+    ServiceAlreadyRunning,
     ServiceDoesNotExist,
     AccessViolation,
     ServiceNotActive,
@@ -196,6 +197,7 @@ impl WindowsService {
 
     fn service_error() -> ServiceError {
         match Error::last_os_error().raw_os_error() {
+            Some(1056) => return ServiceError::ServiceAlreadyRunning,
             Some(1058) => return ServiceError::ServiceDisabled,
             Some(1060) => return ServiceError::ServiceDoesNotExist,
             Some(1062) => return ServiceError::ServiceNotActive,

@@ -1,7 +1,7 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 
-use conveyor::{service, iochannel};
+use conveyor::{service, iochannel, memguard, tests};
 
 extern crate conveyor;
 extern crate clap;
@@ -14,7 +14,7 @@ use slog::*;
 // mod service;
 
 use std::process;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg, ArgMatches};
 
 fn get_logger(matches: &ArgMatches) -> Logger {
     let _level = match matches.occurrences_of("verbose") {

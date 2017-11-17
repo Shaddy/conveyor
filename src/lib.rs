@@ -3,3 +3,6 @@
 
 pub mod iochannel;
 pub mod service;
+pub mod tests;
+pub mod memguard;
+// pub mod lynxv;

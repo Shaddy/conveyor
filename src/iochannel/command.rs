@@ -1,4 +1,4 @@
-use super::clap::{App, ArgMatches, SubCommand};
+use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::core::Device;
 
@@ -9,19 +9,30 @@ fn _not_implemented_command(_logger: Logger) {
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("device").about("tests all device related functionality")
-    .subcommand(SubCommand::with_name("example1").about("some command example"))
-    .subcommand(SubCommand::with_name("example2").about("some command example"))
+    .subcommand(SubCommand::with_name("open")
+        .arg(Arg::with_name("name").short("n").required(true).value_name("DEVICENAME").help("name of target device")))
+    .subcommand(
+        SubCommand::with_name("call")
+        .arg(Arg::with_name("ctl").short("c").required(true).value_name("IOCTL").help("specifies any IOCTL code")))
 }
 
-pub fn parse(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand_name() {
-        Some("open")  => open_device(logger),
-        Some("close") => _not_implemented_command(logger),
-        Some("whatever")  => _not_implemented_command(logger),
-        _             => println!("{}", matches.usage())
+
+fn device_call(_matches: &ArgMatches, _logger: Logger) {
+    unimplemented!()
+}
+
+pub fn device_open(matches: &ArgMatches, _logger: Logger) {
+    let name = matches.value_of("name").expect("can't find name flag");
+    match Device::open(name) {
+        Ok(device) => println!("device: {:?}", device),
+        Err(err) => println!("error: {:?}", err),
     }
 }
 
-pub fn open_device(logger: Logger) {
-    Device::new("/devices/memguard").call(11223344);
+pub fn parse(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("open", Some(matches))  => device_open(matches, logger),
+        ("call", Some(matches))  => device_call(matches, logger),
+        _             => println!("{}", matches.usage())
+    }
 }

@@ -12,7 +12,7 @@ pub fn bind() -> App<'static, 'static> {
         .version("0.1")
         .author("Sherab G. <sherab.giovannini@byteheed.com>")
         .subcommand(SubCommand::with_name("stealtoken").about("performs a privilege scalation"))
-        .subcommand(SubCommand::with_name("cve-2017-6074").about("exploits DCCP protocol implementation")))
+        .subcommand(SubCommand::with_name("cve-2017-6074").about("exploits DCCP protocol implementation"))
 }
 
 pub fn parse(matches: &ArgMatches, logger: Logger) {

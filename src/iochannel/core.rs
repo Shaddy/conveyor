@@ -3,6 +3,7 @@
 use super::kernel32;
 
 use std::ptr::{null_mut};
+use std::io::Error;
 use std::mem::{transmute, zeroed, size_of_val};
 
 use super::winapi::{HANDLE,
@@ -18,6 +19,12 @@ use super::winapi::minwinbase::{OVERLAPPED};
 use ffi::traits::EncodeUtf16;
 
 
+#[derive(Debug)]
+pub enum DeviceError {
+    InvalidHandleValue(String)
+}
+
+#[derive(Debug)]
 pub struct Device {
     name: String
 }
@@ -29,7 +36,11 @@ impl Device {
         }
     }
 
-    fn open(name: &str) -> Result<HANDLE, ()> {
+    // fn last_error() -> DeviceError {
+    //     DeviceError::InvalidHandleValue(Error::last_os_error().to_string()) 
+    // }
+
+    pub fn open(name: &str) -> Result<HANDLE, DeviceError> {
         let handle = unsafe {
             kernel32::CreateFileW(name.encode_utf16_null().as_ptr(),
                         GENERIC_READ | GENERIC_WRITE,
@@ -41,8 +52,8 @@ impl Device {
         };
 
         if handle == INVALID_HANDLE_VALUE {
-            // TODO: Build a generic win32 error parser.
-            panic!("Invalid handle!!!!");
+            return Err(DeviceError::InvalidHandleValue(Error::last_os_error().to_string()) 
+)
         }
 
         Ok( handle )
