@@ -31,50 +31,16 @@ fn get_logger(matches: &ArgMatches) -> Logger {
     )
 }
 
-fn _not_implemented_command(_logger: Logger) {
-    unimplemented!()
-}
-
-fn _not_implemented_subcommand(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand_name() {
-        _ => {error!(logger, "not implemented!")},
-    }
-}
-
-fn memoryguard_protect(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand_name() {
-        Some("tokenguard")    => _not_implemented_command(logger),
-        Some("hotpatching")   => _not_implemented_command(logger),
-        Some("analyzer")      => _not_implemented_command(logger),
-        _                     => println!("{}", matches.usage())
-    }
-}
-
-fn memoryguard_tests(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand() {
-        ("device",        Some(matches)) => iochannel::command::parse(matches, logger),
-        ("stealtoken",    Some(_))       => _not_implemented_command(logger),
-        ("cve-2017-6074", Some(_))       => _not_implemented_command(logger),
-        _                                => println!("{}", matches.usage())
-    }
-}
-
-fn test(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand() {
-        ("lynxvisor",   Some(subcommand))  => _not_implemented_subcommand(subcommand, logger),
-        ("memoryguard", Some(subcommand))  => memoryguard_tests(subcommand, logger),
-        _                                  => println!("{}", matches.usage())
-    }
-}
-
 fn run(app: ArgMatches) -> Result<()> {
     let logger = get_logger(&app);
 
     match app.subcommand() {
-        ("services", Some(matches))    => service::command::parse(matches, logger),
-        ("memoryguard", Some(matches)) => memoryguard_protect(matches, logger),
-        ("test", Some(matches))        => test(matches, logger),
-        _                              => println!("{}", app.usage())
+        ("device",   Some(matches)) => iochannel::command::parse(matches, logger),
+        ("services", Some(matches)) => service::command::parse(matches, logger),
+        ("tests",    Some(matches)) => tests::command::parse(matches, logger),
+        ("memguard", Some(matches)) => memguard::command::parse(matches, logger),
+        // ("lynxv",    Some(matches)) => lynxv::command::parse(matches, logger),
+        _                           => println!("{}", app.usage())
     }
 
     Ok(())
@@ -85,25 +51,12 @@ fn main() {
         .about("A gate between humans and dragons.")
         .version("1.0")
         .author("Sherab G. <sherab.giovannini@byteheed.com>")
-        .arg(Arg::with_name("v")
-                .short("v")
-                .multiple(true)
-                .help("Sets the level of verbosity"))
+        .arg(Arg::with_name("v") .short("v") .multiple(true) .help("Sets the level of verbosity"))
         .subcommand(conveyor::service::command::bind())
-        .subcommand(SubCommand::with_name("tests")
-                            .about("controls testing features")
-                            .version("0.1")
-                            .author("Sherab G. <sherab.giovannini@byteheed.com>")
-                            .subcommand(SubCommand::with_name("stealtoken").about("performs a privilege scalation"))
-                            .subcommand(SubCommand::with_name("cve-2017-6074").about("exploits DCCP protocol implementation"))
-                            .subcommand(conveyor::iochannel::command::bind()))
-        .subcommand(SubCommand::with_name("memoryguard")
-                            .about("enable protection features")
-                            .version("0.1")
-                            .author("Sherab G. <sherab.giovannini@byteheed.com>")
-                            .subcommand(SubCommand::with_name("tokenguard").about("activates privilege elevation protection tests"))
-                            .subcommand(SubCommand::with_name("hotpatching").about("starts exploits patches protection"))
-                            .subcommand(SubCommand::with_name("analyzer").about("activates kernel analysis")))
+        .subcommand(conveyor::iochannel::command::bind())
+        .subcommand(conveyor::tests::command::bind())
+        .subcommand(conveyor::memguard::command::bind())
+        // .subcommand(conveyor::lynxv::command::bind())
         .get_matches();
 
     if let Err(e) = run(matches) {
