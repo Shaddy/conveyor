@@ -1,6 +1,4 @@
 // Copyright © ByteHeed.  All rights reserved.
-
-
 use conveyor::{service, iochannel, memguard, tests};
 
 extern crate conveyor;

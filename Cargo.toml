@@ -3,6 +3,9 @@ name = "conveyor"
 version = "0.1.0"
 authors = ["Sherab Giovannini <sherab.giovannini@byteheed.com>"]
 
+[dev-dependencies]
+stainless = "*"
+
 [dependencies]
 winapi = "0.2.8"
 user32-sys = "0.2"

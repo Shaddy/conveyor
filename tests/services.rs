@@ -1,7 +1,7 @@
 extern crate conveyor;
 
-use conveyor::{WindowsService, ServiceError};
-use conveyor::structs::{ServiceStatus};
+use conveyor::service::{WindowsService, ServiceError};
+use conveyor::service::{ServiceStatus};
 
 // #[test]
 // fn test_unprivileged_user_cant_query_services() {
@@ -11,6 +11,7 @@ use conveyor::structs::{ServiceStatus};
 // }
 
 #[test]
+#[ignore]
 fn test_service_does_not_exist() {
     let service = WindowsService::new("ServiceThatDoesNotExist", "").open();
     assert!(service.is_err());
@@ -18,17 +19,19 @@ fn test_service_does_not_exist() {
 }
 
 #[test]
+#[ignore]
 fn test_query_service() {
 
     let service = WindowsService::new("LxssManager", "");
     let handle = service.open().expect("Can't open the service");
-    let info = service.query(handle);
+    let info = service.query();
 
     assert!(info.status == ServiceStatus::Running);
     assert!(info.kind.bits() == 0x30)
 }
 
 #[test]
+#[ignore]
 fn test_service_exists() {
     assert!(WindowsService::new("LxssManager", "").exists() == true);
     assert!(WindowsService::new("ServiceThatNotExists", "").exists() == false);

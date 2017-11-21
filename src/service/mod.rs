@@ -17,3 +17,6 @@ pub mod command;
 
 
 pub use self::functions::*;
+
+pub use self::structs::ServiceStatus;
+pub use self::core::{WindowsService, ServiceError};
