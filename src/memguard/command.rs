@@ -36,8 +36,8 @@ fn delete_partition(_matches: &ArgMatches, _logger: Logger) {
 
 fn create_partition_command(_matches: &ArgMatches, _logger: Logger) {
     match create_partition() {
-        Ok(id) => {
-            println!("partition_id: {}", id);
+        Ok(partition) => {
+            println!("partition_id: {:?}", partition);
         },
         Err(err) => {
 

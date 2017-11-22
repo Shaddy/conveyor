@@ -8,7 +8,7 @@ use conveyor::iochannel::Device;
 use conveyor::iochannel::IoCtl;
 
 
-describe! ioctl_create_partition {
+describe! ioctl_from_create_partition {
     before_each {
         let ioctl = IoCtl::from(0xB080E800);
     }
@@ -27,6 +27,16 @@ describe! ioctl_create_partition {
 
     it "access is FILE_READ_ACCESS | FILE_WRITE_ACCESS" {
         assert_eq!(ioctl.access, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    }
+}
+
+describe! ioctl_into_create_partition {
+    before_each {
+        let ioctl = IoCtl::new(0xB080, 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    }
+
+    it "io code is 0xB080E800" {
+        assert_eq!(ioctl.code(), 0xB080E800);
     }
 }
 

@@ -3,6 +3,7 @@
 use super::kernel32;
 
 use std::ptr::{null_mut};
+use std::io::Cursor;
 use std::io::Error;
 // use std::mem::{transmute, zeroed, size_of_val};
 
@@ -113,34 +114,36 @@ impl Device {
         Ok( handle )
     }
 
-    pub fn call(&self, control: u32) -> Result<bool, String> {
+    pub fn call(&self, control: u32, mut input: Vec<u8>) -> Result<Cursor<Vec<u8>>, String> {
         let device = Device::open(&self.name).expect("Open device error");
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
 
-        println!("IOCTL: 0x{:X}", control);
+        let mut output: Vec<u8> = Vec::with_capacity(1000);
 
-        let mut input_buffer: Vec<u8> = Vec::with_capacity(1000);
-        let mut output_buffer: Vec<u8> = Vec::with_capacity(1000);
-
-        // TODO: Create a channel for input/ouput buffers
         let success = unsafe {
             kernel32::DeviceIoControl(
                 device,
                 control,
-                input_buffer.as_mut_ptr() as LPVOID,
-                input_buffer.capacity() as u32,
-                output_buffer.as_mut_ptr() as LPVOID,
-                output_buffer.capacity() as u32,
+                input.as_mut_ptr() as LPVOID,
+                input.len() as u32,
+                output.as_mut_ptr() as LPVOID,
+                output.capacity() as u32,
                 &mut bytes,
-                &mut overlapped) == 0
+                &mut overlapped) != 0
         };
 
-        println!("Device::call (LastError): {}", Error::last_os_error().to_string());
-        println!("output_buffer: {:?}", output_buffer);
-
-        Ok(success)
+        match success {
+            true => {
+                unsafe { output.set_len(bytes as usize) };
+                output.shrink_to_fit();
+                return Ok(Cursor::new(output))
+            },
+            false => {
+                return Err(Error::last_os_error().to_string())
+            }
+        }
     }
 }
 

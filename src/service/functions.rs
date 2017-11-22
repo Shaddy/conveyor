@@ -2,6 +2,7 @@
 
 use std;
 use super::core::WindowsService;
+use super::structs::ServiceStatus;
 
 use super::slog::*;
 
@@ -59,7 +60,25 @@ pub fn run(name: &str, logger: &Logger) {
     let service = WindowsService::new(name, &full_driver_path(name));
 
     if service.exists() {
-        service.stop().remove().install().start();
+        service.stop();
+
+        let mut timeout = std::time::Duration::from_secs(60);
+        let wait = std::time::Duration::from_secs(1);
+
+        while let ServiceStatus::StopPending = service.query().status {
+            println!("{}: stop is pending, waiting 60 seconds.", service.name());
+
+
+            let service_name = service.name();
+            timeout = timeout.checked_sub(wait).ok_or_else(move|| {
+                panic!("{}: reached timeout while stop is pending, exiting.", service_name);
+            }).unwrap();
+
+            std::thread::sleep(wait);
+        }
+
+        service.remove().install().start();
+
     } else {
         service.install().start();
     }

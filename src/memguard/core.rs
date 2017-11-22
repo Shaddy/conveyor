@@ -4,6 +4,7 @@
 
 use super::iochannel::{ Device, IoCtl };
 use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
+use super::byteorder::{LittleEndian, ReadBytesExt};
 
 const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 
@@ -25,14 +26,23 @@ const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 
 
 
-pub fn create_partition() -> Result<u32, String> {
+#[derive(Debug)]
+pub struct Partition {
+    id: u64
+}
+
+pub fn create_partition() -> Result<Partition, String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
-    if Device::new("\\\\.\\Sentry").call(control.into()).expect("Error calling IOCTL_SENTRY_CREATE_PARTITION") {
-        return Ok(1);
-    }
+    let input = Vec::with_capacity(1000);
+    
+    let mut cursor = Device::new("\\\\.\\Sentry").call(control.into(), input).expect("Error calling IOCTL_SENTRY_CREATE_PARTITION");
 
-    Ok(0)
+    let partition = Partition { id: cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong.")};
+
+    println!("{:?}", partition);
+
+    Ok(partition)
 }
 
 // #define SE_NT_DEVICE_NAME     L"\\Device\\Sentry"

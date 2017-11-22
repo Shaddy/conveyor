@@ -24,6 +24,7 @@ pub enum ServiceError {
     DeletePending,
     ServiceDisabled,
     ServiceAlreadyExists,
+    ServiceCannotAcceptCtrl,
     ServiceAlreadyRunning,
     ServiceDoesNotExist,
     AccessViolation,
@@ -32,7 +33,7 @@ pub enum ServiceError {
     UnknownError(i32),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WindowsServiceControlManager {
     handle: SC_HANDLE
 }
@@ -69,7 +70,7 @@ impl Drop for WindowsServiceControlManager {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WindowsService {
     name: String,
     path: String,
@@ -87,14 +88,14 @@ impl WindowsService {
         }
     }
 
-    pub fn remove(self) -> Self {
+    pub fn remove(&self) -> Self {
         self.delete().expect("Can't remove service");
         println!("Service {:?} has been successfully removed", self.name);
 
-        self
+        self.clone()
     }
 
-    pub fn install(self) -> Self {
+    pub fn install(&self) -> Self {
         if let Err(err) = self.create() {
             match err {
                 ServiceError::ServiceAlreadyExists => {
@@ -106,10 +107,14 @@ impl WindowsService {
             println!("Service {:?} has been successfully installed", self.name);
         }
 
-        self
+        self.clone()
     }
 
-    pub fn stop(self) -> Self {
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+    
+    pub fn stop(&self) -> Self {
         let service = self.open().expect("Unable to open service");
 
         let mut status: winapi::SERVICE_STATUS = unsafe {zeroed()};
@@ -125,10 +130,10 @@ impl WindowsService {
             println!("Can't stop service ({}): {:?}", self.name, WindowsService::service_error())
         }
 
-        self
+        self.clone()
     }
 
-    pub fn start(self) -> Self {
+    pub fn start(&self) -> Self {
         let service = self.open().expect("Unable to open service");
 
         let success = unsafe {
@@ -143,7 +148,7 @@ impl WindowsService {
             println!("Can't start service ({}): {:?}", self.name, WindowsService::service_error())
         }
 
-        self
+        self.clone()
     }
 
 
@@ -200,6 +205,7 @@ impl WindowsService {
             Some(1056) => return ServiceError::ServiceAlreadyRunning,
             Some(1058) => return ServiceError::ServiceDisabled,
             Some(1060) => return ServiceError::ServiceDoesNotExist,
+            Some(1061) => return ServiceError::ServiceCannotAcceptCtrl,
             Some(1062) => return ServiceError::ServiceNotActive,
             Some(1072) => return ServiceError::DeletePending,
             Some(1073) => return ServiceError::ServiceAlreadyExists,
