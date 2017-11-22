@@ -114,22 +114,32 @@ impl Device {
         Ok( handle )
     }
 
-    pub fn call(&self, control: u32, mut input: Vec<u8>) -> Result<Cursor<Vec<u8>>, String> {
+    pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, String> {
         let device = Device::open(&self.name).expect("Open device error");
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
 
-        let mut output: Vec<u8> = Vec::with_capacity(1000);
+        // if there is no input, just put a null pointer and 0 as size
+        let (input, input_size) = match input {
+            Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.len() as u32),
+            None => (null_mut(), 0u32)
+        };
+                
+        // I don't like this at all, but this is what I've went on so far.
+        let (output_ptr, output_size, mut output) = match output {
+            Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.capacity() as u32, buffer),
+            None => (null_mut(), 0u32, vec![])
+        };
 
         let success = unsafe {
             kernel32::DeviceIoControl(
                 device,
                 control,
-                input.as_mut_ptr() as LPVOID,
-                input.len() as u32,
-                output.as_mut_ptr() as LPVOID,
-                output.capacity() as u32,
+                input,
+                input_size,
+                output_ptr,
+                output_size,
                 &mut bytes,
                 &mut overlapped) != 0
         };
