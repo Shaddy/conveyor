@@ -121,9 +121,11 @@ impl Device {
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
 
         // if there is no input, just put a null pointer and 0 as size
-        let (input, input_size) = match input {
-            Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.len() as u32),
-            None => (null_mut(), 0u32)
+        // a little "hack" is that we should remain a reference of input to avoid release the buffer
+        // probably it would require some lifetime specification
+        let (input_ptr, input_size, input) = match input {
+            Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.len() as u32, buffer),
+            None => (null_mut(), 0u32, vec![])
         };
                 
         // I don't like this at all, but this is what I've went on so far.
@@ -136,7 +138,7 @@ impl Device {
             kernel32::DeviceIoControl(
                 device,
                 control,
-                input,
+                input_ptr,
                 input_size,
                 output_ptr,
                 output_size,
