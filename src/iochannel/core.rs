@@ -30,7 +30,7 @@ use ffi::traits::EncodeUtf16;
 // }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IoCtl {
     pub device_type: u32,
     pub function: u32,
@@ -123,7 +123,7 @@ impl Device {
         // if there is no input, just put a null pointer and 0 as size
         // a little "hack" is that we should remain a reference of input to avoid release the buffer
         // probably it would require some lifetime specification
-        let (input_ptr, input_size, input) = match input {
+        let (input_ptr, input_size, _input) = match input {
             Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.len() as u32, buffer),
             None => (null_mut(), 0u32, vec![])
         };

@@ -7,6 +7,9 @@ use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 
+use std::ops::Fn;
+use std::io::Cursor;
+
 const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 
 const SE_NT_DEVICE_NAME: &'static str = "\\\\.\\Sentry";
@@ -22,13 +25,67 @@ enum_from_primitive! {
     }
 }
 
-#[derive(Debug)]
-pub struct Partition {
-    id: u64
-}
+// struct SentryChannel<FS, FD> {
+//     control: IoCtl,
+//     device: Device,
+//     deserializer: Option<FD>,
+//     serializer: Option<FS>
+// }
+
+// impl<FS, FD> SentryChannel<FS, FD>
+//     where FD: Fn(&mut Cursor<Vec<u8>>) -> u64,
+//           FS: Fn(&mut Vec<u8>) { 
+//     fn new(function: usize) -> Self {
+//         SentryChannel {
+//             control: IoCtl::new(IOCTL_SENTRY_TYPE, function as u32, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+//             device: Device::new(SE_NT_DEVICE_NAME),
+//             deserializer: None,
+//             serializer: None
+//         }
+//     }
+
+//     fn deserialize(&mut self, callback: FD) {
+
+//         self.deserializer = Some(callback);
+//     }
+
+//     fn serialize(&mut self, callback: FS) { 
+
+//         self.serializer = Some(callback);
+//     }
+
+//     fn call(&self) -> Result<u64, String>  {
+//         let mut input: Vec<u8> = vec![];
+//         let output: Vec<u8> = Vec::with_capacity(1000);
+
+//         let mut io_input: Option<Vec<u8>> = None;
+
+//         if let Some(ref serializer) = self.serializer {
+//             serializer(&mut input);
+//             io_input = Some(input);
+//         }
 
 
-pub fn create_partition() -> Result<Partition, String> {
+//         let mut cursor = self.device.call(self.control.clone().into(), io_input, Some(output)).expect("SentryChannel::call");
+
+//         if let Some(ref deserializer) = self.deserializer {
+//             return Ok(deserializer(&mut cursor))
+//         }
+
+//         Err("Deserializer wasn't used".to_string())
+//     }
+// }
+
+// pub fn template() -> Result<u64, String> {
+//     let mut channel = SentryChannel::new(0x0A00);
+
+//     channel.serialize(|_| ());
+//     channel.deserialize(|cursor| cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong."));
+//     channel.call()
+// }
+
+
+pub fn create_partition() -> Result<u64, String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let input = Vec::with_capacity(1000);
@@ -39,10 +96,10 @@ pub fn create_partition() -> Result<Partition, String> {
                             .call(control.into(), Some(input), Some(output))
                             .expect("Error calling IOCTL_SENTRY_CREATE_PARTITION");
 
-    Ok(Partition { id: cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong.")})
+    Ok( cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong.") )
 }
 
-pub fn delete_partition(id: u64) {
+pub fn delete_partition(id: u64) -> Result<(), String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let mut input = vec![];
@@ -52,6 +109,8 @@ pub fn delete_partition(id: u64) {
     let _ = Device::new(SE_NT_DEVICE_NAME)
                 .call(control.into(), Some(input), Some(vec![]))
                 .expect("Error calling IOCTL_SENTRY_DELETE_PARTITION");
+
+    Ok(())
 
 }
 
