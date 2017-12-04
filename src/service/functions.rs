@@ -45,19 +45,19 @@ pub fn remove(name: &str, logger: &Logger) {
 pub fn update(name: &str, logger: &Logger) {
     debug!(logger, "updating {}", name);
 
-    let service = WindowsService::new(name, &full_driver_path(name));
+    let mut service = WindowsService::new(name, &full_driver_path(name));
 
     if service.exists() {
-        service.remove().install();
-    } else {
-        service.install();
-    }
+        service.remove();
+    } 
+
+    service.install();
 }
 
-pub fn run(name: &str, logger: &Logger) {
-    debug!(logger, "udpating & starting => {:?}", name);
+pub fn reinstall(name: &str, logger: &Logger) {
+    debug!(logger, "reinstalling => {:?}", name);
 
-    let service = WindowsService::new(name, &full_driver_path(name));
+    let mut service = WindowsService::new(name, &full_driver_path(name));
 
     if service.exists() {
         service.stop();
@@ -65,8 +65,8 @@ pub fn run(name: &str, logger: &Logger) {
         let mut timeout = std::time::Duration::from_secs(60);
         let wait = std::time::Duration::from_secs(1);
 
-        while let ServiceStatus::StopPending = service.query().status {
-            println!("{}: stop is pending, waiting 60 seconds.", service.name());
+        while let ServiceStatus::PausePending = service.query().status { 
+            println!("{}: stop is pending, waiting {} seconds.", service.name(), timeout.as_secs());
 
 
             let service_name = service.name();
@@ -77,9 +77,9 @@ pub fn run(name: &str, logger: &Logger) {
             std::thread::sleep(wait);
         }
 
-        service.remove().install().start();
+        service.remove();
 
-    } else {
-        service.install().start();
-    }
+    } 
+
+    service.install();
 }

@@ -1,6 +1,8 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 // external namespaces
+use std::time::Duration;
+use std::thread;
 
 use std::ptr::null_mut;
 use std::io::Error;
@@ -74,7 +76,8 @@ impl Drop for WindowsServiceControlManager {
 pub struct WindowsService {
     name: String,
     path: String,
-    manager: WindowsServiceControlManager
+    manager: WindowsServiceControlManager,
+    retries: Duration
 }
 
 impl WindowsService {
@@ -85,21 +88,36 @@ impl WindowsService {
             name: name.to_string(),
             path: path.to_string(),
             manager: manager,
+            retries: Duration::from_secs(60)
         }
     }
 
-    pub fn remove(&self) -> Self {
+    pub fn remove<'a>(&'a mut self) -> &'a Self {
         self.delete().expect("Can't remove service");
         println!("Service {:?} has been successfully removed", self.name);
 
-        self.clone()
+        self
     }
 
-    pub fn install(&self) -> Self {
+    pub fn install<'a>(&'a mut self) -> &'a Self {
+        let wait = Duration::from_secs(1);
+
         if let Err(err) = self.create() {
             match err {
                 ServiceError::ServiceAlreadyExists => {
                     println!("Failed to install {:?}: Service already exists.", self.name);
+                },
+                ServiceError::DeletePending => {
+                    let service_name = self.name.clone();
+
+                    self.retries = self.retries.checked_sub(wait).ok_or_else(move|| {
+                        panic!("{}: reached timeout while delete is pending, exiting.", service_name);
+                    }).unwrap();
+
+                    println!("delete is pending, waiting {} seconds", self.retries.as_secs());
+                    thread::sleep(wait);
+
+                    self.install();
                 }
                 _ => println!("Failed to install {:?}: unknown error {:?}", self.name, err),
             }
@@ -107,14 +125,16 @@ impl WindowsService {
             println!("Service {:?} has been successfully installed", self.name);
         }
 
-        self.clone()
+        self.retries = Duration::from_secs(60);
+
+        self
     }
 
     pub fn name(&self) -> String {
         self.name.clone()
     }
     
-    pub fn stop(&self) -> Self {
+    pub fn stop<'a>(&'a self) -> &'a Self {
         let service = self.open().expect("Unable to open service");
 
         let mut status: winapi::SERVICE_STATUS = unsafe {zeroed()};
@@ -130,10 +150,10 @@ impl WindowsService {
             println!("Can't stop service ({}): {:?}", self.name, WindowsService::service_error())
         }
 
-        self.clone()
+        self.close(service)
     }
 
-    pub fn start(&self) -> Self {
+    pub fn start<'a>(&'a self) -> &'a Self {
         let service = self.open().expect("Unable to open service");
 
         let success = unsafe {
@@ -148,7 +168,7 @@ impl WindowsService {
             println!("Can't start service ({}): {:?}", self.name, WindowsService::service_error())
         }
 
-        self.clone()
+        self.close(service)
     }
 
 
@@ -181,7 +201,14 @@ impl WindowsService {
 
         let info = WindowsService::query_service_status( service ).expect("Can't query service");
 
+        self.close(service);
+
         ServiceInfo::from(info)
+    }
+
+    pub fn close<'a>(&'a self, handle: SC_HANDLE) -> &'a Self {
+        WindowsService::close_service_handle(handle);
+        self
     }
 
     pub fn open(&self) -> Result<SC_HANDLE, ServiceError> {
@@ -217,17 +244,22 @@ impl WindowsService {
     }
 
     pub fn exists(&self) -> bool {
-        match self.open() {
+        let result = match self.open() {
             Err(ServiceError::AccessViolation) => {
                 println!("INFO: Access violation while opening service.");
-                return false
+                false
             },
             Err(_) => false,
-            Ok(_) => true
-        }
+            Ok(handle) => {
+                self.close(handle);
+                true
+            }
+        };
+
+        result
     }
 
-    pub fn delete(&self) -> Result<SC_HANDLE, ServiceError> {
+    pub fn delete(&self) -> Result<(), ServiceError> {
         let handle = self.open().expect("Can't open service");
         let success = unsafe { advapi32::DeleteService(handle) == 0 };
 
@@ -235,11 +267,12 @@ impl WindowsService {
             return Err(WindowsService::service_error())
         }
 
-        Ok(handle)
+        self.close(handle);
+        Ok(())
 
     }
 
-    pub fn create(&self) -> Result<SC_HANDLE, ServiceError> {
+    pub fn create(&self) -> Result<(), ServiceError> {
         let handle = unsafe {
             advapi32::CreateServiceW(
                 self.manager.handle,                    // handle
@@ -262,7 +295,8 @@ impl WindowsService {
             return Err(WindowsService::service_error())
         }
 
-        Ok(handle)
+        self.close(handle);
+        Ok(())
     }
 
     fn close_service_handle(handle: SC_HANDLE) {

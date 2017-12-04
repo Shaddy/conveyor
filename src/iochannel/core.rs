@@ -114,7 +114,7 @@ impl Device {
         Ok( handle )
     }
 
-    pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, String> {
+    pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, Error> {
         let device = Device::open(&self.name).expect("Open device error");
 
         let mut bytes = 0;
@@ -153,7 +153,7 @@ impl Device {
                 return Ok(Cursor::new(output))
             },
             false => {
-                return Err(Error::last_os_error().to_string())
+                return Err(Error::last_os_error())
             }
         }
     }

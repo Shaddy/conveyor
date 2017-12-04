@@ -15,7 +15,19 @@ pub fn parse(matches: &ArgMatches, logger: Logger) {
         Some("remove")  => { &super::functions::remove },
         Some("update")  => { &super::functions::update },
         Some("start")   => { &super::functions::start },
-        Some("run")     => { &super::functions::run },
+        Some("run")     => { 
+            services.iter().rev().for_each(|service| {
+                super::functions::reinstall(service, &logger);
+            });
+
+            services.iter().for_each(|service| {
+                super::functions::update(service, &logger);
+                super::functions::start(service, &logger);
+            });
+
+            return;
+
+        },
         Some("stop")    => { 
             // if an action is a stop, just reverse the order to proper unload services
             services = services.into_iter().rev().collect();

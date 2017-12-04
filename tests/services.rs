@@ -23,7 +23,7 @@ fn test_service_does_not_exist() {
 fn test_query_service() {
 
     let service = WindowsService::new("LxssManager", "");
-    let handle = service.open().expect("Can't open the service");
+    let _handle = service.open().expect("Can't open the service");
     let info = service.query();
 
     assert!(info.status == ServiceStatus::Running);
