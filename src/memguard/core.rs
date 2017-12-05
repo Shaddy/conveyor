@@ -25,6 +25,23 @@ enum_from_primitive! {
     }
 }
 
+// In an ideal scenario this should be real consts
+// 
+// const IOCTL_SENTRY_CREATE_PARTITION: IoCtl =    IoCtl::new( 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+// const IOCTL_SENTRY_DELETE_PARTITION: IoCtl =    IoCtl::new( 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_GETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_SETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A03, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_REGISTER_GUARD: IoCtl =      IoCtl::new( 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_UNREGISTER_GUARD: IoCtl =    IoCtl::new( 0x0A11, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_CONTROL_GUARD: IoCtl =       IoCtl::new( 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_CREATE_REGION: IoCtl =       IoCtl::new( 0x0A20, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_DELETE_REGION: IoCtl =       IoCtl::new( 0x0A21, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_ADD_REGION: IoCtl =          IoCtl::new( 0x0A22, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_REMOVE_REGION: IoCtl =       IoCtl::new( 0x0A23, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_SET_STATE_REGION: IoCtl =    IoCtl::new( 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_GET_INFO_REGION: IoCtl =     IoCtl::new( 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_ENUMERATE_REGION: IoCtl =    IoCtl::new( 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
 // use std::ops::Fn;
 // struct SentryChannel<FS, FD> {
 //     control: IoCtl,
@@ -300,28 +317,58 @@ pub fn _set_state_region() {
     unimplemented!()
 }
 
-pub fn _get_info_region() {
-    let _control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-    unimplemented!()
+pub fn get_info_region(region_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(region_id).unwrap();
+    
+    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
+                .call(control.into(), Some(input), None)
+                .expect("get_info_region()");
+
+    let region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
+    let next_entry_offset = cursor.read_u64::<LittleEndian>().expect("can't get <next_entry_offset>");
+    let base_address = cursor.read_u64::<LittleEndian>().expect("can't get <base_address>");
+    let size = cursor.read_u64::<LittleEndian>().expect("can't get <size>");
+    let access_type = cursor.read_u32::<LittleEndian>().expect("can't get <access_type>");
+    let flags = cursor.read_u64::<LittleEndian>().expect("can't get <flags>");
+    let _action = cursor.read_u64::<LittleEndian>().expect("can't get <action>");
+    let _action = cursor.read_u64::<LittleEndian>().expect("can't get <action>");
+    let action = cursor.read_u64::<LittleEndian>().expect("can't get <action>");
+    let weight = cursor.read_u64::<LittleEndian>().expect("can't get <weight>");
+    let context = cursor.read_u64::<LittleEndian>().expect("can't get <context>");
+    let guard_count = cursor.read_u64::<LittleEndian>().expect("can't get <guard_count>");
+
+    println!("region_id: 0x{:08X}", region_id);
+    println!("base_address: 0x{:08X}", base_address);
+    println!("next_entry_offset: 0x{:08X}", next_entry_offset);
+    println!("size: 0x{:08X}", size);
+    println!("access_type: 0x{:08X}", access_type);
+    println!("flags: 0x{:08X}", flags);
+    println!("action: 0x{:08X}", action);
+    println!("weight: 0x{:08X}", weight);
+    println!("context: 0x{:08X}", context);
+    println!("guard_count: 0x{:08X}", guard_count);
+    println!("region_id: 0x{:08X}", region_id);
+
 }
 
-pub fn _enumerate_region() {
-    let _control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-    unimplemented!()
-}
+pub fn enumerate_region(partition_id: u64, guard_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let mut input = vec![];
 
-// modify IOCTL to be a constant
-// const IOCTL_SENTRY_CREATE_PARTITION: IoCtl =    IoCtl::new( 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
-// const IOCTL_SENTRY_DELETE_PARTITION: IoCtl =    IoCtl::new( 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_GETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_SETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A03, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_REGISTER_GUARD: IoCtl =      IoCtl::new( 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_UNREGISTER_GUARD: IoCtl =    IoCtl::new( 0x0A11, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_CONTROL_GUARD: IoCtl =       IoCtl::new( 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_CREATE_REGION: IoCtl =       IoCtl::new( 0x0A20, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_DELETE_REGION: IoCtl =       IoCtl::new( 0x0A21, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_ADD_REGION: IoCtl =          IoCtl::new( 0x0A22, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_REMOVE_REGION: IoCtl =       IoCtl::new( 0x0A23, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_SET_STATE_REGION: IoCtl =    IoCtl::new( 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_GET_INFO_REGION: IoCtl =     IoCtl::new( 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_ENUMERATE_REGION: IoCtl =    IoCtl::new( 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    input.write_u64::<LittleEndian>(partition_id).unwrap();
+    input.write_u64::<LittleEndian>(guard_id).unwrap();
+
+    let output: Vec<u8> = Vec::with_capacity(8 * 1000); // by default it supports 1000 regions
+    
+    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
+                .call(control.into(), Some(input), Some(output))
+                .expect("remove_region()");
+
+
+    
+    let region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
+}
