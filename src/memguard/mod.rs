@@ -11,6 +11,7 @@ use super::iochannel;
 use std::fmt;
 
 mod core;
+mod tests;
 pub mod command;
 
 const PARTITION_ROOT_ID: u64 = 4;

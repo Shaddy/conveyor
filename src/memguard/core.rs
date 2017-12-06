@@ -317,7 +317,7 @@ pub fn _set_state_region() {
     unimplemented!()
 }
 
-pub fn get_info_region(region_id: u64) {
+pub fn _get_info_region(region_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
@@ -355,7 +355,7 @@ pub fn get_info_region(region_id: u64) {
 
 }
 
-pub fn enumerate_region(partition_id: u64, guard_id: u64) {
+pub fn _enumerate_region(partition_id: u64, guard_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
     let mut input = vec![];
 
@@ -369,6 +369,6 @@ pub fn enumerate_region(partition_id: u64, guard_id: u64) {
                 .expect("remove_region()");
 
 
-    
-    let region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
+
+    let _region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
 }
