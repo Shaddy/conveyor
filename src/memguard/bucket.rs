@@ -44,7 +44,7 @@ struct MessageHeader {
 
 impl MessageHeader {
     pub unsafe fn from_raw(ptr: *const u8) -> MessageHeader {
-        mem::transmute_copy(&ptr)
+        mem::transmute_copy(&*ptr)
     }
 }
 
@@ -55,7 +55,7 @@ struct Interception {
 
 impl Interception {
     pub unsafe fn from_raw(ptr: *const u8) -> Interception {
-        mem::transmute_copy(&ptr)
+        mem::transmute_copy(&*ptr)
     }
 }
 
@@ -123,8 +123,8 @@ impl Bucket {
         mem::forget(buffer);
     }
 
-    pub unsafe fn from_raw(ptr: *mut u8) -> Bucket {
-        mem::transmute_copy(&ptr)
+    pub unsafe fn from_raw(ptr: *const u8) -> Bucket {
+        mem::transmute_copy(&*ptr)
     }
 
 }
