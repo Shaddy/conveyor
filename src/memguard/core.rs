@@ -8,6 +8,8 @@ use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Range, Status};
 
+use std::mem;
+
 
 const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 
@@ -103,18 +105,32 @@ enum_from_primitive! {
 // }
 
 
-pub fn create_partition() -> Result<u64, String> {
+#[derive(Debug)]
+#[repr(C)]
+pub struct Channel {
+    pub id: u64,
+    pub address: u64,
+    pub size: usize,
+}
+
+impl Channel {
+    pub unsafe fn from_raw(ptr: *const u8) -> Channel {
+        mem::transmute_copy(&ptr)
+    }
+}
+
+pub fn create_partition() -> Result<Channel, String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let input = Vec::with_capacity(1000);
     let output: Vec<u8> = Vec::with_capacity(1000);
 
     
-    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
+    let cursor = Device::new(SE_NT_DEVICE_NAME)
                             .call(control.into(), Some(input), Some(output))
                             .expect("Error calling IOCTL_SENTRY_CREATE_PARTITION");
-
-    Ok( cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong.") )
+    
+    Ok(unsafe { Channel::from_raw(cursor.into_inner().as_ptr()) })
 }
 
 pub fn delete_partition(id: u64) -> Result<(), String> {

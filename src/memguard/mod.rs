@@ -9,8 +9,12 @@ extern crate num;
 use super::iochannel;
 
 use std::fmt;
+use std::thread;
+use std::thread::{JoinHandle};
 
 mod core;
+mod sync;
+mod bucket;
 mod tests;
 pub mod command;
 
@@ -40,21 +44,42 @@ impl Access {
 
 #[derive(Debug)]
 pub struct Partition {
-    pub id: u64
+    pub id: u64,
+    workers: Vec<JoinHandle<()>>
 }
 
-impl Partition {
+// fn sleep(seconds: u64) {
+//     let duration = std::time::Duration::from_secs(seconds);
+//     println!("sleeping: {} seconds.", duration.as_secs());
+//     thread::sleep(duration);
+//     println!("done");
+// }
+
+impl Partition
+ {
+    fn create_workers(buckets: Vec<Vec<u8>>) -> Vec<JoinHandle<()>> {
+        buckets.into_iter().map(|bucket| 
+        {
+            thread::spawn(move|| bucket::Bucket::handler(bucket))
+
+        }).collect()
+    }
+
     pub fn new() -> Partition {
         println!("new partition");
 
-        let id = core::create_partition().expect("Unable to create partition");
+        let channel = core::create_partition().expect("Unable to create partition");
+        
+        let workers = Partition::create_workers(
+            bucket::Bucket::slice_buckets(channel.address, channel.size)
+        );
 
         Partition {
-            id: id
+            id: channel.id,
+            workers: workers
         }
     
     }
-
 
     fn root() -> Partition {
         Partition::from(PARTITION_ROOT_ID)
@@ -75,7 +100,9 @@ impl Partition {
             }
         } else {
             println!("Partition already exists, creating his object.");
-            Ok(Partition { id: id })
+            Ok(Partition { id: id,
+             workers: Vec::new()
+             })
         }
 
     }
@@ -264,10 +291,13 @@ pub enum Filter {
     None
 }
 
+// TODO: Add user callback to notify interceptions.
+
 pub struct Guard<'p> {
     id: u64,
     _filter: Filter,
     _partition: &'p Partition,
+    // callback: Fn(&bucket/whatever),
     sentinels: Vec<Sentinel<'p>>,
 }
 
@@ -298,6 +328,29 @@ impl<'p> Guard<'p> {
             sentinels: Vec::new()
         }
     }
+
+    // fn handler(buffer: mut Vec<u8>) -> {
+    //     let mut bucket = Bucket::from(buffer); 
+    //     bucket.kernel.wait();
+
+    //    // dispatch interception code
+    //     match bucket.message_type() {
+    //         Bucket::Unknown(_) => (),
+    //         Bucket::Interception(guard) => (),
+    //         Bucket::Terminating => (),
+    //     }
+
+    //     // mutating vector example as response
+    //     bucket.set_action(BucketAction::Deny)
+    //     bucket.user.signal()
+    // }
+    
+    // one guard could have multiple callbacks?
+    // pub fn register_callback<'a>(callback: Fn(&whatever)) -> &'a Self{
+    //      self.callback = callback      // single-callback
+    //      ///////////////////////////////////////////////
+    //      self.callbacks.push(callback) // multi-callback
+    // }
 
     pub fn start<'a>(&'a self) -> &'a Self{
         core::start_guard(self.id);

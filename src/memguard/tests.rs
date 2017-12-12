@@ -24,6 +24,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("create_multiple"))
                 .subcommand(SubCommand::with_name("regions_inside_guard"))
                 .subcommand(SubCommand::with_name("delete"))
+                .subcommand(SubCommand::with_name("enumerate"))
                 .subcommand(SubCommand::with_name("info")))
             .subcommand(SubCommand::with_name("guards")
                 .subcommand(SubCommand::with_name("create_10"))
@@ -88,6 +89,12 @@ fn create_multiple_guards(_matches: &ArgMatches, _logger: Logger) {
 
     println!("guards-created: {}", guards.len());
 
+    println!("enumerate-guards");
+
+    // for guard in Guard::enumerate() {
+    //     println!("guard: {}", guards);
+    // }
+
     for guard in guards {
         println!("{}", guard);
     }
@@ -96,10 +103,15 @@ fn create_multiple_guards(_matches: &ArgMatches, _logger: Logger) {
 fn region_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create", Some(matches))  => test_create_region(matches, logger),
+        ("enumerate", Some(matches))  => test_enumerate_region(matches, logger),
         ("create_multiple", Some(matches))  => test_create_multiple_regions(matches, logger),
         ("regions_inside_guard", Some(matches))  => test_regions_inside_guard(matches, logger),
         _                          => println!("{}", matches.usage())
     }
+}
+
+fn test_enumerate_region(_matches: &ArgMatches, _logger: Logger) {
+    unimplemented!()
 }
 
 fn test_create_multiple_regions(_matches: &ArgMatches, _logger: Logger) {
@@ -110,6 +122,7 @@ fn test_create_multiple_regions(_matches: &ArgMatches, _logger: Logger) {
             region
         }).collect();
 }
+
 fn test_regions_inside_guard(_matches: &ArgMatches, _logger: Logger) {
 
     let partition: Partition = Partition::root();
