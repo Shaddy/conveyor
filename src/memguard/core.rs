@@ -9,11 +9,12 @@ use super::num::FromPrimitive;
 use super::{Access, Range, Status};
 
 use std::mem;
+use std::fmt;
 
 
 const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 
-const SE_NT_DEVICE_NAME: &'static str = "\\\\.\\Sentry";
+pub const SE_NT_DEVICE_NAME: &'static str = "\\\\.\\Sentry";
 
 enum_from_primitive! {
     #[derive(Debug, Clone)]
@@ -47,7 +48,7 @@ enum_from_primitive! {
 // use std::ops::Fn;
 // struct SentryChannel<FS, FD> {
 //     control: IoCtl,
-//     device: Device,
+//     device: &Device,
 //     deserializer: Option<FD>,
 //     serializer: Option<FS>
 // }
@@ -58,19 +59,17 @@ enum_from_primitive! {
 //     fn new(function: usize) -> Self {
 //         SentryChannel {
 //             control: IoCtl::new(IOCTL_SENTRY_TYPE, function as u32, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
-//             device: Device::new(SE_NT_DEVICE_NAME),
+//             device: &Device::new(SE_NT_DEVICE_NAME),
 //             deserializer: None,
 //             serializer: None
 //         }
 //     }
 
 //     fn deserialize(&mut self, callback: FD) {
-
 //         self.deserializer = Some(callback);
 //     }
 
 //     fn serialize(&mut self, callback: FS) { 
-
 //         self.serializer = Some(callback);
 //     }
 
@@ -104,8 +103,6 @@ enum_from_primitive! {
 //     channel.call()
 // }
 
-
-#[derive(Debug)]
 #[repr(C)]
 pub struct Channel {
     pub id: u64,
@@ -113,35 +110,42 @@ pub struct Channel {
     pub size: usize,
 }
 
-impl Channel {
-    pub unsafe fn from_raw(ptr: *const u8) -> Channel {
-        mem::transmute_copy(&ptr)
+impl fmt::Debug for Channel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Channel(id: 0x{:016X}, address: 0x{:016x}, size: 0x{:016x}", 
+                        self.id,
+                        self.address,
+                        self.size)
     }
 }
 
-pub fn create_partition() -> Result<Channel, String> {
+impl Channel {
+    pub unsafe fn from_raw(ptr: *const u8) -> Channel {
+        mem::transmute_copy(&*ptr)
+    }
+}
+
+pub fn create_partition(device: &Device) -> Result<Channel, String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let input = Vec::with_capacity(1000);
     let output: Vec<u8> = Vec::with_capacity(1000);
 
     
-    let cursor = Device::new(SE_NT_DEVICE_NAME)
-                            .call(control.into(), Some(input), Some(output))
+    let cursor = device.call(control.into(), Some(input), Some(output))
                             .expect("Error calling IOCTL_SENTRY_CREATE_PARTITION");
     
     Ok(unsafe { Channel::from_raw(cursor.into_inner().as_ptr()) })
 }
 
-pub fn delete_partition(id: u64) -> Result<(), String> {
+pub fn delete_partition(device: &Device, id: u64) -> Result<(), String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).expect("delete_partition() - Failed to write partition id into buffer");
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), Some(vec![]))
+    let _ = device.call(control.into(), Some(input), Some(vec![]))
                 .expect("Error calling IOCTL_SENTRY_DELETE_PARTITION");
 
     Ok(())
@@ -154,7 +158,7 @@ pub enum PartitionError {
     UnknownError
 }
 
-pub fn get_partition_option(id: u64, option: u64) -> Result<u64, PartitionError> {
+pub fn get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, PartitionError> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let mut input = vec![];
@@ -163,8 +167,7 @@ pub fn get_partition_option(id: u64, option: u64) -> Result<u64, PartitionError>
     input.write_u64::<LittleEndian>(id).unwrap();
     input.write_u64::<LittleEndian>(option).unwrap();
     
-    let mut cursor = match Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), Some(output)) 
+    let mut cursor = match device.call(control.into(), Some(input), Some(output)) 
     {
         Err(err) => {
             return match err.raw_os_error() {
@@ -181,7 +184,7 @@ pub fn get_partition_option(id: u64, option: u64) -> Result<u64, PartitionError>
     Ok(cursor.read_u64::<LittleEndian>().expect("get_partition_option() - IOCTL Buffer is wrong"))
 }
 
-pub fn _set_partition_option(id: u64, option: u64, value: u64) {
+pub fn _set_partition_option(device: &Device, id: u64, option: u64, value: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A03, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let mut input = vec![];
@@ -193,14 +196,13 @@ pub fn _set_partition_option(id: u64, option: u64, value: u64) {
     
     println!("{:?}", PartitionOption::from_u64(option));
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), Some(output))
+    let _ = device.call(control.into(), Some(input), Some(output))
                 .expect("Error calling IOCTL_SENTRY_SETOPTION_PARTITION");
 
     println!("id: {} | option: {:?} | value: {} ", id, option, value);
 }
 
-pub fn register_guard_extended(id: u64, context: u64, filter: u64, flags: u64, priority: u64, _function: u64) -> u64 {
+pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u64, flags: u64, priority: u64, _function: u64) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
@@ -212,27 +214,25 @@ pub fn register_guard_extended(id: u64, context: u64, filter: u64, flags: u64, p
     input.write_u64::<LittleEndian>(flags).unwrap();
     input.write_u64::<LittleEndian>(priority).unwrap();
     
-    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), Some(output))
+    let mut cursor = device.call(control.into(), Some(input), Some(output))
                 .expect("Error calling IOCTL_SENTRY_REGISTER_GUARD");
 
 
     cursor.read_u64::<LittleEndian>().expect("get_partition_option() - IOCTL Buffer is wrong")
 }
 
-pub fn register_guard(id: u64) -> Result<u64, String> {
-    Ok(register_guard_extended(id, 0, 0, 0, 0, 0))
+pub fn register_guard(device: &Device, id: u64) -> Result<u64, String> {
+    Ok(register_guard_extended(device, id, 0, 0, 0, 0, 0))
 }
 
-pub fn unregister_guard(id: u64) {
+pub fn unregister_guard(device: &Device, id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A11, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).unwrap();
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), None)
+    let _ = device.call(control.into(), Some(input), None)
                 .expect("Error unregistering guard");
 }
 
@@ -241,27 +241,26 @@ enum Control {
     Stop
 }
 
-pub fn stop_guard(id: u64) {
-    control_guard(id, Control::Stop)
+pub fn stop_guard(device: &Device, id: u64) {
+    control_guard(device, id, Control::Stop)
 }
 
-pub fn start_guard(id: u64) {
-    control_guard(id, Control::Start)
+pub fn start_guard(device: &Device, id: u64) {
+    control_guard(device, id, Control::Start)
 }
 
-fn control_guard(id: u64, action: Control) {
+fn control_guard(device: &Device, id: u64, action: Control) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).unwrap();
     input.write_u64::<LittleEndian>(action as u64).unwrap();
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), None)
+    let _ = device.call(control.into(), Some(input), None)
                 .expect("control_guard()");
 }
 
-pub fn create_region(partition_id: u64, range: &Range, access: Access, weight: Option<usize>) -> u64 {
+pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: Access, weight: Option<usize>) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A20, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
     let mut input = vec![];
 
@@ -283,26 +282,24 @@ pub fn create_region(partition_id: u64, range: &Range, access: Access, weight: O
     input.write_u64::<LittleEndian>(weight.unwrap_or(0) as u64).unwrap();
 
     let output: Vec<u8> = Vec::with_capacity(1000);
-    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), Some(output))
+    let mut cursor = device.call(control.into(), Some(input), Some(output))
                 .expect("create_region()");
 
     cursor.read_u64::<LittleEndian>().expect("get_partition_option() - IOCTL Buffer is wrong")
 }
 
-pub fn delete_region(region_id: u64) {
+pub fn delete_region(device: &Device, region_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A21, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(region_id).unwrap();
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), None)
+    let _ = device.call(control.into(), Some(input), None)
                 .expect("delete_region()");
 }
 
-pub fn add_region(guard_id: u64, region_id: u64) {
+pub fn add_region(device: &Device, guard_id: u64, region_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A22, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
@@ -310,12 +307,11 @@ pub fn add_region(guard_id: u64, region_id: u64) {
     input.write_u64::<LittleEndian>(guard_id).unwrap();
     input.write_u64::<LittleEndian>(region_id).unwrap();
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), None)
+    let _ = device.call(control.into(), Some(input), None)
                 .expect("add_region()");
 }
 
-pub fn remove_region(guard_id: u64, region_id: u64) {
+pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A23, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
@@ -323,8 +319,7 @@ pub fn remove_region(guard_id: u64, region_id: u64) {
     input.write_u64::<LittleEndian>(guard_id).unwrap();
     input.write_u64::<LittleEndian>(region_id).unwrap();
     
-    let _ = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), None)
+    let _ = device.call(control.into(), Some(input), None)
                 .expect("remove_region()");
 }
 
@@ -333,15 +328,14 @@ pub fn _set_state_region() {
     unimplemented!()
 }
 
-pub fn _get_info_region(region_id: u64) {
+pub fn _get_info_region(device: &Device, region_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(region_id).unwrap();
     
-    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), None)
+    let mut cursor = device.call(control.into(), Some(input), None)
                 .expect("get_info_region()");
 
     let region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
@@ -371,7 +365,7 @@ pub fn _get_info_region(region_id: u64) {
 
 }
 
-pub fn _enumerate_region(partition_id: u64, guard_id: u64) {
+pub fn _enumerate_region(device: &Device, partition_id: u64, guard_id: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
     let mut input = vec![];
 
@@ -380,8 +374,7 @@ pub fn _enumerate_region(partition_id: u64, guard_id: u64) {
 
     let output: Vec<u8> = Vec::with_capacity(8 * 1000); // by default it supports 1000 regions
     
-    let mut cursor = Device::new(SE_NT_DEVICE_NAME)
-                .call(control.into(), Some(input), Some(output))
+    let mut cursor = device.call(control.into(), Some(input), Some(output))
                 .expect("remove_region()");
 
 

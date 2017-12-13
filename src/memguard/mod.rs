@@ -7,6 +7,7 @@ extern crate byteorder;
 extern crate num;
 
 use super::iochannel;
+use super::iochannel::{Device};
 
 use std::fmt;
 use std::thread;
@@ -45,15 +46,9 @@ impl Access {
 #[derive(Debug)]
 pub struct Partition {
     pub id: u64,
+    pub device: Device,
     workers: Vec<JoinHandle<()>>
 }
-
-// fn sleep(seconds: u64) {
-//     let duration = std::time::Duration::from_secs(seconds);
-//     println!("sleeping: {} seconds.", duration.as_secs());
-//     thread::sleep(duration);
-//     println!("done");
-// }
 
 impl Partition
  {
@@ -66,9 +61,10 @@ impl Partition
     }
 
     pub fn new() -> Partition {
-        println!("new partition");
+        let device = Device::new(core::SE_NT_DEVICE_NAME);
+        let channel = core::create_partition(&device).expect("Unable to create partition");
 
-        let channel = core::create_partition().expect("Unable to create partition");
+        println!("Partition::new() => channel: {:?}", channel);
         
         let workers = Partition::create_workers(
             bucket::Bucket::slice_buckets(channel.address, channel.size)
@@ -76,42 +72,22 @@ impl Partition
 
         Partition {
             id: channel.id,
+            device: device,
             workers: workers
         }
     
     }
 
     fn root() -> Partition {
-        Partition::from(PARTITION_ROOT_ID)
-              .unwrap_or(Partition::new())
-    }
-
-    pub fn from(id: u64) -> Result<Partition, String> {
-
-        // TODO: Improve a mechanism to discover an existing partition.
-        if let Err(err) = core::get_partition_option(id, 1) {
-            match err {
-                core::PartitionError::NotExists => {
-                    return Err("partition doesn't exist".to_string())
-                },
-                _                               => {
-                    panic!("unknown-partition-error: {:?}", err)
-                }
-            }
-        } else {
-            println!("Partition already exists, creating his object.");
-            Ok(Partition { id: id,
-             workers: Vec::new()
-             })
-        }
-
+        Partition::new()
     }
 }
 
 impl Drop for Partition {
     fn drop(&mut self) {
         println!("deleting partition");
-        core::delete_partition(self.id).expect("Can't destroy patrition")
+        core::delete_partition(&self.device, self.id).expect("Can't destroy partition");
+        // self.workers.iter().for_each(|ref worker| worker.join().unwrap());
     }
 }
 
@@ -156,7 +132,7 @@ pub enum Sentinel<'p> {
 impl<'p> Sentinel<'p> {
     pub fn region(partition: &'p Partition, base: u64, limit: u64, access: Access) -> Sentinel {
         let range = Range::new(base, limit);
-        let id = core::create_region(partition.id, &range, access, None);
+        let id = core::create_region(&partition.device, partition.id, &range, access, None);
 
         
         Sentinel::Region{
@@ -185,7 +161,7 @@ impl<'p> Sentinel<'p> {
                 access: _,
                 action: _
             } => {
-                core::remove_region(guard.id, region_id);
+                core::remove_region(&guard.partition.device, guard.id, region_id);
             },
             Sentinel::Tracepoint(_) =>  {
                 // core::remove_tracepoint(guard.id, trace_id)
@@ -197,6 +173,7 @@ impl<'p> Sentinel<'p> {
 
         Ok(())
     }
+
     pub fn register(&self, guard: &Guard) -> Result<(), ()> {
         match *self {
             Sentinel::Region{
@@ -206,20 +183,19 @@ impl<'p> Sentinel<'p> {
                 access: _,
                 action: _
             } => {
-                core::add_region(guard.id, region_id);
+                core::add_region(&guard.partition.device, guard.id, region_id);
             },
             Sentinel::Tracepoint(_) =>  {
-                // core::add_tracepoint(guard.id, trace_id)
+                // core::add_tracepoint(&self.partition.device, guard.id, trace_id)
             },
             Sentinel::Patches => {
-                // core::add_patch(guard.id, trace_id)
+                // core::add_patch(&self.partition.device, guard.id, trace_id)
             },
         }
 
         Ok(())
     }
 }
-
 
 // DEBUG IMPL for Sentinels
 // Derived is enough, but in future we should expand this
@@ -276,11 +252,11 @@ impl<'p> Drop for Sentinel<'p> {
         match *self {
             Sentinel::Region {
                 id: region_id,
-                partition: _, 
+                partition, 
                 range: _,
                 access: _,
                 action: _
-            } => core::delete_region(region_id),
+            } => core::delete_region(&partition.device, region_id),
             _ => {}
         };
     }
@@ -296,7 +272,7 @@ pub enum Filter {
 pub struct Guard<'p> {
     id: u64,
     _filter: Filter,
-    _partition: &'p Partition,
+    partition: &'p Partition,
     // callback: Fn(&bucket/whatever),
     sentinels: Vec<Sentinel<'p>>,
 }
@@ -317,14 +293,14 @@ pub struct Guard<'p> {
 impl<'p> Guard<'p> {
     pub fn new(partition: &'p Partition) -> Guard {
 
-        let id = core::register_guard(partition.id)
+        let id = core::register_guard(&partition.device, partition.id)
             .expect("Unable to connect guard with root partition");
 
         println!("Guard<0x{:08X}>::new()", id);
         Guard {
             id: id,
             _filter: Filter::None,
-            _partition: partition,
+            partition: partition,
             sentinels: Vec::new()
         }
     }
@@ -353,13 +329,13 @@ impl<'p> Guard<'p> {
     // }
 
     pub fn start<'a>(&'a self) -> &'a Self{
-        core::start_guard(self.id);
+        core::start_guard(&self.partition.device, self.id);
 
         self
     }
 
     pub fn stop<'a>(&'a self) -> &'a Self{
-        core::stop_guard(self.id);
+        core::stop_guard(&self.partition.device, self.id);
         self
     }
 
@@ -387,6 +363,6 @@ impl<'p> fmt::Display for Guard<'p> {
 impl<'p> Drop for Guard<'p> {
     fn drop(&mut self) {
         println!("Guard<0x{:08X}>::drop()", self.id);
-        core::unregister_guard(self.id);
+        core::unregister_guard(&self.partition.device, self.id);
     }
 }

@@ -81,13 +81,17 @@ pub enum DeviceError {
 
 #[derive(Debug)]
 pub struct Device {
-    name: String
+    name: String,
+    device: HANDLE
 }
 
 impl Device {
     pub fn new(name: &str) -> Device {
+        let device = Device::open(name).expect("Open device error");
+
         Device {
-            name: name.to_string()
+            name: name.to_string(),
+            device: device
         }
     }
 
@@ -107,15 +111,13 @@ impl Device {
         };
 
         if handle == INVALID_HANDLE_VALUE {
-            return Err(DeviceError::InvalidHandleValue(Error::last_os_error().to_string()) 
-)
+            return Err(DeviceError::InvalidHandleValue(Error::last_os_error().to_string()))
         }
 
         Ok( handle )
     }
 
     pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, Error> {
-        let device = Device::open(&self.name).expect("Open device error");
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
@@ -136,7 +138,7 @@ impl Device {
 
         let success = unsafe {
             kernel32::DeviceIoControl(
-                device,
+                self.device,
                 control,
                 input_ptr,
                 input_size,
@@ -159,3 +161,10 @@ impl Device {
     }
 }
 
+impl Drop for Device {
+    fn drop(&mut self) {
+        unsafe {
+            kernel32::CloseHandle(self.device);
+        }
+    }
+}

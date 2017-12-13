@@ -24,18 +24,19 @@ pub struct Bucket {
 
 impl Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut buffer: Vec<u8> = Vec::new();
-        buffer.extend_from_slice(&self.data);
-        write!(f, "Bucket({:?}, {:?}, {:?})", self.user, self.kernel, buffer)
+        write!(f, "Bucket({:?}, {:?}, {:?})", self.user, self.kernel, 
+                unsafe { MessageHeader::from_raw(self.data.as_ptr()) })
     }
 }
 
+#[derive(Debug)]
 enum MessageType {
     Intercept = 0x0000000000000000,
     Error,
     Terminate
 }
 
+#[derive(Debug)]
 #[repr(C)]
 struct MessageHeader {
     id: u64,
@@ -48,9 +49,18 @@ impl MessageHeader {
     }
 }
 
+#[derive(Debug)]
 #[repr(C)]
 struct Interception {
-    nothing: u64
+    header: MessageHeader,
+    region_id: u64,
+    processor: u8,
+    process: u64,
+    address: u64,
+    access: u32,
+    flags: u16,
+    context: u64,
+    action: u64
 }
 
 impl Interception {
@@ -66,7 +76,7 @@ enum Message {
 
 impl Bucket {
     pub fn slice_buckets(ptr: u64, capacity: usize) -> Vec<Vec<u8>> {
-        let chunks = BUCKET_SIZE * NUM_OF_THREADS;
+        let chunks = BUCKET_SIZE;
 
         let ptr: *mut u8 = ptr as *mut u8;
 
@@ -75,7 +85,7 @@ impl Bucket {
         let buffers = unsafe {
             let mut buffers: Vec<Vec<u8>> = Vec::new();
             
-            for current in (0..capacity).step_by(size) {
+            for current in (0..capacity).step_by(BUCKET_SIZE) {
                 buffers.push(Vec::from_raw_parts(ptr.offset(current as isize), size, size));
             };
             
@@ -88,9 +98,9 @@ impl Bucket {
     fn message(&self) -> Message {
         match unsafe { MessageHeader::from_raw(self.data.as_ptr()) }.kind {
             MessageType::Intercept => Message::Intercept(unsafe { 
-                Interception::from_raw(self.data.as_ptr()
-                        // skip message header
-                        .offset(mem::size_of::<MessageHeader>() as isize)) 
+                Interception::from_raw(self.data.as_ptr())
+                        // // skip message header
+                        // .offset(mem::size_of::<MessageHeader>() as isize)) 
             }),
             MessageType::Terminate => Message::Terminate,
             MessageType::Error => panic!("Error message, aborting!"),
@@ -99,12 +109,14 @@ impl Bucket {
 
     // TODO: add generic callback as parameter
     pub fn handler(mut buffer: Vec<u8>) {
+        println!("running-thread #{:?} (waiting)", thread::current().id());
         let bucket = unsafe{ Bucket::from_raw(buffer.as_mut_ptr()) } ;
-        // println!("running-thread #{:?} (waiting)", thread::current().id());
-
         loop {
-            // println!("#{:?} - waiting for new messsage.", thread::current().id());
+            println!("#{:?} - waiting for new messsage.", thread::current().id());
             bucket.kernel.wait();
+
+            println!("received-bucket: {:?}", bucket);
+
 
             match bucket.message() {
                 Message::Terminate => break,
@@ -115,7 +127,7 @@ impl Bucket {
                 },
             }
 
-            // println!("#{:?} message-ready, notifying back.", thread::current().id());
+            println!("#{:?} message-ready, notifying back.", thread::current().id());
             bucket.user.signal();
         }
 

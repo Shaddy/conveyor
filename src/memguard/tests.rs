@@ -41,9 +41,17 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
     }
 }
 
+fn create_partition(_logger: Logger) {
+    let partition: Partition = Partition::root();
+    println!("created partition: {:?}", partition);
+    println!("waiting 5 seconds");
+    thread::sleep(Duration::from_secs(5));
+    println!("done, destroying partition");
+}
+
 pub fn partition(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("create",  Some(_))  => _not_implemented_command(logger),
+        ("create",  Some(_))  => create_partition(logger),
         ("delete",  Some(_))  => _not_implemented_command(logger),
         ("getinfo", Some(_))  => _not_implemented_command(logger),
         ("setinfo", Some(_))  => _not_implemented_command(logger),
