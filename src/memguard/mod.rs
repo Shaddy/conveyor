@@ -67,7 +67,7 @@ impl Partition
         println!("Partition::new() => channel: {:?}", channel);
         
         let workers = Partition::create_workers(
-            bucket::Bucket::slice_buckets(channel.address, channel.size)
+            bucket::Bucket::slice_buckets(channel.address, channel.size as usize)
         );
 
         Partition {

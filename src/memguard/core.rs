@@ -107,7 +107,7 @@ enum_from_primitive! {
 pub struct Channel {
     pub id: u64,
     pub address: u64,
-    pub size: usize,
+    pub size: u32
 }
 
 impl fmt::Debug for Channel {

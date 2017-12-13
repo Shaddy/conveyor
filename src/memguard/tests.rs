@@ -18,6 +18,7 @@ pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
+                .subcommand(SubCommand::with_name("create_multiple"))
                 .subcommand(SubCommand::with_name("delete")))
             .subcommand(SubCommand::with_name("regions")
                 .subcommand(SubCommand::with_name("create"))
@@ -41,6 +42,16 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
     }
 }
 
+fn create_multiple_partitions(_logger: Logger) {
+    println!("creating 3 partitions");
+    let partition1: Partition = Partition::new();
+    let partition2: Partition = Partition::new();
+    let partition3: Partition = Partition::new();
+    println!("waiting 5 seconds");
+    thread::sleep(Duration::from_secs(5));
+    println!("done, destroying partitions");
+}
+
 fn create_partition(_logger: Logger) {
     let partition: Partition = Partition::root();
     println!("created partition: {:?}", partition);
@@ -52,6 +63,7 @@ fn create_partition(_logger: Logger) {
 pub fn partition(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create",  Some(_))  => create_partition(logger),
+        ("create_multiple",  Some(_))  => create_multiple_partitions(logger),
         ("delete",  Some(_))  => _not_implemented_command(logger),
         ("getinfo", Some(_))  => _not_implemented_command(logger),
         ("setinfo", Some(_))  => _not_implemented_command(logger),

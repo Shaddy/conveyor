@@ -10,24 +10,27 @@ use std::thread;
 use std::fmt::Debug;
 use std::fmt;
     
-
-const NUM_OF_THREADS: usize = 4;
 const BUCKET_SIZE: usize = (240 + 16);
 
-
+#[derive(Debug)]
 #[repr(C)]
 pub struct Bucket {
-    pub user: Event,
-    pub kernel: Event,
-    data: [u8; 240]
+    header: MessageHeader
 }
 
-impl Debug for Bucket {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Bucket({:?}, {:?}, {:?})", self.user, self.kernel, 
-                unsafe { MessageHeader::from_raw(self.data.as_ptr()) })
+#[derive(Debug)]
+#[repr(C)]
+pub struct Syncronizers {
+    pub user: Event,
+    pub kernel: Event,
+}
+
+impl Syncronizers {
+    pub unsafe fn from_raw(ptr: *const u8) -> Syncronizers {
+        mem::transmute_copy(&*ptr)
     }
 }
+
 
 #[derive(Debug)]
 enum MessageType {
@@ -40,6 +43,7 @@ enum MessageType {
 #[repr(C)]
 struct MessageHeader {
     id: u64,
+    flags: u32,
     kind: MessageType
 }
 
@@ -95,40 +99,37 @@ impl Bucket {
         buffers
     }
 
-    fn message(&self) -> Message {
-        match unsafe { MessageHeader::from_raw(self.data.as_ptr()) }.kind {
-            MessageType::Intercept => Message::Intercept(unsafe { 
-                Interception::from_raw(self.data.as_ptr())
-                        // // skip message header
-                        // .offset(mem::size_of::<MessageHeader>() as isize)) 
-            }),
-            MessageType::Terminate => Message::Terminate,
-            MessageType::Error => panic!("Error message, aborting!"),
-        }
-    }
 
     // TODO: add generic callback as parameter
     pub fn handler(mut buffer: Vec<u8>) {
-        println!("running-thread #{:?} (waiting)", thread::current().id());
-        let bucket = unsafe{ Bucket::from_raw(buffer.as_mut_ptr()) } ;
+        let sync = unsafe{ Syncronizers::from_raw(buffer.as_mut_ptr()) } ;
+        println!("#{:?} - {:?}", thread::current().id(), sync);
+
         loop {
             println!("#{:?} - waiting for new messsage.", thread::current().id());
-            bucket.kernel.wait();
+            sync.kernel.wait();
 
-            println!("received-bucket: {:?}", bucket);
+            let bucket = unsafe{ Bucket::from_raw(buffer.as_mut_ptr()
+                                            // skip events
+                                            .offset(mem::size_of::<Syncronizers>() as isize)) } ;
+            println!("received-notification: {:?}", bucket);
 
 
-            match bucket.message() {
-                Message::Terminate => break,
-                Message::Intercept(_interception) => {
+            match bucket.header.kind {
+                MessageType::Terminate => {
+                    sync.user.signal();
+                    break
+                },
+                MessageType::Intercept => {
                     // TODO: write interception to callback code
                     // 
                     // bucket.set_action(callback(interception));
                 },
+                _ => {}
             }
 
             println!("#{:?} message-ready, notifying back.", thread::current().id());
-            bucket.user.signal();
+            sync.user.signal();
         }
 
         // just a (leak) hack to avoid unstable free
