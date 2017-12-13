@@ -9,6 +9,7 @@ use std::thread;
 
 use std::fmt::Debug;
 use std::fmt;
+use super::Action;
     
 const BUCKET_SIZE: usize = (240 + 16);
 
@@ -55,9 +56,10 @@ impl MessageHeader {
 
 #[derive(Debug)]
 #[repr(C)]
-struct Interception {
+pub struct Interception {
     header: MessageHeader,
-    region_id: u64,
+    pub guard_id: u64,
+    pub region_id: u64,
     processor: u8,
     process: u64,
     address: u64,
@@ -100,19 +102,17 @@ impl Bucket {
     }
 
 
-    // TODO: add generic callback as parameter
-    pub fn handler(mut buffer: Vec<u8>) {
-        let sync = unsafe{ Syncronizers::from_raw(buffer.as_mut_ptr()) } ;
-        println!("#{:?} - {:?}", thread::current().id(), sync);
+    pub fn handler(mut buffer: Vec<u8>, callback: &Fn(Interception) -> Action) {
+        let sync = unsafe{ Syncronizers::from_raw(buffer.as_ptr()) } ;
+        // println!("#{:?} - {:?}", thread::current().id(), sync);
 
         loop {
-            println!("#{:?} - waiting for new messsage.", thread::current().id());
+            // println!("#{:?} - waiting for new messsage.", thread::current().id());
             sync.kernel.wait();
 
             let bucket = unsafe{ Bucket::from_raw(buffer.as_mut_ptr()
                                             // skip events
                                             .offset(mem::size_of::<Syncronizers>() as isize)) } ;
-            println!("received-notification: {:?}", bucket);
 
 
             match bucket.header.kind {
@@ -124,11 +124,14 @@ impl Bucket {
                     // TODO: write interception to callback code
                     // 
                     // bucket.set_action(callback(interception));
+                    println!("received-notification: {:?}", bucket);
+                    let interception = unsafe { Interception::from_raw(buffer.as_ptr()) };
+                    let _action = callback(interception);
                 },
                 _ => {}
             }
 
-            println!("#{:?} message-ready, notifying back.", thread::current().id());
+            // println!("#{:?} message-ready, notifying back.", thread::current().id());
             sync.user.signal();
         }
 

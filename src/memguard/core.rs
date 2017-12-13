@@ -275,7 +275,7 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: 
     input.write_u32::<LittleEndian>(access.bits()).unwrap();
 
     // action
-    input.write_u64::<LittleEndian>(0).unwrap();
+    input.write_u64::<LittleEndian>(0x0008 | 0x1000).unwrap();
     input.write_u64::<LittleEndian>(0).unwrap();
     input.write_u64::<LittleEndian>(0).unwrap();
 

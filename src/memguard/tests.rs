@@ -22,6 +22,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("delete")))
             .subcommand(SubCommand::with_name("regions")
                 .subcommand(SubCommand::with_name("create"))
+                .subcommand(SubCommand::with_name("intercept"))
                 .subcommand(SubCommand::with_name("create_multiple"))
                 .subcommand(SubCommand::with_name("regions_inside_guard"))
                 .subcommand(SubCommand::with_name("delete"))
@@ -125,6 +126,7 @@ fn region_tests(matches: &ArgMatches, logger: Logger) {
         ("create", Some(matches))  => test_create_region(matches, logger),
         ("enumerate", Some(matches))  => test_enumerate_region(matches, logger),
         ("create_multiple", Some(matches))  => test_create_multiple_regions(matches, logger),
+        ("intercept", Some(matches))  => test_intercept_region(matches, logger),
         ("regions_inside_guard", Some(matches))  => test_regions_inside_guard(matches, logger),
         _                          => println!("{}", matches.usage())
     }
@@ -161,6 +163,29 @@ fn test_regions_inside_guard(_matches: &ArgMatches, _logger: Logger) {
 
 
     start_guard_a_second(&guard);
+}
+
+fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
+    let mut v: Vec<u8> = Vec::new();
+    v.push(1);
+
+    let partition: Partition = Partition::root();
+    let mut guard = Guard::new(&partition);
+    let region = Sentinel::region(&partition, v.as_ptr() as u64, 10, Access::READ);
+    println!("adding {} to {}", region, guard);
+    guard.add(region);
+    guard.start();
+
+    println!("sleeping 5 secs");
+    thread::sleep(Duration::from_secs(5));
+    // accessing memory
+    println!("accessing memory");
+    let _ = v[0];
+
+    println!("sleeping 5 secs");
+    thread::sleep(Duration::from_secs(5));
+    println!("stoping guard");
+    guard.stop();
 }
 
 fn test_create_region(_matches: &ArgMatches, _logger: Logger) {

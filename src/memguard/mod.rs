@@ -52,10 +52,19 @@ pub struct Partition {
 
 impl Partition
  {
-    fn create_workers(buckets: Vec<Vec<u8>>) -> Vec<JoinHandle<()>> {
+    fn callback(interception: bucket::Interception) -> Action {
+        println!("[!] {:?}", interception);
+        Action::Continue
+    }
+
+    // pub fn register_callback(&mut self, id: u64, callback: &Fn(bucket::Interception) -> Action) {
+    //     self.callbacks.insert(id, callback);
+    // }
+
+    fn create_workers(&self, buckets: Vec<Vec<u8>>) -> Vec<JoinHandle<()>> {
         buckets.into_iter().map(|bucket| 
         {
-            thread::spawn(move|| bucket::Bucket::handler(bucket))
+            thread::spawn(move|| bucket::Bucket::handler(bucket, &Partition::callback))
 
         }).collect()
     }
@@ -65,16 +74,21 @@ impl Partition
         let channel = core::create_partition(&device).expect("Unable to create partition");
 
         println!("Partition::new() => channel: {:?}", channel);
+
+        let mut partition = Partition {
+            id: channel.id,
+            device: device,
+            workers: Vec::new()
+        };
         
-        let workers = Partition::create_workers(
+        let workers = partition.create_workers(
             bucket::Bucket::slice_buckets(channel.address, channel.size as usize)
         );
 
-        Partition {
-            id: channel.id,
-            device: device,
-            workers: workers
-        }
+        partition.workers.extend(workers.into_iter());
+
+
+        partition
     
     }
 
@@ -305,27 +319,8 @@ impl<'p> Guard<'p> {
         }
     }
 
-    // fn handler(buffer: mut Vec<u8>) -> {
-    //     let mut bucket = Bucket::from(buffer); 
-    //     bucket.kernel.wait();
-
-    //    // dispatch interception code
-    //     match bucket.message_type() {
-    //         Bucket::Unknown(_) => (),
-    //         Bucket::Interception(guard) => (),
-    //         Bucket::Terminating => (),
-    //     }
-
-    //     // mutating vector example as response
-    //     bucket.set_action(BucketAction::Deny)
-    //     bucket.user.signal()
-    // }
-    
-    // one guard could have multiple callbacks?
     // pub fn register_callback<'a>(callback: Fn(&whatever)) -> &'a Self{
     //      self.callback = callback      // single-callback
-    //      ///////////////////////////////////////////////
-    //      self.callbacks.push(callback) // multi-callback
     // }
 
     pub fn start<'a>(&'a self) -> &'a Self{
