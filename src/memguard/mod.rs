@@ -21,10 +21,27 @@ pub mod command;
 
 const PARTITION_ROOT_ID: u64 = 4;
 
+pub enum ControlGuard {
+    Start = 1,
+    Stop
+}
+
 bitflags! {
-    pub struct Status: u32 {
+    pub struct GuardFlags: u32 {
+        const STARTED      = 0x00000000;
+        const STOPPED      = 0x00000001;
+    }
+}
+
+pub enum RegionStatus {
+    Enable = 1,
+    Disable
+}
+
+bitflags! {
+    pub struct RegionFlags: u32 {
+        const ENABLED    = 0x00000000;
         const DISABLED   = 0x00000001;
-        const ENABLED    = 0x00000002;
     }
 }
 
@@ -41,7 +58,6 @@ impl Access {
         self.bits = 0;
     }
 }
-
 
 #[derive(Debug)]
 pub struct Partition {

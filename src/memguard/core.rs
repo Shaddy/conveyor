@@ -6,7 +6,7 @@ use super::iochannel::{ Device, IoCtl };
 use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
-use super::{Access, Range, Status};
+use super::{Access, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
 
 use std::mem;
 use std::fmt;
@@ -236,34 +236,21 @@ pub fn unregister_guard(device: &Device, id: u64) {
                 .expect("Error unregistering guard");
 }
 
-bitflags! {
-    pub struct Control: u32 {
-        const START   = 0x00000001;
-        const STOP    = 0x00000002;
-    }
-}
-
-bitflags! {
-    pub struct GuardFlags: u32 {
-        const STARTED      = 0x00000000;
-        const STOPPED      = 0x00000001;
-    }
-}
 
 pub fn stop_guard(device: &Device, id: u64) {
-    control_guard(device, id, Control::STOP)
+    control_guard(device, id, ControlGuard::Stop)
 }
 
 pub fn start_guard(device: &Device, id: u64) {
-    control_guard(device, id, Control::START)
+    control_guard(device, id, ControlGuard::Start)
 }
 
-fn control_guard(device: &Device, id: u64, action: Control) {
+fn control_guard(device: &Device, id: u64, action: ControlGuard) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).unwrap();
-    input.write_u64::<LittleEndian>(action.bits() as u64).unwrap();
+    input.write_u64::<LittleEndian>(action as u64).unwrap();
     
     let _ = device.call(control.into(), Some(input), None)
                 .expect("control_guard()");
@@ -278,7 +265,7 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: 
     input.write_u64::<LittleEndian>(range.limit).unwrap();
 
     // each regions starts disabled
-    input.write_u32::<LittleEndian>(Status::ENABLED.bits()).unwrap(); // flags
+    input.write_u32::<LittleEndian>(RegionFlags::ENABLED.bits()).unwrap(); // flags
 
     // access
     input.write_u32::<LittleEndian>(access.bits()).unwrap();
@@ -332,9 +319,16 @@ pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) {
                 .expect("remove_region()");
 }
 
-pub fn _set_state_region() {
-    let _control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-    unimplemented!()
+pub fn set_state_region(device: &Device, region_id: u64, state: RegionStatus) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(region_id).unwrap();
+    input.write_u64::<LittleEndian>(state as u64).unwrap();
+    
+    let _ = device.call(control.into(), Some(input), None)
+            .expect("set_state_region()");
 }
 
 pub fn _get_info_region(device: &Device, region_id: u64) {
