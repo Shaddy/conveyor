@@ -23,8 +23,8 @@ const PARTITION_ROOT_ID: u64 = 4;
 
 bitflags! {
     pub struct Status: u32 {
-        const DISABLED   = 0x00000000;
-        const ENABLED    = 0x00000001;
+        const DISABLED   = 0x00000001;
+        const ENABLED    = 0x00000002;
     }
 }
 

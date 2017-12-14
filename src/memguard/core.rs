@@ -202,7 +202,7 @@ pub fn _set_partition_option(device: &Device, id: u64, option: u64, value: u64) 
     println!("id: {} | option: {:?} | value: {} ", id, option, value);
 }
 
-pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u64, flags: u64, priority: u64, _function: u64) -> u64 {
+pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u64, flags: GuardFlags, priority: u64, _function: u64) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
@@ -211,7 +211,7 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u
     input.write_u64::<LittleEndian>(id).unwrap();
     input.write_u64::<LittleEndian>(context).unwrap();
     input.write_u64::<LittleEndian>(filter).unwrap();
-    input.write_u64::<LittleEndian>(flags).unwrap();
+    input.write_u64::<LittleEndian>(flags.bits() as u64).unwrap();
     input.write_u64::<LittleEndian>(priority).unwrap();
     
     let mut cursor = device.call(control.into(), Some(input), Some(output))
@@ -222,7 +222,7 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u
 }
 
 pub fn register_guard(device: &Device, id: u64) -> Result<u64, String> {
-    Ok(register_guard_extended(device, id, 0, 0, 0, 0, 0))
+    Ok(register_guard_extended(device, id, 0, 0, GuardFlags::STOPPED, 0, 0))
 }
 
 pub fn unregister_guard(device: &Device, id: u64) {
@@ -236,17 +236,26 @@ pub fn unregister_guard(device: &Device, id: u64) {
                 .expect("Error unregistering guard");
 }
 
-enum Control {
-    Start = 0,
-    Stop
+bitflags! {
+    pub struct Control: u32 {
+        const START   = 0x00000001;
+        const STOP    = 0x00000002;
+    }
+}
+
+bitflags! {
+    pub struct GuardFlags: u32 {
+        const STARTED      = 0x00000000;
+        const STOPPED      = 0x00000001;
+    }
 }
 
 pub fn stop_guard(device: &Device, id: u64) {
-    control_guard(device, id, Control::Stop)
+    control_guard(device, id, Control::STOP)
 }
 
 pub fn start_guard(device: &Device, id: u64) {
-    control_guard(device, id, Control::Start)
+    control_guard(device, id, Control::START)
 }
 
 fn control_guard(device: &Device, id: u64, action: Control) {
@@ -254,7 +263,7 @@ fn control_guard(device: &Device, id: u64, action: Control) {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).unwrap();
-    input.write_u64::<LittleEndian>(action as u64).unwrap();
+    input.write_u64::<LittleEndian>(action.bits() as u64).unwrap();
     
     let _ = device.call(control.into(), Some(input), None)
                 .expect("control_guard()");

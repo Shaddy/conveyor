@@ -167,7 +167,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, _logger: Logger) {
 
 fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
     let mut v: Vec<u8> = Vec::new();
-    v.push(1);
+    v.push(13);
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
@@ -179,9 +179,9 @@ fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
     println!("sleeping 5 secs");
     thread::sleep(Duration::from_secs(5));
     // accessing memory
-    println!("accessing memory");
-    let _ = v[0];
-
+    println!("accessing memory {:?}", v.as_ptr());
+    let value = v[0];
+    println!("value: {}", value);
     println!("sleeping 5 secs");
     thread::sleep(Duration::from_secs(5));
     println!("stoping guard");
