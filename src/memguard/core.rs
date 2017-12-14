@@ -236,7 +236,6 @@ pub fn unregister_guard(device: &Device, id: u64) {
                 .expect("Error unregistering guard");
 }
 
-
 pub fn stop_guard(device: &Device, id: u64) {
     control_guard(device, id, ControlGuard::Stop)
 }
@@ -268,7 +267,7 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: 
     input.write_u32::<LittleEndian>(RegionFlags::ENABLED.bits()).unwrap(); // flags
 
     // access
-    input.write_u32::<LittleEndian>(access.bits()).unwrap();
+    input.write_u32::<LittleEndian>(access.bits() as u32).unwrap();
 
     // action
     input.write_u64::<LittleEndian>(0x0008 | 0x1000).unwrap();
@@ -383,4 +382,32 @@ pub fn _enumerate_region(device: &Device, partition_id: u64, guard_id: u64) {
 
 
     let _region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
+}
+
+pub fn allocate_pool(device: &Device) -> Result<u64, String> {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A27, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+
+    let output: Vec<u8> = Vec::with_capacity(1000);
+    
+    let mut cursor = device.call(control.into(), None, Some(output))
+                            .expect("Error calling IOCTL_SENTRY_ALLOCATE_POOL");
+    
+    Ok( cursor.read_u64::<LittleEndian>().unwrap() )
+}
+
+pub fn free_pool(device: &Device) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A28, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+
+    let _ = device.call(control.into(), None, None)
+                            .expect("Error calling IOCTL_SENTRY_FREE_POOL");
+    
+}
+
+
+pub fn read_pool(device: &Device) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A29, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+
+    let _ = device.call(control.into(), None, None)
+                            .expect("Error calling IOCTL_SENTRY_READ_POOL");
+    
 }

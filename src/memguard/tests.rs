@@ -5,6 +5,8 @@ use std::thread;
 use std::time::Duration;
 use super::{Partition, Sentinel, Guard, Access};
 
+use super::core;
+
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
     unimplemented!()
 }
@@ -23,6 +25,7 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(SubCommand::with_name("regions")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("intercept"))
+                .subcommand(SubCommand::with_name("kernel_intercept"))
                 .subcommand(SubCommand::with_name("create_multiple"))
                 .subcommand(SubCommand::with_name("regions_inside_guard"))
                 .subcommand(SubCommand::with_name("delete"))
@@ -127,6 +130,7 @@ fn region_tests(matches: &ArgMatches, logger: Logger) {
         ("enumerate", Some(matches))  => test_enumerate_region(matches, logger),
         ("create_multiple", Some(matches))  => test_create_multiple_regions(matches, logger),
         ("intercept", Some(matches))  => test_intercept_region(matches, logger),
+        ("kernel_intercept", Some(matches))  => test_intercept_kernel_region(matches, logger),
         ("regions_inside_guard", Some(matches))  => test_regions_inside_guard(matches, logger),
         _                          => println!("{}", matches.usage())
     }
@@ -165,6 +169,32 @@ fn test_regions_inside_guard(_matches: &ArgMatches, _logger: Logger) {
     start_guard_a_second(&guard);
 }
 
+fn test_intercept_kernel_region(_matches: &ArgMatches, _logger: Logger) {
+    let partition: Partition = Partition::root();
+    let mut guard = Guard::new(&partition);
+
+    println!("allocating pool");
+    let addr = core::allocate_pool(&partition.device).expect("allocate error");
+    println!("addr: 0x{:016x}", addr);
+
+    let region = Sentinel::region(&partition, addr, 0x100, Access::READ);
+
+    println!("adding {} to {}", region, guard);
+    guard.add(region);
+    println!("starting guard, and sleeping 5 seconds");
+    guard.start();
+    thread::sleep(Duration::from_secs(5));
+
+    println!("accessing memory 0x{:016x}", addr);
+
+    core::read_pool(&partition.device);
+
+    println!("sleeping 5 secs");
+    thread::sleep(Duration::from_secs(5));
+    println!("stoping guard");
+    guard.stop();
+}
+
 fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
     let mut v: Vec<u8> = Vec::new();
     v.push(13);
@@ -174,13 +204,18 @@ fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
     let region = Sentinel::region(&partition, v.as_ptr() as u64, 10, Access::READ);
     println!("adding {} to {}", region, guard);
     guard.add(region);
+    println!("starting guard, and sleeping 5 seconds");
     guard.start();
-
-    println!("sleeping 5 secs");
     thread::sleep(Duration::from_secs(5));
+
     // accessing memory
-    println!("accessing memory {:?}", v.as_ptr());
+    println!("accessing memory {:?} 5 times", v.as_ptr());
+    let _ = v[0];
+    let _ = v[0];
+    let _ = v[0];
+    let _ = v[0];
     let value = v[0];
+
     println!("value: {}", value);
     println!("sleeping 5 secs");
     thread::sleep(Duration::from_secs(5));

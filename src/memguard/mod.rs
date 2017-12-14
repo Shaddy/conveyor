@@ -27,6 +27,16 @@ pub enum ControlGuard {
 }
 
 bitflags! {
+    pub struct Action: u16 {
+        const NOTIFY    = 0x00001000;
+        const CONTINUE  = 0x00000001;
+        const BLOCK     = 0x00000002;
+        const STEALTH   = 0x00000003;
+        const INSPECT   = 0x00001008;
+    }
+}
+
+bitflags! {
     pub struct GuardFlags: u32 {
         const STARTED      = 0x00000000;
         const STOPPED      = 0x00000001;
@@ -46,7 +56,7 @@ bitflags! {
 }
 
 bitflags! {
-    pub struct Access: u32 {
+    pub struct Access: u16 {
         const READ       = 0x00000001;
         const WRITE      = 0x00000002;
         const EXECUTE    = 0x00000004;
@@ -70,12 +80,14 @@ impl Partition
  {
     fn callback(interception: bucket::Interception) -> Action {
         println!("[!] {:?}", interception);
-        Action::Continue
+        Action::CONTINUE
     }
 
     // pub fn register_callback(&mut self, id: u64, callback: &Fn(bucket::Interception) -> Action) {
     //     self.callbacks.insert(id, callback);
     // }
+
+
 
     fn create_workers(&self, buckets: Vec<Vec<u8>>) -> Vec<JoinHandle<()>> {
         buckets.into_iter().map(|bucket| 
@@ -121,15 +133,6 @@ impl Drop for Partition {
     }
 }
 
-#[derive(Debug)]
-pub enum Action {
-    None,
-    Notify,
-    Continue,
-    Block,
-    Stealth,
-    Inspect
-}
 
 #[derive(Debug)]
 pub struct Range {
@@ -162,15 +165,14 @@ pub enum Sentinel<'p> {
 impl<'p> Sentinel<'p> {
     pub fn region(partition: &'p Partition, base: u64, limit: u64, access: Access) -> Sentinel {
         let range = Range::new(base, limit);
-        let id = core::create_region(&partition.device, partition.id, &range, access, None);
+        let id = core::create_region(&partition.device, partition.id, &range, access, Some(0x100));
 
-        
         Sentinel::Region{
             id: id,
             partition: partition,
             range: range,
             access: Access::READ,
-            action: Action::None
+            action: Action::CONTINUE
         }
     }
 

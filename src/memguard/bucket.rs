@@ -9,7 +9,7 @@ use std::thread;
 
 use std::fmt::Debug;
 use std::fmt;
-use super::Action;
+use super::{Action, Access};
     
 const BUCKET_SIZE: usize = (240 + 16);
 
@@ -35,9 +35,10 @@ impl Syncronizers {
 
 #[derive(Debug)]
 enum MessageType {
-    Intercept = 0x0000000000000000,
+    Unknown = 0x0000000000000000,
+    Intercept,
+    Terminate,
     Error,
-    Terminate
 }
 
 #[derive(Debug)]
@@ -54,7 +55,14 @@ impl MessageHeader {
     }
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
+// #[repr(C)]
+// pub struct GuardedRegionAction {
+//     Type: u16,
+//     ReadBuffer: u64,
+//     WriteBuffer: u64
+// }
+
 #[repr(C)]
 pub struct Interception {
     header: MessageHeader,
@@ -63,15 +71,25 @@ pub struct Interception {
     processor: u8,
     process: u64,
     address: u64,
-    access: u32,
-    flags: u16,
+    access: Access,
+    flags: u32,
     context: u64,
-    action: u64
+    action: Action
 }
 
 impl Interception {
     pub unsafe fn from_raw(ptr: *const u8) -> Interception {
         mem::transmute_copy(&*ptr)
+    }
+}
+
+impl Debug for Interception {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Region(0x{:016X}) => 0x{:016x} - ({:?}) - ({:?})", 
+                self.region_id,
+                self.address, 
+                self.access, 
+                self.action)
     }
 }
 
@@ -101,6 +119,13 @@ impl Bucket {
         buffers
     }
 
+    fn set_action(&self, buffer: &mut Vec<u8>, action: Action) {
+        unsafe {
+            let intercept: &mut Interception = mem::transmute::<*mut u8, &mut Interception>(buffer.as_mut_ptr()
+                                                .offset(mem::size_of::<Syncronizers>() as isize));
+            intercept.action = action;
+        }
+    }
 
     pub fn handler(mut buffer: Vec<u8>, callback: &Fn(Interception) -> Action) {
         let sync = unsafe{ Syncronizers::from_raw(buffer.as_ptr()) } ;
@@ -121,12 +146,9 @@ impl Bucket {
                     break
                 },
                 MessageType::Intercept => {
-                    // TODO: write interception to callback code
-                    // 
-                    // bucket.set_action(callback(interception));
-                    println!("received-notification: {:?}", bucket);
-                    let interception = unsafe { Interception::from_raw(buffer.as_ptr()) };
-                    let _action = callback(interception);
+                    let interception = unsafe { Interception::from_raw(buffer.as_mut_ptr()
+                                    .offset(mem::size_of::<Syncronizers>() as isize)) };
+                    bucket.set_action(&mut buffer, callback(interception));
                 },
                 _ => {}
             }
