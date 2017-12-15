@@ -181,16 +181,10 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, _logger: Logger) {
 
     println!("adding {} to {}", region, guard);
     guard.add(region);
-    println!("starting guard, and sleeping 5 seconds");
+    println!("starting guard");
     guard.start();
-    thread::sleep(Duration::from_secs(5));
-
     println!("accessing memory 0x{:016x}", addr);
-
     core::read_pool(&partition.device);
-
-    println!("sleeping 5 secs");
-    thread::sleep(Duration::from_secs(5));
     println!("stoping guard");
     guard.stop();
 }

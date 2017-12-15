@@ -13,6 +13,9 @@ use std::fmt;
 use std::thread;
 use std::thread::{JoinHandle};
 
+use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+
 mod core;
 mod sync;
 mod bucket;
@@ -69,12 +72,20 @@ impl Access {
     }
 }
 
-#[derive(Debug)]
 pub struct Partition {
     pub id: u64,
     pub device: Device,
-    workers: Vec<JoinHandle<()>>
+    workers: Vec<JoinHandle<()>>,
+    callbacks: CallbackMap
 }
+
+impl fmt::Debug for Partition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Partition(0x{:016x})", self.id)
+    }
+}
+
+type CallbackMap = Arc<RwLock<HashMap<u64, &'static Fn(bucket::Interception) -> Action>>>;
 
 impl Partition
  {
@@ -83,16 +94,17 @@ impl Partition
         Action::CONTINUE
     }
 
-    // pub fn register_callback(&mut self, id: u64, callback: &Fn(bucket::Interception) -> Action) {
-    //     self.callbacks.insert(id, callback);
-    // }
+    pub fn register_callback(&mut self, id: u64, callback: &'static Fn(bucket::Interception) -> Action) {
+        let map = self.callbacks.write().expect("Failed to unlock as a writer");
+        map.insert(id, callback);
+    }
 
-
-
-    fn create_workers(&self, buckets: Vec<Vec<u8>>) -> Vec<JoinHandle<()>> {
+    fn create_workers(&self, buckets: Vec<Vec<u8>>, 
+                             callbacks: Arc<RwLock<HashMap<u64, &'static Fn(bucket::Interception) -> Action>>>) -> Vec<JoinHandle<()>> {
         buckets.into_iter().map(|bucket| 
         {
-            thread::spawn(move|| bucket::Bucket::handler(bucket, &Partition::callback))
+            let callbacks_copy = callbacks.clone();
+            thread::spawn(move|| bucket::Bucket::handler(bucket, &Partition::callback, callbacks_copy))
 
         }).collect()
     }
@@ -103,18 +115,21 @@ impl Partition
 
         println!("Partition::new() => channel: {:?}", channel);
 
+        let callbacks = Arc::new(RwLock::new(HashMap::new()));
+
         let mut partition = Partition {
             id: channel.id,
+            callbacks: callbacks.clone(),
             device: device,
             workers: Vec::new()
         };
         
         let workers = partition.create_workers(
-            bucket::Bucket::slice_buckets(channel.address, channel.size as usize)
+            bucket::Bucket::slice_buckets(channel.address, channel.size as usize),
+            callbacks.clone()
         );
 
         partition.workers.extend(workers.into_iter());
-
 
         partition
     
@@ -123,13 +138,16 @@ impl Partition
     fn root() -> Partition {
         Partition::new()
     }
+
 }
 
 impl Drop for Partition {
     fn drop(&mut self) {
         println!("deleting partition");
         core::delete_partition(&self.device, self.id).expect("Can't destroy partition");
-        // self.workers.iter().for_each(|ref worker| worker.join().unwrap());
+        while let Some(handle) = self.workers.pop() {
+             handle.join().expect("failed to wait for thread");
+        }
     }
 }
 
@@ -163,7 +181,7 @@ pub enum Sentinel<'p> {
 }
 
 impl<'p> Sentinel<'p> {
-    pub fn region(partition: &'p Partition, base: u64, limit: u64, access: Access) -> Sentinel {
+    pub fn region(partition: &'p Partition, base: u64, limit: u64, access: Access) -> Sentinel<'p> {
         let range = Range::new(base, limit);
         let id = core::create_region(&partition.device, partition.id, &range, access, Some(0x100));
 
@@ -323,7 +341,7 @@ pub struct Guard<'p> {
 // impl<'p> Partitioned for Sentinel<'p> {}
 
 impl<'p> Guard<'p> {
-    pub fn new(partition: &'p Partition) -> Guard {
+    pub fn new(partition: &'p Partition) -> Guard<'p> {
 
         let id = core::register_guard(&partition.device, partition.id)
             .expect("Unable to connect guard with root partition");

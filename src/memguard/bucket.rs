@@ -3,6 +3,9 @@ extern crate winapi;
 extern crate kernel32;
 
 
+use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+
 use super::sync::Event;
 use std::mem;
 use std::thread;
@@ -98,6 +101,8 @@ enum Message {
     Terminate
 }
 
+type CallbackMap = Arc<RwLock<HashMap<u64, &'static Fn(Interception) -> Action>>>;
+
 impl Bucket {
     pub fn slice_buckets(ptr: u64, capacity: usize) -> Vec<Vec<u8>> {
         let chunks = BUCKET_SIZE;
@@ -127,7 +132,7 @@ impl Bucket {
         }
     }
 
-    pub fn handler(mut buffer: Vec<u8>, callback: &Fn(Interception) -> Action) {
+    pub fn handler(mut buffer: Vec<u8>, default: &Fn(Interception) -> Action, callbacks: CallbackMap) {
         let sync = unsafe{ Syncronizers::from_raw(buffer.as_ptr()) } ;
         // println!("#{:?} - {:?}", thread::current().id(), sync);
 
@@ -148,6 +153,12 @@ impl Bucket {
                 MessageType::Intercept => {
                     let interception = unsafe { Interception::from_raw(buffer.as_mut_ptr()
                                     .offset(mem::size_of::<Syncronizers>() as isize)) };
+                    let callback = {
+                        let map = callbacks.read().expect("Unable to unlock callbacks for reading");
+
+                        map[&interception.guard_id]
+                    };
+
                     bucket.set_action(&mut buffer, callback(interception));
                 },
                 _ => {}
