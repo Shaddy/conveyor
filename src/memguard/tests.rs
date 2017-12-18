@@ -33,6 +33,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("info")))
             .subcommand(SubCommand::with_name("guards")
                 .subcommand(SubCommand::with_name("create-10"))
+                .subcommand(SubCommand::with_name("interception-callback"))
                 .subcommand(SubCommand::with_name("create-and-start"))
                 .subcommand(SubCommand::with_name("add-a-region")))
 }
@@ -78,9 +79,10 @@ pub fn partition(matches: &ArgMatches, logger: Logger) {
 // GUARD TESTS
 fn guard_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("create-and-start", Some(matches))  => start_a_guard(matches, logger),
-        ("create-10",        Some(matches))  => create_multiple_guards(matches, logger),
-        _                                    => println!("{}", matches.usage())
+        ("create-and-start", Some(matches))       => start_a_guard(matches, logger),
+        ("interception-callback", Some(matches))  => test_interception_callback(matches, logger),
+        ("create-10",        Some(matches))       => create_multiple_guards(matches, logger),
+        _                                         => println!("{}", matches.usage())
     }
 }
 
@@ -95,7 +97,7 @@ fn callback_test(interception: Interception) -> Action {
     Action::CONTINUE
 }
 
-fn test_interception_callback() {
+fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
 
