@@ -3,8 +3,8 @@ use super::slog::Logger;
 
 use std::thread;
 use std::time::Duration;
-use super::{Partition, Sentinel, Guard, Access};
-
+use super::{Partition, Sentinel, Guard, Access, Action};
+use super::bucket::Interception;
 use super::core;
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
@@ -20,21 +20,21 @@ pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
-                .subcommand(SubCommand::with_name("create_multiple"))
+                .subcommand(SubCommand::with_name("create-multiple"))
                 .subcommand(SubCommand::with_name("delete")))
             .subcommand(SubCommand::with_name("regions")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("intercept"))
-                .subcommand(SubCommand::with_name("kernel_intercept"))
-                .subcommand(SubCommand::with_name("create_multiple"))
-                .subcommand(SubCommand::with_name("regions_inside_guard"))
+                .subcommand(SubCommand::with_name("kernel-intercept"))
+                .subcommand(SubCommand::with_name("create-multiple"))
+                .subcommand(SubCommand::with_name("regions-inside-guard"))
                 .subcommand(SubCommand::with_name("delete"))
                 .subcommand(SubCommand::with_name("enumerate"))
                 .subcommand(SubCommand::with_name("info")))
             .subcommand(SubCommand::with_name("guards")
-                .subcommand(SubCommand::with_name("create_10"))
-                .subcommand(SubCommand::with_name("create_and_start"))
-                .subcommand(SubCommand::with_name("add_a_region")))
+                .subcommand(SubCommand::with_name("create-10"))
+                .subcommand(SubCommand::with_name("create-and-start"))
+                .subcommand(SubCommand::with_name("add-a-region")))
 }
 
 pub fn tests(matches: &ArgMatches, logger: Logger) {
@@ -48,9 +48,9 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
 
 fn create_multiple_partitions(_logger: Logger) {
     println!("creating 3 partitions");
-    let partition1: Partition = Partition::new();
-    let partition2: Partition = Partition::new();
-    let partition3: Partition = Partition::new();
+    let _partition1: Partition = Partition::new();
+    let _partition2: Partition = Partition::new();
+    let _partition3: Partition = Partition::new();
     println!("waiting 5 seconds");
     thread::sleep(Duration::from_secs(5));
     println!("done, destroying partitions");
@@ -67,7 +67,7 @@ fn create_partition(_logger: Logger) {
 pub fn partition(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create",  Some(_))  => create_partition(logger),
-        ("create_multiple",  Some(_))  => create_multiple_partitions(logger),
+        ("create-multiple",  Some(_))  => create_multiple_partitions(logger),
         ("delete",  Some(_))  => _not_implemented_command(logger),
         ("getinfo", Some(_))  => _not_implemented_command(logger),
         ("setinfo", Some(_))  => _not_implemented_command(logger),
@@ -78,11 +78,52 @@ pub fn partition(matches: &ArgMatches, logger: Logger) {
 // GUARD TESTS
 fn guard_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("create_and_start", Some(matches))  => start_a_guard(matches, logger),
-        ("create_10",        Some(matches))  => create_multiple_guards(matches, logger),
+        ("create-and-start", Some(matches))  => start_a_guard(matches, logger),
+        ("create-10",        Some(matches))  => create_multiple_guards(matches, logger),
         _                                    => println!("{}", matches.usage())
     }
 }
+
+
+// callback interception tests
+// 
+//
+fn callback_test(interception: Interception) -> Action {
+    println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
+                                    interception.access);
+
+    Action::CONTINUE
+}
+
+fn test_interception_callback() {
+    let partition: Partition = Partition::root();
+    let mut guard = Guard::new(&partition);
+
+    println!("allocating pool");
+    let addr = core::allocate_pool(&partition.device).expect("allocate error");
+    println!("addr: 0x{:016x}", addr);
+
+    let region = Sentinel::region(&partition, addr, 0x100, Access::READ);
+
+    println!("adding {} to {}", region, guard);
+    guard.add(region);
+
+    // guard.set_callback(Box::new(callback_test));
+    guard.set_callback(Box::new(|interception| {
+        println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
+                                        interception.access);
+
+        Action::CONTINUE
+    }));
+    println!("starting guard");
+    guard.start();
+    println!("accessing memory 0x{:016x}", addr);
+    core::read_pool(&partition.device);
+    println!("stoping guard");
+    guard.stop();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
 
 fn start_guard_a_second(guard: &Guard) {
     println!("starting {}", guard);
@@ -128,10 +169,10 @@ fn region_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create", Some(matches))  => test_create_region(matches, logger),
         ("enumerate", Some(matches))  => test_enumerate_region(matches, logger),
-        ("create_multiple", Some(matches))  => test_create_multiple_regions(matches, logger),
+        ("create-multiple", Some(matches))  => test_create_multiple_regions(matches, logger),
         ("intercept", Some(matches))  => test_intercept_region(matches, logger),
-        ("kernel_intercept", Some(matches))  => test_intercept_kernel_region(matches, logger),
-        ("regions_inside_guard", Some(matches))  => test_regions_inside_guard(matches, logger),
+        ("kernel-intercept", Some(matches))  => test_intercept_kernel_region(matches, logger),
+        ("regions-inside-guard", Some(matches))  => test_regions_inside_guard(matches, logger),
         _                          => println!("{}", matches.usage())
     }
 }

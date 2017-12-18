@@ -2,17 +2,12 @@ extern crate byteorder;
 extern crate winapi;
 extern crate kernel32;
 
-
-use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
-
 use super::sync::Event;
 use std::mem;
-use std::thread;
 
 use std::fmt::Debug;
 use std::fmt;
-use super::{Action, Access};
+use super::{Action, Access, CallbackMap};
     
 const BUCKET_SIZE: usize = (240 + 16);
 
@@ -71,13 +66,13 @@ pub struct Interception {
     header: MessageHeader,
     pub guard_id: u64,
     pub region_id: u64,
-    processor: u8,
-    process: u64,
-    address: u64,
-    access: Access,
-    flags: u32,
-    context: u64,
-    action: Action
+    pub processor: u8,
+    pub process: u64,
+    pub address: u64,
+    pub access: Access,
+    pub flags: u32,
+    pub context: u64,
+    pub action: Action
 }
 
 impl Interception {
@@ -100,8 +95,6 @@ enum Message {
     Intercept(Interception),
     Terminate
 }
-
-type CallbackMap = Arc<RwLock<HashMap<u64, &'static Fn(Interception) -> Action>>>;
 
 impl Bucket {
     pub fn slice_buckets(ptr: u64, capacity: usize) -> Vec<Vec<u8>> {
@@ -132,7 +125,7 @@ impl Bucket {
         }
     }
 
-    pub fn handler(mut buffer: Vec<u8>, default: &Fn(Interception) -> Action, callbacks: CallbackMap) {
+    pub fn handler(mut buffer: Vec<u8>, default: Box<Fn(Interception) -> Action>, callbacks: CallbackMap) {
         let sync = unsafe{ Syncronizers::from_raw(buffer.as_ptr()) } ;
         // println!("#{:?} - {:?}", thread::current().id(), sync);
 
@@ -153,13 +146,15 @@ impl Bucket {
                 MessageType::Intercept => {
                     let interception = unsafe { Interception::from_raw(buffer.as_mut_ptr()
                                     .offset(mem::size_of::<Syncronizers>() as isize)) };
-                    let callback = {
-                        let map = callbacks.read().expect("Unable to unlock callbacks for reading");
 
-                        map[&interception.guard_id]
-                    };
+                    let map = callbacks.read().expect("Unable to unlock callbacks for reading");
 
-                    bucket.set_action(&mut buffer, callback(interception));
+                    if let Some(callback) = map.get(&interception.guard_id) {
+                        bucket.set_action(&mut buffer, callback(interception));
+                    } else {
+                        bucket.set_action(&mut buffer, default(interception));
+                    }
+
                 },
                 _ => {}
             }

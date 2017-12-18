@@ -158,7 +158,7 @@ pub enum PartitionError {
     UnknownError
 }
 
-pub fn get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, PartitionError> {
+pub fn _get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, PartitionError> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let mut input = vec![];

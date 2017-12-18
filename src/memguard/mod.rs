@@ -85,26 +85,27 @@ impl fmt::Debug for Partition {
     }
 }
 
-type CallbackMap = Arc<RwLock<HashMap<u64, &'static Fn(bucket::Interception) -> Action>>>;
+type SyncCallback = Box<Fn(bucket::Interception) -> Action + Send + Sync>;
+type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 
 impl Partition
  {
-    fn callback(interception: bucket::Interception) -> Action {
+    fn default_callback(interception: bucket::Interception) -> Action {
         println!("[!] {:?}", interception);
         Action::CONTINUE
     }
 
-    pub fn register_callback(&mut self, id: u64, callback: &'static Fn(bucket::Interception) -> Action) {
-        let map = self.callbacks.write().expect("Failed to unlock as a writer");
-        map.insert(id, callback);
+    pub fn register_callback(&self, guard: &Guard, callback: SyncCallback) {
+        let mut map = self.callbacks.write().expect("Failed to unlock as a writer");
+        map.insert(guard.id, callback);
     }
 
     fn create_workers(&self, buckets: Vec<Vec<u8>>, 
-                             callbacks: Arc<RwLock<HashMap<u64, &'static Fn(bucket::Interception) -> Action>>>) -> Vec<JoinHandle<()>> {
+                             callbacks: CallbackMap) -> Vec<JoinHandle<()>> {
         buckets.into_iter().map(|bucket| 
         {
             let callbacks_copy = callbacks.clone();
-            thread::spawn(move|| bucket::Bucket::handler(bucket, &Partition::callback, callbacks_copy))
+            thread::spawn(move|| bucket::Bucket::handler(bucket, Box::new(Partition::default_callback), callbacks_copy))
 
         }).collect()
     }
@@ -355,10 +356,6 @@ impl<'p> Guard<'p> {
         }
     }
 
-    // pub fn register_callback<'a>(callback: Fn(&whatever)) -> &'a Self{
-    //      self.callback = callback      // single-callback
-    // }
-
     pub fn start<'a>(&'a self) -> &'a Self{
         core::start_guard(&self.partition.device, self.id);
 
@@ -375,6 +372,10 @@ impl<'p> Guard<'p> {
         // sentinel.unregister().expect(format!("Unable to register {:?}", sentinel));
         // self.sentinels.remove(sentinel)
 
+    }
+
+    pub fn set_callback(&self, callback: SyncCallback) {
+        self.partition.register_callback(&self, callback)
     }
 
     pub fn add(&mut self, sentinel: Sentinel<'p>) {
