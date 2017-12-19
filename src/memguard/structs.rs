@@ -1,7 +1,7 @@
 // Copyright © ByteHeed.  All rights reserved.
 #![allow(non_camel_case_types, non_snake_case, dead_code)]
 
-use super::winapi::minwindef::{DWORD, LPVOID, ULONG};
+use super::winapi::minwindef::{LPVOID, ULONG};
 use std::mem;
 
 type ULONG64 = u64;
@@ -20,24 +20,7 @@ STRUCT!{
 
 // pub type LPSE_MAP_VIRTUAL_MEMORY = *mut SE_MAP_VIRTUAL_MEMORY;
 
-impl SE_MAP_VIRTUAL_MEMORY {
-    pub fn init() -> SE_MAP_VIRTUAL_MEMORY {
-        let s: SE_MAP_VIRTUAL_MEMORY = unsafe { mem::zeroed() };
-        s
-    }
-
-    pub fn as_ptr(&self) -> LPVOID {
-        unsafe { mem::transmute::<&SE_MAP_VIRTUAL_MEMORY, LPVOID>(self) }
-    }
-
-    pub fn as_mut_ptr(&mut self) -> LPVOID {
-        unsafe { mem::transmute::<&mut SE_MAP_VIRTUAL_MEMORY, LPVOID>(self) }
-    }
-
-    pub fn size(&self) -> usize {
-        mem::size_of::<Self>()
-    }
-}
+impl RawStruct<SE_MAP_VIRTUAL_MEMORY> for SE_MAP_VIRTUAL_MEMORY  { }
 
 STRUCT!{
     #[derive(Debug)]
@@ -46,25 +29,7 @@ STRUCT!{
         MappedMemory: LPVOID,
 }}
 
-impl SE_UNMAP_VIRTUAL_MEMORY {
-    pub fn init() -> SE_UNMAP_VIRTUAL_MEMORY {
-        let s: SE_UNMAP_VIRTUAL_MEMORY = unsafe { mem::zeroed() };
-        s
-    }
-
-    pub fn as_ptr(&self) -> LPVOID {
-        unsafe { mem::transmute::<&SE_UNMAP_VIRTUAL_MEMORY, LPVOID>(self) }
-    }
-
-    pub fn as_mut_ptr(&mut self) -> LPVOID {
-        unsafe { mem::transmute::<&mut SE_UNMAP_VIRTUAL_MEMORY, LPVOID>(self) }
-    }
-
-    pub fn size(&self) -> usize {
-        mem::size_of::<Self>()
-    }
-}
-
+impl RawStruct<SE_UNMAP_VIRTUAL_MEMORY> for SE_UNMAP_VIRTUAL_MEMORY  { }
 
 pub trait RawStruct<T> {
     fn init() -> T {
@@ -76,9 +41,13 @@ pub trait RawStruct<T> {
         mem::size_of::<T>()
     }
 
-    fn as_ptr(&self) -> LPVOID;
-    fn as_mut_ptr(&mut self) -> LPVOID;
+    fn as_ptr(&self) -> LPVOID {
+        self as *const Self as LPVOID
+    }
 
+    fn as_mut_ptr(&mut self) -> LPVOID {
+        self as *mut Self as LPVOID
+    }
 }
 
 STRUCT!{
@@ -91,15 +60,7 @@ STRUCT!{
         BytesCopied: SIZE_T,
 }}
 
-impl RawStruct<SE_READ_PROCESS_MEMORY> for SE_READ_PROCESS_MEMORY {
-    fn as_ptr(&self) -> LPVOID {
-        unsafe { mem::transmute::<&Self, LPVOID>(self) }
-    }
-
-    fn as_mut_ptr(&mut self) -> LPVOID {
-        unsafe { mem::transmute::<&mut Self, LPVOID>(self) }
-    }
-}
+impl RawStruct<SE_READ_PROCESS_MEMORY> for SE_READ_PROCESS_MEMORY { }
 
 STRUCT!{
     #[derive(Debug)]
@@ -111,12 +72,4 @@ STRUCT!{
         BytesCopied: SIZE_T,
 }}
 
-impl RawStruct<SE_WRITE_PROCESS_MEMORY> for SE_WRITE_PROCESS_MEMORY {
-    fn as_ptr(&self) -> LPVOID {
-        unsafe { mem::transmute::<&Self, LPVOID>(self) }
-    }
-
-    fn as_mut_ptr(&mut self) -> LPVOID {
-        unsafe { mem::transmute::<&mut Self, LPVOID>(self) }
-    }
-}
+impl RawStruct<SE_WRITE_PROCESS_MEMORY> for SE_WRITE_PROCESS_MEMORY { }
