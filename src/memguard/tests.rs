@@ -71,7 +71,15 @@ fn test_memory_read(_matches: &ArgMatches, _logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
     let v = core::read_memory(&device, KERNEL_ADDR, 0x200);
 
-    println!("{:?}", v);
+    let output: String = v.iter().enumerate()
+                    .map(|(i, b)| 
+                    {
+                            let mut s = format!("{:02X}", b);
+                            if i > 1 && i % 16 == 0 { s += "\n"; }  else { s += " "};
+                            s
+                    }).collect::<Vec<String>>().join("");;
+    
+    println!("{}", output);
 }
 
 fn test_memory_write(_matches: &ArgMatches, _logger: Logger) {

@@ -10,7 +10,7 @@ type SIZE_T = usize;
 STRUCT!{
     #[derive(Debug)]
     struct SE_MAP_VIRTUAL_MEMORY  {
-        ProcessId: LPVOID,
+        ProcessId: ULONG64,
         BaseAddress: LPVOID,
         MapToAddress: LPVOID,
         Size: ULONG,

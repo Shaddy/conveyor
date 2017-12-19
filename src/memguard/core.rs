@@ -5,6 +5,7 @@
 use super::winapi::minwindef::{LPVOID};
 use super::iochannel::{ Device, IoCtl };
 use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
+use super::kernel32;
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
@@ -422,6 +423,7 @@ pub fn map_memory(device: &Device, address: u64, size: usize) -> SE_MAP_VIRTUAL_
 
     let mut map = SE_MAP_VIRTUAL_MEMORY::init();
 
+    map.ProcessId = unsafe { kernel32::GetCurrentProcessId() as u64 };
     map.BaseAddress = address as LPVOID;
     map.Size = size as u32;
 
@@ -457,6 +459,7 @@ pub fn read_memory(device: &Device, address: u64, size: usize) -> Vec<u8> {
 
     let v: Vec<u8> = vec![0; size];
 
+    read.ProcessId = unsafe { kernel32::GetCurrentProcessId() as u64};
     read.BaseAddress = address as LPVOID;
     read.BytesToRead = size;
     read.Buffer = v.as_ptr() as LPVOID;
@@ -476,6 +479,7 @@ pub fn write_memory(device: &Device, address: u64, mut data: Vec<u8>) {
 
     let mut write = SE_WRITE_PROCESS_MEMORY::init();
 
+    write.ProcessId = unsafe { kernel32::GetCurrentProcessId() as u64 };
     write.BaseAddress = address as LPVOID;
     write.Buffer = data.as_mut_ptr() as LPVOID;
     write.BytesToWrite = data.len();
