@@ -411,3 +411,121 @@ pub fn read_pool(device: &Device) {
                             .expect("Error calling IOCTL_SENTRY_READ_POOL");
     
 }
+
+
+pub fn create_patch(device: &Device, partition_id: u64, base_address: u64, patch_range: &Range) -> u64 {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A40, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(partition_id).unwrap();
+    input.write_u64::<LittleEndian>(base_address).unwrap();
+    input.write_u64::<LittleEndian>(patch_range.base).unwrap();
+    input.write_u64::<LittleEndian>(patch_range.limit).unwrap();
+    input.write_u64::<LittleEndian>(0).unwrap();
+
+    let output: Vec<u8> = Vec::with_capacity(1000);
+    let mut cursor = device.call(control.into(), Some(input), Some(output))
+                .expect("create_patch()");
+
+    cursor.read_u64::<LittleEndian>().expect("create_patch() - IOCTL Buffer is wrong")
+}
+
+pub fn delete_patch(device: &Device, patch_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A41, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(patch_id).unwrap();
+    
+    let _ = device.call(control.into(), Some(input), None)
+                .expect("delete_patch()");
+}
+
+pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A42, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(guard_id).unwrap();
+    input.write_u64::<LittleEndian>(patch_id).unwrap();
+    
+    let _ = device.call(control.into(), Some(input), None)
+                .expect("add_patch()");
+}
+
+pub fn remove_patch(device: &Device, guard_id: u64, patch_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A43, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(guard_id).unwrap();
+    input.write_u64::<LittleEndian>(patch_id).unwrap();
+    
+    let _ = device.call(control.into(), Some(input), None)
+                .expect("remove_patch()");
+}
+
+pub fn enable_patch(device: &Device, patch_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A44, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(patch_id).unwrap();
+    
+    let _ = device.call(control.into(), Some(input), None)
+                .expect("enable_patch()");
+}
+
+pub fn disable_patch(device: &Device, patch_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A45, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(patch_id).unwrap();
+    
+    let _ = device.call(control.into(), Some(input), None)
+                .expect("disable_patch()");
+}
+
+
+pub fn _get_info_patch(device: &Device, patch_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A46, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(patch_id).unwrap();
+    
+    let mut cursor = device.call(control.into(), Some(input), None)
+                .expect("get_info_patch()");
+
+    let patch_id          = cursor.read_u64::<LittleEndian>().expect("can't get <patch_id>");
+    let next_entry_offset = cursor.read_u64::<LittleEndian>().expect("can't get <next_entry_offset>");
+    let base_address      = cursor.read_u64::<LittleEndian>().expect("can't get <base_address>");
+    let patch_address     = cursor.read_u64::<LittleEndian>().expect("can't get <patch_address>");
+    let patch_size        = cursor.read_u64::<LittleEndian>().expect("can't get <patch_size>");
+    let flags             = cursor.read_u64::<LittleEndian>().expect("can't get <flags>");
+    let guard_count       = cursor.read_u64::<LittleEndian>().expect("can't get <guard_count>");
+
+    println!("patch_id: 0x{:08X}", patch_id);
+    println!("next_entry_offset: 0x{:08X}", next_entry_offset);
+    println!("base_address: 0x{:08X}", base_address);
+    println!("patch_address: 0x{:08X}", patch_address);
+    println!("patch_size: 0x{:08X}", patch_size);
+    println!("flags: 0x{:08X}", flags);
+    println!("guard_count: 0x{:08X}", guard_count);
+}
+
+pub fn _enumerate_patch(device: &Device, partition_id: u64, guard_id: u64) {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A47, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(partition_id).unwrap();
+    input.write_u64::<LittleEndian>(guard_id).unwrap();
+
+    let output: Vec<u8> = Vec::with_capacity(8 * 1000);
+    
+    let mut cursor = device.call(control.into(), Some(input), Some(output))
+                .expect("enumerate_patch()");
+
+    let _patch_id = cursor.read_u64::<LittleEndian>().expect("can't get <patch_id>");
+}
