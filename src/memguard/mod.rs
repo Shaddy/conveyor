@@ -16,7 +16,9 @@ use std::thread::{JoinHandle};
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
+mod structs;
 mod core;
+mod memory;
 mod sync;
 mod bucket;
 mod tests;

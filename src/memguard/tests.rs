@@ -6,6 +6,8 @@ use std::time::Duration;
 use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
 use super::core;
+use super::iochannel::{Device};
+use super::memory::{Map};
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
     unimplemented!()
@@ -18,6 +20,10 @@ fn _not_implemented_command(_logger: Logger) {
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
+            .subcommand(SubCommand::with_name("memory")
+                .subcommand(SubCommand::with_name("read"))
+                .subcommand(SubCommand::with_name("write"))
+                .subcommand(SubCommand::with_name("map")))
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("create-multiple"))
@@ -43,8 +49,46 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         ("partition", Some(matches))  => partition(matches, logger),
         ("guards",    Some(matches))  => guard_tests(matches, logger),
         ("regions",   Some(matches))  => region_tests(matches, logger),
+        ("memory",   Some(matches))   => memory_tests(matches, logger),
         _                             => println!("{}", matches.usage())
     }
+}
+
+// MEMORY TESTS
+fn memory_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("read",  Some(matches))  => test_memory_read(matches, logger),
+        ("write", Some(matches))  => test_memory_write(matches, logger),
+        ("map",   Some(matches))  => test_memory_map(matches, logger),
+        _                                         => println!("{}", matches.usage())
+    }
+}
+
+// TODO: Find a more generic kernel pointer
+const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
+
+fn test_memory_read(_matches: &ArgMatches, _logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let v = core::read_memory(&device, KERNEL_ADDR, 0x200);
+
+    println!("{:?}", v);
+}
+
+fn test_memory_write(_matches: &ArgMatches, _logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let v = core::read_memory(&device, KERNEL_ADDR, 0x200);
+
+    core::write_memory(&device, KERNEL_ADDR, v);
+}
+
+
+fn test_memory_map(_matches: &ArgMatches, _logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    let map = Map::new(&device, KERNEL_ADDR, 0x200);
+
+    println!("map: {:?}", map);
+
 }
 
 fn create_multiple_partitions(_logger: Logger) {
@@ -90,7 +134,7 @@ fn guard_tests(matches: &ArgMatches, logger: Logger) {
 // callback interception tests
 // 
 //
-fn callback_test(interception: Interception) -> Action {
+fn _callback_test(interception: Interception) -> Action {
     println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
                                     interception.access);
 
@@ -110,7 +154,7 @@ fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
     println!("adding {} to {}", region, guard);
     guard.add(region);
 
-    // guard.set_callback(Box::new(callback_test));
+    // guard.set_callback(Box::new(_callback_test));
     guard.set_callback(Box::new(|interception| {
         println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
                                         interception.access);
