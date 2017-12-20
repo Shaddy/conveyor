@@ -22,6 +22,7 @@ fn _not_implemented_command(_logger: Logger) {
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
             .subcommand(SubCommand::with_name("memory")
+                .subcommand(SubCommand::with_name("read-eprocess"))
                 .subcommand(SubCommand::with_name("read"))
                 .subcommand(SubCommand::with_name("write"))
                 .subcommand(SubCommand::with_name("map")))

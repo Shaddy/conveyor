@@ -51,18 +51,3 @@ use conveyor::memguard;
 //         assert!(region.address())
 //     }
 // }
-
-describe! guard {
-    it "creates 20 guards and destroy them" {
-        let mut guards: Vec<Guard> = (0..20).map(|_| {
-            Guard::new()
-        }).collect();
-
-        let guard: &mut Guard = &mut guards.iter_mut().take(1).nth(0).unwrap();
-        guard.add(Sentinel::Region {
-            range: Range::new(0, 0),
-            access: Access::None,
-            action: Action::None
-        });
-    }
-}

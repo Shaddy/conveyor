@@ -7,6 +7,9 @@ use super::winapi::minwindef::{LPVOID};
 use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
 use super::kernel32;
 
+use std::io::Cursor;
+use super::byteorder::{LittleEndian, ReadBytesExt};
+
 use super::core::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
 use super::structs;
@@ -115,4 +118,36 @@ pub fn write_memory(device: &Device, address: u64, mut data: Vec<u8>) {
     device.raw_call(control.into(), ptr, len, ptr, len)
                             .expect("Error calling IOCTL_SENTRY_MAP_MEMORY");
 
+}
+
+#[allow(dead_code)]
+pub fn read_pointer(device: &Device, address: u64) -> u64 {
+    read_u64(device, read_u64(device, address))
+}
+
+
+pub fn read_u64(device: &Device, address: u64) -> u64 {
+    let v = read_memory(device, address, 8);
+
+    let mut cursor = Cursor::new(v);
+
+    cursor.read_u64::<LittleEndian>().expect("can't read u64")
+}
+
+#[allow(dead_code)]
+pub fn read_u32(device: &Device, address: u64) -> u32 {
+    let v = read_memory(device, address, 8);
+
+    let mut cursor = Cursor::new(v);
+
+    cursor.read_u32::<LittleEndian>().expect("can't read u64")
+}
+
+#[allow(dead_code)]
+pub fn read_u16(device: &Device, address: u64) -> u16 {
+    let v = read_memory(device, address, 8);
+
+    let mut cursor = Cursor::new(v);
+
+    cursor.read_u16::<LittleEndian>().expect("can't read u64")
 }

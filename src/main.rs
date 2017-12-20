@@ -1,5 +1,5 @@
 // Copyright © ByteHeed.  All rights reserved.
-use conveyor::{service, iochannel, memguard, tests};
+use conveyor::{service, iochannel, memguard, tests, symbols};
 
 extern crate conveyor;
 extern crate clap;
@@ -34,6 +34,7 @@ fn run(app: ArgMatches) -> Result<()> {
 
     match app.subcommand() {
         ("device",   Some(matches)) => iochannel::command::parse(matches, logger),
+        ("pdb",      Some(matches)) => symbols::command::parse(matches, logger),
         ("services", Some(matches)) => service::command::parse(matches, logger),
         ("tests",    Some(matches)) => tests::command::parse(matches, logger),
         ("memguard", Some(matches)) => memguard::command::parse(matches, logger),
@@ -54,6 +55,7 @@ fn main() {
         .subcommand(conveyor::iochannel::command::bind())
         .subcommand(conveyor::tests::command::bind())
         .subcommand(conveyor::memguard::command::bind())
+        .subcommand(conveyor::symbols::command::bind())
         // .subcommand(conveyor::lynxv::command::bind())
         .get_matches();
 
