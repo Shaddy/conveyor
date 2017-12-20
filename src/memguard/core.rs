@@ -1,26 +1,15 @@
 // Copyright © ByteHeed.  All rights reserved.
 
-// use ffi::traits::EncodeUtf16;
-
-use super::winapi::minwindef::{LPVOID};
 use super::iochannel::{ Device, IoCtl };
 use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
-use super::kernel32;
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
 
-use super::structs::{RawStruct,
-                     SE_MAP_VIRTUAL_MEMORY, 
-                     SE_UNMAP_VIRTUAL_MEMORY,
-                     SE_READ_PROCESS_MEMORY,
-                     SE_WRITE_PROCESS_MEMORY};
-
 use std::mem;
 use std::fmt;
 
-const IOCTL_SENTRY_TYPE: u32 = 0xB080;
-
+pub const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 pub const SE_NT_DEVICE_NAME: &'static str = "\\\\.\\Sentry";
 
 enum_from_primitive! {
@@ -35,80 +24,12 @@ enum_from_primitive! {
     }
 }
 
-// In an ideal scenario this should be real consts
-// 
-// const IOCTL_SENTRY_CREATE_PARTITION: IoCtl =    IoCtl::new( 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
-// const IOCTL_SENTRY_DELETE_PARTITION: IoCtl =    IoCtl::new( 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_GETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_SETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A03, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_REGISTER_GUARD: IoCtl =      IoCtl::new( 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_UNREGISTER_GUARD: IoCtl =    IoCtl::new( 0x0A11, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_CONTROL_GUARD: IoCtl =       IoCtl::new( 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_CREATE_REGION: IoCtl =       IoCtl::new( 0x0A20, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_DELETE_REGION: IoCtl =       IoCtl::new( 0x0A21, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_ADD_REGION: IoCtl =          IoCtl::new( 0x0A22, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_REMOVE_REGION: IoCtl =       IoCtl::new( 0x0A23, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_SET_STATE_REGION: IoCtl =    IoCtl::new( 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_GET_INFO_REGION: IoCtl =     IoCtl::new( 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-// const IOCTL_SENTRY_ENUMERATE_REGION: IoCtl =    IoCtl::new( 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
-
-// use std::ops::Fn;
-// struct SentryChannel<FS, FD> {
-//     control: IoCtl,
-//     device: &Device,
-//     deserializer: Option<FD>,
-//     serializer: Option<FS>
-// }
-
-// impl<FS, FD> SentryChannel<FS, FD>
-//     where FD: Fn(&mut Cursor<Vec<u8>>) -> u64,
-//           FS: Fn(&mut Vec<u8>) { 
-//     fn new(function: usize) -> Self {
-//         SentryChannel {
-//             control: IoCtl::new(IOCTL_SENTRY_TYPE, function as u32, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
-//             device: &Device::new(SE_NT_DEVICE_NAME),
-//             deserializer: None,
-//             serializer: None
-//         }
-//     }
-
-//     fn deserialize(&mut self, callback: FD) {
-//         self.deserializer = Some(callback);
-//     }
-
-//     fn serialize(&mut self, callback: FS) { 
-//         self.serializer = Some(callback);
-//     }
-
-//     fn call(&self) -> Result<u64, String>  {
-//         let mut input: Vec<u8> = vec![];
-//         let output: Vec<u8> = Vec::with_capacity(1000);
-
-//         let mut io_input: Option<Vec<u8>> = None;
-
-//         if let Some(ref serializer) = self.serializer {
-//             serializer(&mut input);
-//             io_input = Some(input);
-//         }
-
-
-//         let mut cursor = self.device.call(self.control.clone().into(), io_input, Some(output)).expect("SentryChannel::call");
-
-//         if let Some(ref deserializer) = self.deserializer {
-//             return Ok(deserializer(&mut cursor))
-//         }
-
-//         Err("Deserializer wasn't used".to_string())
-//     }
-// }
-
-// pub fn template() -> Result<u64, String> {
-//     let mut channel = SentryChannel::new(0x0A00);
-
-//     channel.serialize(|_| ());
-//     channel.deserialize(|cursor| cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong."));
-//     channel.call()
-// }
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum PartitionError {
+    NotExists,
+    UnknownError
+}
 
 #[repr(C)]
 pub struct Channel {
@@ -159,11 +80,6 @@ pub fn delete_partition(device: &Device, id: u64) -> Result<(), String> {
 
 }
 
-#[derive(Debug)]
-pub enum PartitionError {
-    NotExists,
-    UnknownError
-}
 
 pub fn _get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, PartitionError> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
@@ -325,7 +241,7 @@ pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) {
                 .expect("remove_region()");
 }
 
-pub fn set_state_region(device: &Device, region_id: u64, state: RegionStatus) {
+pub fn _set_state_region(device: &Device, region_id: u64, state: RegionStatus) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
     let mut input = vec![];
@@ -418,76 +334,78 @@ pub fn read_pool(device: &Device) {
                             .expect("Error calling IOCTL_SENTRY_READ_POOL");
     
 }
-pub fn map_memory(device: &Device, address: u64, size: usize) -> SE_MAP_VIRTUAL_MEMORY {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A30, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
-    let mut map = SE_MAP_VIRTUAL_MEMORY::init();
+// In an ideal scenario this should be real consts
+// 
+// const IOCTL_SENTRY_CREATE_PARTITION: IoCtl =    IoCtl::new( 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+// const IOCTL_SENTRY_DELETE_PARTITION: IoCtl =    IoCtl::new( 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_GETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_SETOPTION_PARTITION: IoCtl = IoCtl::new( 0x0A03, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_REGISTER_GUARD: IoCtl =      IoCtl::new( 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_UNREGISTER_GUARD: IoCtl =    IoCtl::new( 0x0A11, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_CONTROL_GUARD: IoCtl =       IoCtl::new( 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_CREATE_REGION: IoCtl =       IoCtl::new( 0x0A20, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_DELETE_REGION: IoCtl =       IoCtl::new( 0x0A21, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_ADD_REGION: IoCtl =          IoCtl::new( 0x0A22, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_REMOVE_REGION: IoCtl =       IoCtl::new( 0x0A23, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_SET_STATE_REGION: IoCtl =    IoCtl::new( 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_GET_INFO_REGION: IoCtl =     IoCtl::new( 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+// const IOCTL_SENTRY_ENUMERATE_REGION: IoCtl =    IoCtl::new( 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
 
-    map.ProcessId = unsafe { kernel32::GetCurrentProcessId() as u64 };
-    map.BaseAddress = address as LPVOID;
-    map.Size = size as u32;
+// use std::ops::Fn;
+// struct SentryChannel<FS, FD> {
+//     control: IoCtl,
+//     device: &Device,
+//     deserializer: Option<FD>,
+//     serializer: Option<FS>
+// }
 
-    let ptr = map.as_ptr();
-    let len = map.size();
+// impl<FS, FD> SentryChannel<FS, FD>
+//     where FD: Fn(&mut Cursor<Vec<u8>>) -> u64,
+//           FS: Fn(&mut Vec<u8>) { 
+//     fn new(function: usize) -> Self {
+//         SentryChannel {
+//             control: IoCtl::new(IOCTL_SENTRY_TYPE, function as u32, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+//             device: &Device::new(SE_NT_DEVICE_NAME),
+//             deserializer: None,
+//             serializer: None
+//         }
+//     }
 
-    device.raw_call(control.into(), ptr, len, ptr, len)
-                            .expect("Error calling IOCTL_SENTRY_MAP_MEMORY");
+//     fn deserialize(&mut self, callback: FD) {
+//         self.deserializer = Some(callback);
+//     }
 
-    
-    map
-}
+//     fn serialize(&mut self, callback: FS) { 
+//         self.serializer = Some(callback);
+//     }
 
-pub fn unmap_memory(device: &Device, map: SE_MAP_VIRTUAL_MEMORY) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A31, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+//     fn call(&self) -> Result<u64, String>  {
+//         let mut input: Vec<u8> = vec![];
+//         let output: Vec<u8> = Vec::with_capacity(1000);
 
-    let mut unmap = SE_UNMAP_VIRTUAL_MEMORY::init();
+//         let mut io_input: Option<Vec<u8>> = None;
 
-    unmap.Mdl = map.Mdl;
-    unmap.MappedMemory = map.MappedMemory;
+//         if let Some(ref serializer) = self.serializer {
+//             serializer(&mut input);
+//             io_input = Some(input);
+//         }
 
-    let ptr = unmap.as_ptr();
-    let len = unmap.size();
 
-    device.raw_call(control.into(), ptr, len, ptr, len)
-                        .expect("Error calling IOCTL_SENTRY_UNMAP_MEMORY");
-}
+//         let mut cursor = self.device.call(self.control.clone().into(), io_input, Some(output)).expect("SentryChannel::call");
 
-pub fn read_memory(device: &Device, address: u64, size: usize) -> Vec<u8> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A32, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+//         if let Some(ref deserializer) = self.deserializer {
+//             return Ok(deserializer(&mut cursor))
+//         }
 
-    let mut read = SE_READ_PROCESS_MEMORY::init();
+//         Err("Deserializer wasn't used".to_string())
+//     }
+// }
 
-    let v: Vec<u8> = vec![0; size];
+// pub fn template() -> Result<u64, String> {
+//     let mut channel = SentryChannel::new(0x0A00);
 
-    read.ProcessId = unsafe { kernel32::GetCurrentProcessId() as u64};
-    read.BaseAddress = address as LPVOID;
-    read.BytesToRead = size;
-    read.Buffer = v.as_ptr() as LPVOID;
-
-    let ptr = read.as_ptr();
-    let len = read.size();
-
-    device.raw_call(control.into(), ptr, len, ptr, len)
-                            .expect("Error calling IOCTL_SENTRY_READ_MEMORY");
-
-    
-    v
-}
-
-pub fn write_memory(device: &Device, address: u64, mut data: Vec<u8>) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A33, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
-
-    let mut write = SE_WRITE_PROCESS_MEMORY::init();
-
-    write.ProcessId = unsafe { kernel32::GetCurrentProcessId() as u64 };
-    write.BaseAddress = address as LPVOID;
-    write.Buffer = data.as_mut_ptr() as LPVOID;
-    write.BytesToWrite = data.len();
-
-    let ptr = write.as_ptr();
-    let len = write.size();
-
-    device.raw_call(control.into(), ptr, len, ptr, len)
-                            .expect("Error calling IOCTL_SENTRY_MAP_MEMORY");
-
-}
+//     channel.serialize(|_| ());
+//     channel.deserialize(|cursor| cursor.read_u64::<LittleEndian>().expect("IOCTL Buffer is wrong."));
+//     channel.call()
+// }

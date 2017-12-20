@@ -7,6 +7,7 @@ use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
 use super::core;
 use super::iochannel::{Device};
+use super::memory;
 use super::memory::{Map};
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
@@ -69,7 +70,7 @@ const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
 
 fn test_memory_read(_matches: &ArgMatches, _logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let v = core::read_memory(&device, KERNEL_ADDR, 0x200);
+    let v = memory::read_memory(&device, KERNEL_ADDR, 0x200);
 
     let output: String = v.iter().enumerate()
                     .map(|(i, b)| 
@@ -84,9 +85,9 @@ fn test_memory_read(_matches: &ArgMatches, _logger: Logger) {
 
 fn test_memory_write(_matches: &ArgMatches, _logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let v = core::read_memory(&device, KERNEL_ADDR, 0x200);
+    let v = memory::read_memory(&device, KERNEL_ADDR, 0x200);
 
-    core::write_memory(&device, KERNEL_ADDR, v);
+    memory::write_memory(&device, KERNEL_ADDR, v);
 }
 
 
@@ -282,6 +283,7 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, _logger: Logger) {
     core::read_pool(&partition.device);
     println!("stoping guard");
     guard.stop();
+    core::free_pool(&partition.device);
 }
 
 fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
