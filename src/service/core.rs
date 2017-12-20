@@ -92,14 +92,14 @@ impl WindowsService {
         }
     }
 
-    pub fn remove<'a>(&'a mut self) -> &'a Self {
+    pub fn remove(&mut self) -> &Self {
         self.delete().expect("Can't remove service");
         println!("Service {:?} has been successfully removed", self.name);
 
         self
     }
 
-    pub fn install<'a>(&'a mut self) -> &'a Self {
+    pub fn install(&mut self) -> &Self {
         let wait = Duration::from_secs(1);
 
         if let Err(err) = self.create() {
@@ -134,7 +134,7 @@ impl WindowsService {
         self.name.clone()
     }
     
-    pub fn stop<'a>(&'a self) -> &'a Self {
+    pub fn stop(&self) -> &Self {
         let service = self.open().expect("Unable to open service");
 
         let mut status: winapi::SERVICE_STATUS = unsafe {zeroed()};
@@ -153,7 +153,7 @@ impl WindowsService {
         self.close(service)
     }
 
-    pub fn start<'a>(&'a self) -> &'a Self {
+    pub fn start(&self) -> &Self {
         let service = self.open().expect("Unable to open service");
 
         let success = unsafe {
@@ -206,7 +206,7 @@ impl WindowsService {
         ServiceInfo::from(info)
     }
 
-    pub fn close<'a>(&'a self, handle: SC_HANDLE) -> &'a Self {
+    pub fn close(&self, handle: SC_HANDLE) -> &Self {
         WindowsService::close_service_handle(handle);
         self
     }

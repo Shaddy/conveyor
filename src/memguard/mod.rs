@@ -25,7 +25,7 @@ mod bucket;
 mod tests;
 pub mod command;
 
-const PARTITION_ROOT_ID: u64 = 4;
+const _PARTITION_ROOT_ID: u64 = 4;
 
 pub enum ControlGuard {
     Start = 1,
