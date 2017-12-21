@@ -6,3 +6,4 @@ extern crate reqwest;
 
 pub mod command;
 pub mod downloader;
+pub mod parser;

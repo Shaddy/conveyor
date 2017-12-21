@@ -1,3 +1,4 @@
+use super::parser;
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::downloader::PdbDownloader;
@@ -23,6 +24,20 @@ pub fn bind() -> App<'static, 'static> {
                         .value_name("TARGET")
                         .help("binary file to download PDB")
                         .takes_value(true)))
+        .subcommand(SubCommand::with_name("parse")
+                        .about("downloads the selected PDB")
+                        .arg(Arg::with_name("struct")
+                        .short("s")
+                        .long("struct")
+                        .value_name("STRUCT")
+                        .help("struct to find while parsing")
+                        .takes_value(true))
+                        .arg(Arg::with_name("target")
+                        .short("t")
+                        .long("target")
+                        .value_name("TARGET")
+                        .help("binary file to download PDB")
+                        .takes_value(true)))
         .subcommand(SubCommand::with_name("analyze").about("analyze provided struct/function/class"))
         .subcommand(SubCommand::with_name("dump").about("dumps pdb information into console"))
 }
@@ -30,14 +45,28 @@ pub fn bind() -> App<'static, 'static> {
 pub fn parse(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("download", Some(matches))  => download_pdb(matches, &logger),
+        ("parse", Some(matches))     => parse_pdb(matches, &logger),
         ("analyze", Some(_))         => _not_implemented_command(logger),
         _                            => println!("{}", matches.usage())
     }
 }
 
-fn download_pdb(matches: &ArgMatches, _logger: &Logger) {
+fn parse_pdb(matches: &ArgMatches, logger: &Logger) {
     let target = matches.value_of("target").expect("target is not specified");
+    let name = matches.value_of("struct").expect("target is not specified");
+
+    debug!(logger, "parsing {} searching {}", target, name);
+    parser::find_struct(&target, &name);
+}
+
+fn download_pdb(matches: &ArgMatches, logger: &Logger) {
+    let target = matches.value_of("target").expect("target is not specified");
+
+    debug!(logger, "downloading PDB for {}", target);
+
     let pdb = PdbDownloader::new(target.to_string());
 
     pdb.download().expect("Unable to download PDB");
+
+    debug!(logger, "download success");
 }

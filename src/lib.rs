@@ -1,4 +1,5 @@
 #![feature(iterator_step_by)]
+#[macro_use] extern crate slog;
 #[macro_use] extern crate bitflags;
 #[macro_use] mod ffi;
 #[macro_use] extern crate enum_primitive;
