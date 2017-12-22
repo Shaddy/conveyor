@@ -7,10 +7,8 @@ use super::winapi::minwindef::{LPVOID, LPHANDLE};
 use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
 use super::kernel32;
 
-use super::byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+use super::byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
-
-use std::mem;
 
 use super::core::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
@@ -87,6 +85,7 @@ pub fn free_virtual_memory(device: &Device, address: u64) {
 
 }
 
+#[allow(dead_code)]
 pub fn copy_virtual_memory(device: &Device, from: u64, to: u64, size: usize) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A33, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
@@ -103,12 +102,14 @@ pub fn copy_virtual_memory(device: &Device, from: u64, to: u64, size: usize) {
 
 }
 
+#[allow(dead_code)]
 pub fn secure_virtual_memory(device: &Device, address: u64, size: usize) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A33, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
     let mut secure = SE_SECURE_VIRTUAL_MEMORY::init();
 
     secure.BaseAddress = address as LPVOID;
+    secure.Size        = size;
     secure.ProbeMode   = 0;
 
     let (ptr, len) = (secure.as_ptr(), secure.size());
@@ -120,6 +121,7 @@ pub fn secure_virtual_memory(device: &Device, address: u64, size: usize) -> u64 
 
 }
 
+#[allow(dead_code)]
 pub fn unsecure_virtual_memory(device: &Device, handle: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A34, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
@@ -207,6 +209,7 @@ pub fn write_virtual_memory(device: &Device, address: u64, mut data: Vec<u8>) ->
     write.BytesCopied as usize
 }
 
+#[allow(dead_code)]
 pub fn alloc_process_memory(device: &Device, pid: u64, size: usize) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A39, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
@@ -223,6 +226,7 @@ pub fn alloc_process_memory(device: &Device, pid: u64, size: usize) -> u64 {
     alloc.BaseAddress as u64
 }
 
+#[allow(dead_code)]
 pub fn free_process_memory(device: &Device, pid: u64, address: u64) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A3A, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
@@ -238,6 +242,7 @@ pub fn free_process_memory(device: &Device, pid: u64, address: u64) {
 
 }
 
+#[allow(dead_code)]
 pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize) -> Vec<u8> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A3B, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 
@@ -260,6 +265,7 @@ pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize)
     v
 }
 
+#[allow(dead_code)]
 pub fn write_process_memory(device: &Device, pid: u64, address: u64, mut data: Vec<u8>) {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A3C, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
 

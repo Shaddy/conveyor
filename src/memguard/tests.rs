@@ -190,11 +190,14 @@ fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
 
+    const POOL_SIZE: usize = 0x100;
+
     println!("allocating pool");
-    let addr = core::allocate_pool(&partition.device).expect("allocate error");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+
     println!("addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, 0x100, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
 
     println!("adding {} to {}", region, guard);
     guard.add(region);
@@ -209,9 +212,11 @@ fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
     println!("starting guard");
     guard.start();
     println!("accessing memory 0x{:016x}", addr);
-    core::read_pool(&partition.device);
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
     println!("stoping guard");
     guard.stop();
+
+    memory::free_virtual_memory(&partition.device, addr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -305,21 +310,27 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, _logger: Logger) {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
 
+    const POOL_SIZE: usize = 0x100;
+
     println!("allocating pool");
-    let addr = core::allocate_pool(&partition.device).expect("allocate error");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
     println!("addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, 0x100, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
 
     println!("adding {} to {}", region, guard);
+
     guard.add(region);
     println!("starting guard");
     guard.start();
     println!("accessing memory 0x{:016x}", addr);
-    core::read_pool(&partition.device);
+
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+
     println!("stoping guard");
     guard.stop();
-    core::free_pool(&partition.device);
+
+    memory::free_virtual_memory(&partition.device, addr);
 }
 
 fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {

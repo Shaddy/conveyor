@@ -307,34 +307,6 @@ pub fn _enumerate_region(device: &Device, partition_id: u64, guard_id: u64) {
     let _region_id = cursor.read_u64::<LittleEndian>().expect("can't get <region_id>");
 }
 
-pub fn allocate_pool(device: &Device) -> Result<u64, String> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A27, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
-
-    let output: Vec<u8> = Vec::with_capacity(1000);
-    
-    let mut cursor = device.call(control.into(), None, Some(output))
-                            .expect("Error calling IOCTL_SENTRY_ALLOCATE_POOL");
-    
-    Ok( cursor.read_u64::<LittleEndian>().unwrap() )
-}
-
-pub fn free_pool(device: &Device) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A28, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
-
-    let _ = device.call(control.into(), None, None)
-                            .expect("Error calling IOCTL_SENTRY_FREE_POOL");
-    
-}
-
-
-pub fn read_pool(device: &Device) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A29, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
-
-    let _ = device.call(control.into(), None, None)
-                            .expect("Error calling IOCTL_SENTRY_READ_POOL");
-    
-}
-
 // In an ideal scenario this should be real consts
 // 
 // const IOCTL_SENTRY_CREATE_PARTITION: IoCtl =    IoCtl::new( 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
