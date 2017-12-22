@@ -117,7 +117,7 @@ impl Device {
         Ok( handle )
     }
 
-    pub fn raw_call(&self, control: u32, input: LPVOID, ilen: usize, output: LPVOID, olen: usize) -> Result<(), Error> {
+    pub fn raw_call(&self, control: u32, ptr: LPVOID, len: usize) -> Result<(), Error> {
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
@@ -126,10 +126,10 @@ impl Device {
             kernel32::DeviceIoControl(
                 self.device,
                 control,
-                input,
-                ilen as u32,
-                output,
-                olen as u32,
+                ptr,
+                len as u32,
+                ptr,
+                len as u32,
                 &mut bytes,
                 &mut overlapped) != 0
         };

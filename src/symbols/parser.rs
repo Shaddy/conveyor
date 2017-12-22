@@ -552,6 +552,85 @@ fn write_class(filename: &str, class_name: &str) -> pdb::Result<()> {
     Ok(())
 }
 
+pub fn parse_struct_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex) -> pdb::Result<String> {
+    let mut name = match type_finder.find(type_index)?.parse()? {
+        pdb::TypeData::Primitive(data) => {
+            let mut name = match data.kind {
+                pdb::PrimitiveKind::Void => "void".to_string(),
+                pdb::PrimitiveKind::Char => "char".to_string(),
+                pdb::PrimitiveKind::UChar => "unsigned char".to_string(),
+
+                pdb::PrimitiveKind::I8 => "int8_t".to_string(),
+                pdb::PrimitiveKind::U8 => "uint8_t".to_string(),
+                pdb::PrimitiveKind::I16 => "int16_t".to_string(),
+                pdb::PrimitiveKind::U16 => "uint16_t".to_string(),
+                pdb::PrimitiveKind::I32 => "int32_t".to_string(),
+                pdb::PrimitiveKind::U32 => "uint32_t".to_string(),
+                pdb::PrimitiveKind::I64 => "int64_t".to_string(),
+                pdb::PrimitiveKind::U64 => "uint64_t".to_string(),
+
+                pdb::PrimitiveKind::F32 => "float".to_string(),
+                pdb::PrimitiveKind::F64 => "double".to_string(),
+
+                pdb::PrimitiveKind::Bool8 => "bool".to_string(),
+
+                _ => format!("unhandled_primitive.kind /* {:?} */", data.kind),
+            };
+
+            match data.indirection {
+                pdb::Indirection::None => {},
+                _ => { name.push(' '); name.push('*'); },
+            }
+
+            name
+        },
+
+        pdb::TypeData::Class(data) => {
+            data.name.to_string().into_owned()
+        },
+
+        pdb::TypeData::Enumeration(data) => {
+            data.name.to_string().into_owned()
+        },
+
+        pdb::TypeData::Union(data) => {
+            data.name.to_string().into_owned()
+        },
+
+        pdb::TypeData::Pointer(data) => {
+            format!("{}*", parse_struct_name(type_finder, data.underlying_type)?)
+        },
+
+        pdb::TypeData::Modifier(data) => {
+            if data.constant {
+                format!("const {}", parse_struct_name(type_finder, data.underlying_type)?)
+            } else if data.volatile {
+                format!("volatile {}", parse_struct_name(type_finder, data.underlying_type)?)
+            } else {
+                // ?
+                parse_struct_name(type_finder, data.underlying_type)?
+            }
+        },
+
+        pdb::TypeData::Array(data) => {
+            let mut name = parse_struct_name(type_finder, data.element_type)?;
+            for size in data.dimensions {
+                name = format!("{}[{}]", name, size);
+            }
+            name
+        },
+
+        _ => format!("Type{} /* TODO: figure out how to name it */", type_index)
+    };
+
+    // TODO: search and replace std:: patterns
+    if name == "std::basic_string<char,std::char_traits<char>,std::allocator<char> >" {
+        name = "std::string".to_string();
+    }
+
+    Ok(name)
+}
+
 fn find_struct_offset(filename: &str, struct_name: &str, field_name: &str) -> pdb::Result<u16> {
     let file = fs::File::open(filename)?;
     let mut pdb = pdb::PDB::open(file)?;
@@ -570,7 +649,8 @@ fn find_struct_offset(filename: &str, struct_name: &str, field_name: &str) -> pd
                         for field in list.fields {
                             if let pdb::TypeData::Member(member) = field {
                                 if member.name.as_bytes() == field_name.as_bytes() {
-                                    println!("0x{:X} {}.{}", member.offset, struct_name, field_name);
+                                    let type_name = parse_struct_name(&type_finder, member.field_type).expect("can't get struct name");
+                                    println!("0x{:X} {} {}.{}", member.offset, type_name, struct_name, field_name);
                                     return Ok(member.offset);
                                 }
                             }
@@ -595,10 +675,10 @@ pub fn pdb_to_c_struct(filename: &str, name: &str) {
     }
 }
 
-pub fn find_offset(filename: &str, name: &str) -> pdb::Result<u16> {
+pub fn find_offset(filename: &str, name: &str) -> u16 {
     let mut split = name.split(|c| c == '.');
     let struct_name = split.next().expect("Can't extract structure");
     let field_name = split.next().expect("Can't extract field");
 
-    find_struct_offset(filename, struct_name, field_name)
+    find_struct_offset(filename, struct_name, field_name).expect("Can't obtain struct or field")
 }

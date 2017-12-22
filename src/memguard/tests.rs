@@ -24,6 +24,7 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read-eprocess"))
                 .subcommand(SubCommand::with_name("read"))
+                .subcommand(SubCommand::with_name("virtual"))
                 .subcommand(SubCommand::with_name("write"))
                 .subcommand(SubCommand::with_name("map")))
             .subcommand(SubCommand::with_name("partition")
@@ -59,7 +60,8 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
 // MEMORY TESTS
 fn memory_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("read",  Some(matches))  => test_memory_read(matches, logger),
+        // ("read",  Some(matches))  => test_memory_read(matches, logger),
+        ("virtual",  Some(matches))  => test_virtual_memory(matches, logger),
         ("write", Some(matches))  => test_memory_write(matches, logger),
         ("map",   Some(matches))  => test_memory_map(matches, logger),
         _                                         => println!("{}", matches.usage())
@@ -69,9 +71,39 @@ fn memory_tests(matches: &ArgMatches, logger: Logger) {
 // TODO: Find a more generic kernel pointer
 const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
 
-fn test_memory_read(_matches: &ArgMatches, _logger: Logger) {
+fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let v = memory::read_memory(&device, KERNEL_ADDR, 0x200);
+
+    debug!(logger, "opened sentry: {:?}", device);
+
+    let mut v: Vec<u8> = Vec::new();
+
+    (0..(0x200 / 4)).for_each(|_| 
+    {
+        v.push(0xBE);
+        v.push(0xBA);
+        v.push(0xFE);
+        v.push(0xCA);
+    });
+
+    let size = v.len();
+
+    debug!(logger, "write-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
+
+    let addr = memory::alloc_virtual_memory(&device, size);
+
+    debug!(logger, "alloc_virtual_memory: 0x{:016x}", addr);
+
+    let written = memory::write_virtual_memory(&device, addr, v);
+
+    debug!(logger, "write_virtual_memory: {} bytes written", written);
+
+    let v = memory::read_virtual_memory(&device, addr, size);
+
+    debug!(logger, "reading 0x{:08x} bytes from 0x{:016x}", addr, size);
+
+    debug!(logger, "read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
+
 
     let output: String = v.iter().enumerate()
                     .map(|(i, b)| 
@@ -81,14 +113,17 @@ fn test_memory_read(_matches: &ArgMatches, _logger: Logger) {
                             s
                     }).collect::<Vec<String>>().join("");;
     
-    println!("{}", output);
+    debug!(logger, "{}", output);
+
+    debug!(logger, "free_virtual_memory: 0x{:016x}", addr);
+    memory::free_virtual_memory(&device, addr);
 }
 
 fn test_memory_write(_matches: &ArgMatches, _logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let v = memory::read_memory(&device, KERNEL_ADDR, 0x200);
+    let v = memory::read_virtual_memory(&device, KERNEL_ADDR, 0x200);
 
-    memory::write_memory(&device, KERNEL_ADDR, v);
+    memory::write_virtual_memory(&device, KERNEL_ADDR, v);
 }
 
 
