@@ -552,7 +552,40 @@ fn write_class(filename: &str, class_name: &str) -> pdb::Result<()> {
     Ok(())
 }
 
-pub fn find_struct(filename: &str, name: &str) {
+fn find_struct_offset(filename: &str, struct_name: &str, field_name: &str) -> pdb::Result<u16> {
+    let file = fs::File::open(filename)?;
+    let mut pdb = pdb::PDB::open(file)?;
+
+    let type_information = pdb.type_information()?;
+    let mut type_finder = type_information.new_type_finder();
+    let mut type_iter = type_information.iter();
+    while let Some(typ) = type_iter.next()? {
+        type_finder.update(&type_iter);
+
+        if let Ok(pdb::TypeData::Class(class)) = typ.parse() {
+            if class.name.as_bytes() == struct_name.as_bytes() && !class.properties.forward_reference() {
+                if let Some(test) = class.fields {
+                    let parsed = type_finder.find(test)?.parse()?;
+                    if let pdb::TypeData::FieldList(list) = parsed {
+                        for field in list.fields {
+                            if let pdb::TypeData::Member(member) = field {
+                                if member.name.as_bytes() == field_name.as_bytes() {
+                                    println!("0x{:X} {}.{}", member.offset, struct_name, field_name);
+                                    return Ok(member.offset);
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    Err(pdb::Error::StreamNotFound(0))
+}
+
+pub fn pdb_to_c_struct(filename: &str, name: &str) {
     match write_class(filename, name) {
         Ok(_) => {}
         Err(e) => {
@@ -560,4 +593,12 @@ pub fn find_struct(filename: &str, name: &str) {
                 .expect("stderr write");
         }
     }
+}
+
+pub fn find_offset(filename: &str, name: &str) -> pdb::Result<u16> {
+    let mut split = name.split(|c| c == '.');
+    let struct_name = split.next().expect("Can't extract structure");
+    let field_name = split.next().expect("Can't extract field");
+
+    find_struct_offset(filename, struct_name, field_name)
 }
