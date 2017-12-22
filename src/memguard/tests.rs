@@ -3,12 +3,16 @@ use super::slog::Logger;
 
 use std::thread;
 use std::time::Duration;
+
+use super::symbols::parser::Error;
+
 use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
 use super::core;
 use super::iochannel::{Device};
 use super::memory;
 use super::memory::{Map};
+use super::symbols;
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
     unimplemented!()
@@ -23,6 +27,7 @@ pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
             .subcommand(SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read-eprocess"))
+                .subcommand(SubCommand::with_name("walk-eprocess"))
                 .subcommand(SubCommand::with_name("read"))
                 .subcommand(SubCommand::with_name("virtual"))
                 .subcommand(SubCommand::with_name("write"))
@@ -61,11 +66,105 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
 fn memory_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         // ("read",  Some(matches))  => test_memory_read(matches, logger),
-        ("virtual",  Some(matches))  => test_virtual_memory(matches, logger),
-        ("write", Some(matches))  => test_memory_write(matches, logger),
-        ("map",   Some(matches))  => test_memory_map(matches, logger),
+        ("virtual",  Some(matches))       => test_virtual_memory(matches, logger),
+        ("write", Some(matches))          => test_memory_write(matches, logger),
+        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
+        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
+        ("map",   Some(matches))          => test_memory_map(matches, logger),
         _                                         => println!("{}", matches.usage())
     }
+}
+
+fn get_offset(target: &str) -> u16 {
+    match symbols::parser::find_offset("ntoskrnl.pdb", &target) {
+        Err(Error::IoError(_)) => {
+            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
+                                            .expect("Error downloading PDB");
+
+            symbols::parser::find_offset("ntoskrnl.pdb", &target).expect("can't retrieve offset")
+        },
+        Err(err) => {
+            panic!("error parsing PDB {}", err);
+        }
+        Ok(offset) => offset
+    }
+}
+
+struct Process<'a> {
+    device: &'a Device,
+    pointer: u64,
+}
+
+impl<'a> Process<'a> {
+    pub fn new(device: &'a Device, pointer: u64) -> Process {
+        Process {
+            device: device,
+            pointer: pointer
+        }
+    }
+
+    pub fn back(&self) -> Process {
+        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
+        let blink = memory::read_u64(&self.device, self.pointer + (offset as u64) + 8);
+
+        Process {
+            device: self.device,
+            pointer: blink - (offset as u64)
+        }
+    }
+
+    pub fn next(&self) -> Process {
+        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
+        let flink = memory::read_u64(&self.device, self.pointer + (offset as u64));
+
+        Process {
+            device: self.device,
+            pointer: flink - (offset as u64)
+        }
+    }
+
+    pub fn name(&self) -> String {
+        let offset = get_offset("_EPROCESS.ImageFileName");
+        let name = memory::read_virtual_memory(self.device, self.pointer + (offset as u64), 15);
+        String::from_utf8(name).expect("can't build process name")
+                        .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
+    }
+}
+
+impl<'a> PartialEq for Process<'a> {
+    fn eq(&self, other: &Process) -> bool {
+        self.pointer == other.pointer
+    }
+}
+
+use std::fmt;
+
+impl<'a> fmt::Display for Process<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{:016x} - Process({:?})", self.pointer, self.name())
+    }
+}
+
+fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let addr = core::current_process(&device);
+
+    let process = Process::new(&device, addr);
+    let process = process.next();
+
+    loop {
+        let process = process.next();
+        debug!(logger, "next: {}", process);
+    }
+}
+
+fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    let addr = core::current_process(&device);
+
+    debug!(logger, "current-eprocess: 0x{:016x}", addr);
+
 }
 
 // TODO: Find a more generic kernel pointer

@@ -8,6 +8,8 @@ use std::collections::BTreeSet;
 use std::io;
 use std::fs;
 
+pub use super::pdb::Error;
+
 type TypeSet = BTreeSet<pdb::TypeIndex>;
 
 pub fn type_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet) -> pdb::Result<String> {
@@ -649,8 +651,8 @@ fn find_struct_offset(filename: &str, struct_name: &str, field_name: &str) -> pd
                         for field in list.fields {
                             if let pdb::TypeData::Member(member) = field {
                                 if member.name.as_bytes() == field_name.as_bytes() {
-                                    let type_name = parse_struct_name(&type_finder, member.field_type).expect("can't get struct name");
-                                    println!("0x{:X} {} {}.{}", member.offset, type_name, struct_name, field_name);
+                                    let _type_name = parse_struct_name(&type_finder, member.field_type).expect("can't get struct name");
+                                    // println!("0x{:X} {} {}.{}", member.offset, type_name, struct_name, field_name);
                                     return Ok(member.offset);
                                 }
                             }
@@ -675,10 +677,10 @@ pub fn pdb_to_c_struct(filename: &str, name: &str) {
     }
 }
 
-pub fn find_offset(filename: &str, name: &str) -> u16 {
+pub fn find_offset(filename: &str, name: &str) -> pdb::Result<u16> {
     let mut split = name.split(|c| c == '.');
     let struct_name = split.next().expect("Can't extract structure");
     let field_name = split.next().expect("Can't extract field");
 
-    find_struct_offset(filename, struct_name, field_name).expect("Can't obtain struct or field")
+    find_struct_offset(filename, struct_name, field_name)
 }

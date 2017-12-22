@@ -6,6 +6,8 @@ use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
 
+use super::structs::{RawStruct, SE_GET_CURRENT_EPROCESS};
+
 use std::mem;
 use std::fmt;
 
@@ -51,6 +53,19 @@ impl Channel {
     pub unsafe fn from_raw(ptr: *const u8) -> Channel {
         mem::transmute_copy(&*ptr)
     }
+}
+
+pub fn current_process(device: &Device) -> u64 {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A27, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+
+    let data = SE_GET_CURRENT_EPROCESS::init();
+    
+    let (ptr, len) = (data.as_ptr(), data.size());
+
+    device.raw_call(control.into(), ptr, len)
+                            .expect("Error calling IOCTL_SENTRY_WRITE_PROCESS_MEMORY");
+
+    data.Process
 }
 
 pub fn create_partition(device: &Device) -> Result<Channel, String> {

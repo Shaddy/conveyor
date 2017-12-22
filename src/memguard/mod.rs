@@ -10,6 +10,8 @@ extern crate num;
 use super::iochannel;
 use super::iochannel::{Device};
 
+use super::symbols;
+
 use std::fmt;
 use std::thread;
 use std::thread::{JoinHandle};

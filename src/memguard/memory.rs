@@ -304,7 +304,7 @@ pub fn read_u32(device: &Device, address: u64) -> u32 {
 
     let mut cursor = Cursor::new(v);
 
-    cursor.read_u32::<LittleEndian>().expect("can't read u64")
+    cursor.read_u32::<LittleEndian>().expect("can't read u32")
 }
 
 #[allow(dead_code)]
@@ -313,5 +313,5 @@ pub fn read_u16(device: &Device, address: u64) -> u16 {
 
     let mut cursor = Cursor::new(v);
 
-    cursor.read_u16::<LittleEndian>().expect("can't read u64")
+    cursor.read_u16::<LittleEndian>().expect("can't read u16")
 }
