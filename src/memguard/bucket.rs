@@ -31,6 +31,7 @@ impl Syncronizers {
 }
 
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum MessageType {
     Unknown = 0x0000000000000000,
@@ -47,11 +48,11 @@ struct MessageHeader {
     kind: MessageType
 }
 
-impl MessageHeader {
-    pub unsafe fn from_raw(ptr: *const u8) -> MessageHeader {
-        mem::transmute_copy(&*ptr)
-    }
-}
+// impl MessageHeader {
+//     pub unsafe fn from_raw(ptr: *const u8) -> MessageHeader {
+//         mem::transmute_copy(&*ptr)
+//     }
+// }
 
 // #[derive(Debug)]
 // #[repr(C)]
@@ -91,10 +92,10 @@ impl Debug for Interception {
     }
 }
 
-enum Message {
-    Intercept(Interception),
-    Terminate
-}
+// enum Message {
+//     Intercept(Interception),
+//     Terminate
+// }
 
 impl Bucket {
     pub fn slice_buckets(ptr: u64, capacity: usize) -> Vec<Vec<u8>> {

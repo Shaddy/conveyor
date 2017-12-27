@@ -117,6 +117,33 @@ impl Device {
         Ok( handle )
     }
 
+    pub fn raw_call(&self, control: u32, ptr: LPVOID, len: usize) -> Result<(), Error> {
+
+        let mut bytes = 0;
+        let mut overlapped: OVERLAPPED = unsafe { zeroed() };
+
+        let success = unsafe {
+            kernel32::DeviceIoControl(
+                self.device,
+                control,
+                ptr,
+                len as u32,
+                ptr,
+                len as u32,
+                &mut bytes,
+                &mut overlapped) != 0
+        };
+
+        match success {
+            true => {
+                return Ok(())
+            },
+            false => {
+                return Err(Error::last_os_error())
+            }
+        }
+    }
+
     pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, Error> {
 
         let mut bytes = 0;

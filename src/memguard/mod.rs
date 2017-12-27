@@ -3,11 +3,14 @@
 extern crate clap;
 extern crate slog;
 extern crate winapi;
+extern crate kernel32;
 extern crate byteorder;
 extern crate num;
 
 use super::iochannel;
 use super::iochannel::{Device};
+
+use super::symbols;
 
 use std::fmt;
 use std::thread;
@@ -16,13 +19,15 @@ use std::thread::{JoinHandle};
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
+mod structs;
 mod core;
+mod memory;
 mod sync;
 mod bucket;
 mod tests;
 pub mod command;
 
-const PARTITION_ROOT_ID: u64 = 4;
+const _PARTITION_ROOT_ID: u64 = 4;
 
 pub enum ControlGuard {
     Start = 1,

@@ -3,9 +3,18 @@ use super::slog::Logger;
 
 use std::thread;
 use std::time::Duration;
+use std::fmt;
+use std::sync::Arc;
+
+use super::symbols::parser::Error;
+
 use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
 use super::core;
+use super::iochannel::{Device};
+use super::memory;
+use super::memory::{Map};
+use super::symbols;
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
     unimplemented!()
@@ -18,6 +27,13 @@ fn _not_implemented_command(_logger: Logger) {
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
+            .subcommand(SubCommand::with_name("memory")
+                .subcommand(SubCommand::with_name("read-eprocess"))
+                .subcommand(SubCommand::with_name("walk-eprocess"))
+                .subcommand(SubCommand::with_name("read"))
+                .subcommand(SubCommand::with_name("virtual"))
+                .subcommand(SubCommand::with_name("write"))
+                .subcommand(SubCommand::with_name("map")))
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("create-multiple"))
@@ -43,8 +59,183 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         ("partition", Some(matches))  => partition(matches, logger),
         ("guards",    Some(matches))  => guard_tests(matches, logger),
         ("regions",   Some(matches))  => region_tests(matches, logger),
+        ("memory",   Some(matches))   => memory_tests(matches, logger),
         _                             => println!("{}", matches.usage())
     }
+}
+
+// MEMORY TESTS
+fn memory_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        // ("read",  Some(matches))  => test_memory_read(matches, logger),
+        ("virtual",  Some(matches))       => test_virtual_memory(matches, logger),
+        ("write", Some(matches))          => test_memory_write(matches, logger),
+        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
+        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
+        ("map",   Some(matches))          => test_memory_map(matches, logger),
+        _                                         => println!("{}", matches.usage())
+    }
+}
+
+fn get_offset(target: &str) -> u16 {
+    match symbols::parser::find_offset("ntoskrnl.pdb", &target) {
+        Err(Error::IoError(_)) => {
+            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
+                                            .expect("Error downloading PDB");
+
+            symbols::parser::find_offset("ntoskrnl.pdb", &target).expect("can't retrieve offset")
+        },
+        Err(err) => {
+            panic!("error parsing PDB {}", err);
+        }
+        Ok(offset) => offset
+    }
+}
+
+struct Process {
+    device: Arc<Device>,
+    pointer: u64,
+}
+
+impl Process {
+    pub fn new(device: Arc<Device>, pointer: u64) -> Process {
+        Process {
+            device: device,
+            pointer: pointer
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn back(&self) -> Process {
+        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
+        let blink = memory::read_u64(&self.device, self.pointer + (offset as u64) + 8);
+
+        Process {
+            device: self.device.clone(),
+            pointer: blink - (offset as u64)
+        }
+    }
+
+    pub fn next(&self) -> Process {
+        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
+        let flink = memory::read_u64(&self.device, self.pointer + (offset as u64));
+
+        Process {
+            device: self.device.clone(),
+            pointer: flink - (offset as u64)
+        }
+    }
+
+    pub fn name(&self) -> String {
+        let offset = get_offset("_EPROCESS.ImageFileName");
+        let name = memory::read_virtual_memory(&self.device, self.pointer + (offset as u64), 15);
+        String::from_utf8(name).expect("can't build process name")
+                        .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
+    }
+}
+
+impl PartialEq for Process {
+    fn eq(&self, other: &Process) -> bool {
+        self.pointer == other.pointer
+    }
+}
+
+
+impl fmt::Display for Process {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{:016x} - Process({:?})", self.pointer, self.name())
+    }
+}
+
+fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let addr = core::current_process(&device);
+
+    let mut process = Process::new(Arc::new(device), addr);
+
+    process = process.next();
+
+    loop {
+        process = process.next();
+        debug!(logger, "next: {}", process);
+    }
+}
+
+fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    let addr = core::current_process(&device);
+
+    debug!(logger, "current-eprocess: 0x{:016x}", addr);
+
+}
+
+// TODO: Find a more generic kernel pointer
+const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
+
+fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    debug!(logger, "opened sentry: {:?}", device);
+
+    let mut v: Vec<u8> = Vec::new();
+
+    (0..(0x200 / 4)).for_each(|_| 
+    {
+        v.push(0xBE);
+        v.push(0xBA);
+        v.push(0xFE);
+        v.push(0xCA);
+    });
+
+    let size = v.len();
+
+    debug!(logger, "write-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
+
+    let addr = memory::alloc_virtual_memory(&device, size);
+
+    debug!(logger, "alloc_virtual_memory: 0x{:016x}", addr);
+
+    let written = memory::write_virtual_memory(&device, addr, v);
+
+    debug!(logger, "write_virtual_memory: {} bytes written", written);
+
+    let v = memory::read_virtual_memory(&device, addr, size);
+
+    debug!(logger, "reading 0x{:08x} bytes from 0x{:016x}", addr, size);
+
+    debug!(logger, "read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
+
+
+    let output: String = v.iter().enumerate()
+                    .map(|(i, b)| 
+                    {
+                            let mut s = format!("{:02X}", b);
+                            if i > 1 && i % 16 == 0 { s += "\n"; }  else { s += " "};
+                            s
+                    }).collect::<Vec<String>>().join("");;
+    
+    debug!(logger, "{}", output);
+
+    debug!(logger, "free_virtual_memory: 0x{:016x}", addr);
+    memory::free_virtual_memory(&device, addr);
+}
+
+fn test_memory_write(_matches: &ArgMatches, _logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let v = memory::read_virtual_memory(&device, KERNEL_ADDR, 0x200);
+
+    memory::write_virtual_memory(&device, KERNEL_ADDR, v);
+}
+
+
+fn test_memory_map(_matches: &ArgMatches, _logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    let map = Map::new(&device, KERNEL_ADDR, 0x200);
+
+    println!("map: {:?}", map);
+
 }
 
 fn create_multiple_partitions(_logger: Logger) {
@@ -90,7 +281,7 @@ fn guard_tests(matches: &ArgMatches, logger: Logger) {
 // callback interception tests
 // 
 //
-fn callback_test(interception: Interception) -> Action {
+fn _callback_test(interception: Interception) -> Action {
     println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
                                     interception.access);
 
@@ -101,16 +292,19 @@ fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
 
+    const POOL_SIZE: usize = 0x100;
+
     println!("allocating pool");
-    let addr = core::allocate_pool(&partition.device).expect("allocate error");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+
     println!("addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, 0x100, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
 
     println!("adding {} to {}", region, guard);
     guard.add(region);
 
-    // guard.set_callback(Box::new(callback_test));
+    // guard.set_callback(Box::new(_callback_test));
     guard.set_callback(Box::new(|interception| {
         println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
                                         interception.access);
@@ -120,9 +314,11 @@ fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
     println!("starting guard");
     guard.start();
     println!("accessing memory 0x{:016x}", addr);
-    core::read_pool(&partition.device);
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
     println!("stoping guard");
     guard.stop();
+
+    memory::free_virtual_memory(&partition.device, addr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -216,20 +412,27 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, _logger: Logger) {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
 
+    const POOL_SIZE: usize = 0x100;
+
     println!("allocating pool");
-    let addr = core::allocate_pool(&partition.device).expect("allocate error");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
     println!("addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, 0x100, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
 
     println!("adding {} to {}", region, guard);
+
     guard.add(region);
     println!("starting guard");
     guard.start();
     println!("accessing memory 0x{:016x}", addr);
-    core::read_pool(&partition.device);
+
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+
     println!("stoping guard");
     guard.stop();
+
+    memory::free_virtual_memory(&partition.device, addr);
 }
 
 fn test_intercept_region(_matches: &ArgMatches, _logger: Logger) {
