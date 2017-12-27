@@ -3,6 +3,8 @@ use super::slog::Logger;
 
 use std::thread;
 use std::time::Duration;
+use std::fmt;
+use std::sync::Arc;
 
 use super::symbols::parser::Error;
 
@@ -90,13 +92,13 @@ fn get_offset(target: &str) -> u16 {
     }
 }
 
-struct Process<'a> {
-    device: &'a Device,
+struct Process {
+    device: Arc<Device>,
     pointer: u64,
 }
 
-impl<'a> Process<'a> {
-    pub fn new(device: &'a Device, pointer: u64) -> Process {
+impl Process {
+    pub fn new(device: Arc<Device>, pointer: u64) -> Process {
         Process {
             device: device,
             pointer: pointer
@@ -108,7 +110,7 @@ impl<'a> Process<'a> {
         let blink = memory::read_u64(&self.device, self.pointer + (offset as u64) + 8);
 
         Process {
-            device: self.device,
+            device: self.device.clone(),
             pointer: blink - (offset as u64)
         }
     }
@@ -118,28 +120,27 @@ impl<'a> Process<'a> {
         let flink = memory::read_u64(&self.device, self.pointer + (offset as u64));
 
         Process {
-            device: self.device,
+            device: self.device.clone(),
             pointer: flink - (offset as u64)
         }
     }
 
     pub fn name(&self) -> String {
         let offset = get_offset("_EPROCESS.ImageFileName");
-        let name = memory::read_virtual_memory(self.device, self.pointer + (offset as u64), 15);
+        let name = memory::read_virtual_memory(&self.device, self.pointer + (offset as u64), 15);
         String::from_utf8(name).expect("can't build process name")
                         .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
     }
 }
 
-impl<'a> PartialEq for Process<'a> {
+impl PartialEq for Process {
     fn eq(&self, other: &Process) -> bool {
         self.pointer == other.pointer
     }
 }
 
-use std::fmt;
 
-impl<'a> fmt::Display for Process<'a> {
+impl fmt::Display for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{:016x} - Process({:?})", self.pointer, self.name())
     }
@@ -149,11 +150,12 @@ fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
     let addr = core::current_process(&device);
 
-    let process = Process::new(&device, addr);
-    let process = process.next();
+    let mut process = Process::new(Arc::new(device), addr);
+
+    process = process.next();
 
     loop {
-        let process = process.next();
+        process = process.next();
         debug!(logger, "next: {}", process);
     }
 }
