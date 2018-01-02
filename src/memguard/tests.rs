@@ -92,37 +92,91 @@ fn get_offset(target: &str) -> u16 {
     }
 }
 
+struct LinkedList {
+    device: Arc<Device>,
+    offset: u16,
+    pointer: u64,
+}
+
+impl LinkedList {
+    pub fn new(device: Arc<Device>, pointer: u64, offset: u16) -> LinkedList {
+        LinkedList {
+            device: device,
+            offset: offset,
+            pointer: pointer + offset as u64
+        }
+    }
+
+    pub fn ptr(&self) -> u64 {
+        self.pointer - self.offset as u64
+    }
+
+    pub fn back(&self) -> LinkedList {
+        let blink = memory::read_u64(&self.device, self.pointer + 8);
+
+        LinkedList {
+            device: self.device.clone(),
+            offset: self.offset,
+            pointer: blink
+        }
+    }
+
+    pub fn next(&self) -> LinkedList {
+        let flink = memory::read_u64(&self.device, self.pointer);
+
+        LinkedList {
+            device: self.device.clone(),
+            offset: self.offset,
+            pointer: flink
+        }
+    }
+}
+
+impl fmt::Display for LinkedList {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LinkedList(flink: 0x{:016x}, blink: 0x{:016x})", self.pointer, self.pointer + 8)
+    }
+}
+impl PartialEq for LinkedList {
+    fn eq(&self, other: &LinkedList) -> bool {
+        self.pointer == other.pointer
+    }
+}
+
 struct Process {
     device: Arc<Device>,
     pointer: u64,
+    list: LinkedList
 }
 
 impl Process {
     pub fn new(device: Arc<Device>, pointer: u64) -> Process {
+        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
+
         Process {
-            device: device,
-            pointer: pointer
+            device: device.clone(),
+            pointer: pointer,
+            list: LinkedList::new(device.clone(), pointer, offset)
         }
     }
 
-    #[allow(dead_code)]
     pub fn back(&self) -> Process {
-        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
-        let blink = memory::read_u64(&self.device, self.pointer + (offset as u64) + 8);
+        let next = self.list.back();
 
         Process {
             device: self.device.clone(),
-            pointer: blink - (offset as u64)
+            pointer: next.ptr(),
+            list: next
         }
     }
 
     pub fn next(&self) -> Process {
-        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
-        let flink = memory::read_u64(&self.device, self.pointer + (offset as u64));
+        let next = self.list.next();
 
         Process {
             device: self.device.clone(),
-            pointer: flink - (offset as u64)
+            pointer: next.ptr(),
+            list: next
         }
     }
 
@@ -134,16 +188,9 @@ impl Process {
     }
 }
 
-impl PartialEq for Process {
-    fn eq(&self, other: &Process) -> bool {
-        self.pointer == other.pointer
-    }
-}
-
-
 impl fmt::Display for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{:016x} - Process({:?})", self.pointer, self.name())
+        write!(f, "Process(name: {:?}, list: {})", self.name(), self.list)
     }
 }
 
@@ -169,6 +216,7 @@ fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "current-eprocess: 0x{:016x}", addr);
 
 }
+
 
 // TODO: Find a more generic kernel pointer
 const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
