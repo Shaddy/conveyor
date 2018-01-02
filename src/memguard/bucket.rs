@@ -1,6 +1,5 @@
 extern crate byteorder;
 extern crate winapi;
-extern crate kernel32;
 
 use super::sync::Event;
 use std::mem;

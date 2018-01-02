@@ -10,9 +10,8 @@ use std::mem::{transmute, zeroed, size_of_val};
 
 use super::ffi;
 use super::winapi;
-use super::winapi::winsvc;
-use super::winapi::winsvc::{SC_HANDLE};
-use super::advapi32;
+use super::winapi::um::winsvc;
+use super::winapi::um::winsvc::{SC_HANDLE};
 
 // custom namespaces
 
@@ -43,10 +42,10 @@ pub struct WindowsServiceControlManager {
 impl WindowsServiceControlManager {
     fn open() -> Result<SC_HANDLE, String> {
         let handle = unsafe {
-            advapi32::OpenSCManagerW(
+            winsvc::OpenSCManagerW(
                 null_mut(),
                 null_mut(),
-                winapi::winsvc::SC_MANAGER_ALL_ACCESS,
+                winapi::um::winsvc::SC_MANAGER_ALL_ACCESS,
             )
         };
 
@@ -137,10 +136,10 @@ impl WindowsService {
     pub fn stop(&self) -> &Self {
         let service = self.open().expect("Unable to open service");
 
-        let mut status: winapi::SERVICE_STATUS = unsafe {zeroed()};
+        let mut status: winsvc::SERVICE_STATUS = unsafe {zeroed()};
 
         let success = unsafe {
-            advapi32::ControlService( 
+            winsvc::ControlService( 
             service, 
             winsvc::SERVICE_CONTROL_STOP, 
             &mut status) == 0
@@ -180,7 +179,7 @@ impl WindowsService {
         let mut size: u32 = size_of_val(&process) as u32;
 
         let result = unsafe {
-            advapi32::QueryServiceStatusEx(
+            winsvc::QueryServiceStatusEx(
                 service,
                 winsvc::SC_STATUS_PROCESS_INFO,
                 transmute::<&mut SERVICE_STATUS_PROCESS, *mut u8>(&mut process),
@@ -213,7 +212,7 @@ impl WindowsService {
 
     pub fn open(&self) -> Result<SC_HANDLE, ServiceError> {
         let handle = unsafe {
-            advapi32::OpenServiceW(
+            winsvc::OpenServiceW(
                 self.manager.handle,
                 self.name.encode_utf16_null().as_ptr(),
                 winsvc::SERVICE_ALL_ACCESS,
@@ -261,7 +260,7 @@ impl WindowsService {
 
     pub fn delete(&self) -> Result<(), ServiceError> {
         let handle = self.open().expect("Can't open service");
-        let success = unsafe { advapi32::DeleteService(handle) == 0 };
+        let success = unsafe { winsvc::DeleteService(handle) == 0 };
 
         if success {
             return Err(WindowsService::service_error())
@@ -274,7 +273,7 @@ impl WindowsService {
 
     pub fn create(&self) -> Result<(), ServiceError> {
         let handle = unsafe {
-            advapi32::CreateServiceW(
+            winsvc::CreateServiceW(
                 self.manager.handle,                    // handle
                 self.name.encode_utf16_null().as_ptr(),              // service name
                 self.name.encode_utf16_null().as_ptr(),              // display name
@@ -301,7 +300,7 @@ impl WindowsService {
 
     fn close_service_handle(handle: SC_HANDLE) {
         unsafe {
-            advapi32::CloseServiceHandle(handle);
+            winsvc::CloseServiceHandle(handle);
         }
     }
 }

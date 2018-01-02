@@ -3,7 +3,6 @@
 extern crate clap;
 extern crate slog;
 extern crate winapi;
-extern crate advapi32;
 
 
 use super::ffi;

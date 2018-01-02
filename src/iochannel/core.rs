@@ -1,6 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
-use super::kernel32;
+use super::winapi::um::{ioapiset, fileapi, handleapi};
 
 use std::ptr::{null_mut};
 use std::io::Cursor;
@@ -9,16 +9,10 @@ use std::io::Error;
 
 use std::mem::{zeroed};
 
-use super::winapi::{HANDLE,
- GENERIC_READ,
- GENERIC_WRITE,
- FILE_SHARE_READ,
- FILE_SHARE_WRITE,
- OPEN_ALWAYS,
- INVALID_HANDLE_VALUE,
- LPVOID};
+use super::winapi::shared::minwindef::LPVOID;
 
-use super::winapi::minwinbase::{OVERLAPPED};
+use super::winapi::um::minwinbase::{OVERLAPPED};
+use super::winapi::um::winnt;
 
 use ffi::traits::EncodeUtf16;
 
@@ -82,7 +76,7 @@ pub enum DeviceError {
 #[derive(Debug)]
 pub struct Device {
     name: String,
-    device: HANDLE
+    device: winnt::HANDLE
 }
 
 impl Device {
@@ -99,18 +93,18 @@ impl Device {
     //     DeviceError::InvalidHandleValue(Error::last_os_error().to_string()) 
     // }
 
-    pub fn open(name: &str) -> Result<HANDLE, DeviceError> {
+    pub fn open(name: &str) -> Result<winnt::HANDLE, DeviceError> {
         let handle = unsafe {
-            kernel32::CreateFileW(name.encode_utf16_null().as_ptr(),
-                        GENERIC_READ | GENERIC_WRITE,
-                        FILE_SHARE_READ | FILE_SHARE_WRITE,
+            fileapi::CreateFileW(name.encode_utf16_null().as_ptr(),
+                        winnt::GENERIC_READ | winnt::GENERIC_WRITE,
+                        winnt::FILE_SHARE_READ | winnt::FILE_SHARE_WRITE,
                         null_mut(),
-                        OPEN_ALWAYS,
+                        fileapi::OPEN_ALWAYS,
                         0,
-                        INVALID_HANDLE_VALUE)
+                        handleapi::INVALID_HANDLE_VALUE)
         };
 
-        if handle == INVALID_HANDLE_VALUE {
+        if handle == handleapi::INVALID_HANDLE_VALUE {
             return Err(DeviceError::InvalidHandleValue(Error::last_os_error().to_string()))
         }
 
@@ -123,7 +117,7 @@ impl Device {
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
 
         let success = unsafe {
-            kernel32::DeviceIoControl(
+            ioapiset::DeviceIoControl(
                 self.device,
                 control,
                 ptr,
@@ -164,7 +158,7 @@ impl Device {
         };
 
         let success = unsafe {
-            kernel32::DeviceIoControl(
+            ioapiset::DeviceIoControl(
                 self.device,
                 control,
                 input_ptr,
@@ -191,7 +185,7 @@ impl Device {
 impl Drop for Device {
     fn drop(&mut self) {
         unsafe {
-            kernel32::CloseHandle(self.device);
+            handleapi::CloseHandle(self.device);
         }
     }
 }

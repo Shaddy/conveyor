@@ -1,7 +1,9 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::iochannel::{ Device, IoCtl };
-use super::winapi::{ FILE_READ_ACCESS, FILE_WRITE_ACCESS, METHOD_BUFFERED };
+
+use super::winapi::um::winioctl;
+
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
@@ -57,7 +59,8 @@ impl Channel {
 }
 
 pub fn current_process(device: &Device) -> u64 {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A27, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A27, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+
 
     let data = SE_GET_CURRENT_EPROCESS::init();
     
@@ -70,7 +73,8 @@ pub fn current_process(device: &Device) -> u64 {
 }
 
 pub fn create_partition(device: &Device) -> Result<Channel, String> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A00, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A00, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+
 
     let input = Vec::with_capacity(1000);
     let output: Vec<u8> = Vec::with_capacity(1000);
@@ -83,7 +87,8 @@ pub fn create_partition(device: &Device) -> Result<Channel, String> {
 }
 
 pub fn delete_partition(device: &Device, id: u64) -> Result<(), String> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A01, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A01, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+
 
     let mut input = vec![];
 
@@ -98,7 +103,8 @@ pub fn delete_partition(device: &Device, id: u64) -> Result<(), String> {
 
 
 pub fn _get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, PartitionError> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+
 
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
@@ -124,7 +130,8 @@ pub fn _get_partition_option(device: &Device, id: u64, option: u64) -> Result<u6
 }
 
 pub fn _set_partition_option(device: &Device, id: u64, option: u64, value: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A03, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A03, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+
 
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
@@ -142,7 +149,8 @@ pub fn _set_partition_option(device: &Device, id: u64, option: u64, value: u64) 
 }
 
 pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u64, flags: GuardFlags, priority: u64, _function: u64) -> u64 {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
@@ -165,7 +173,8 @@ pub fn register_guard(device: &Device, id: u64) -> Result<u64, String> {
 }
 
 pub fn unregister_guard(device: &Device, id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A11, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A11, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -184,7 +193,7 @@ pub fn start_guard(device: &Device, id: u64) {
 }
 
 fn control_guard(device: &Device, id: u64, action: ControlGuard) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A12, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A12, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).unwrap();
@@ -195,7 +204,7 @@ fn control_guard(device: &Device, id: u64, action: ControlGuard) {
 }
 
 pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: Access, weight: Option<usize>) -> u64 {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A20, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A20, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(partition_id).unwrap();
@@ -223,7 +232,8 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: 
 }
 
 pub fn delete_region(device: &Device, region_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A21, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A21, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -234,7 +244,8 @@ pub fn delete_region(device: &Device, region_id: u64) {
 }
 
 pub fn add_region(device: &Device, guard_id: u64, region_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A22, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A22, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -247,7 +258,8 @@ pub fn add_region(device: &Device, guard_id: u64, region_id: u64) {
 
 #[allow(dead_code)]
 pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A23, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A23, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -260,7 +272,8 @@ pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) {
 
 #[allow(dead_code)]
 pub fn set_state_region(device: &Device, region_id: u64, state: RegionStatus) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A24, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A24, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -273,7 +286,8 @@ pub fn set_state_region(device: &Device, region_id: u64, state: RegionStatus) {
 
 #[allow(dead_code)]
 pub fn get_info_region(device: &Device, region_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A25, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A25, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -311,7 +325,7 @@ pub fn get_info_region(device: &Device, region_id: u64) {
 
 #[allow(dead_code)]
 pub fn enumerate_region(device: &Device, partition_id: u64, guard_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(partition_id).unwrap();
@@ -330,7 +344,7 @@ pub fn enumerate_region(device: &Device, partition_id: u64, guard_id: u64) {
 
 #[allow(dead_code)]
 pub fn create_patch(device: &Device, partition_id: u64, base_address: u64, patch_range: &Range) -> u64 {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A40, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A40, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(partition_id).unwrap();
@@ -348,7 +362,8 @@ pub fn create_patch(device: &Device, partition_id: u64, base_address: u64, patch
 
 #[allow(dead_code)]
 pub fn delete_patch(device: &Device, patch_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A41, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A41, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -360,7 +375,8 @@ pub fn delete_patch(device: &Device, patch_id: u64) {
 
 #[allow(dead_code)]
 pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A42, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A42, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -373,7 +389,8 @@ pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) {
 
 #[allow(dead_code)]
 pub fn remove_patch(device: &Device, guard_id: u64, patch_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A43, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A43, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -386,7 +403,8 @@ pub fn remove_patch(device: &Device, guard_id: u64, patch_id: u64) {
 
 #[allow(dead_code)]
 pub fn enable_patch(device: &Device, patch_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A44, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A44, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -398,7 +416,8 @@ pub fn enable_patch(device: &Device, patch_id: u64) {
 
 #[allow(dead_code)]
 pub fn disable_patch(device: &Device, patch_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A45, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A45, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -411,7 +430,8 @@ pub fn disable_patch(device: &Device, patch_id: u64) {
 
 #[allow(dead_code)]
 pub fn get_info_patch(device: &Device, patch_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A46, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A46, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
+
 
     let mut input = vec![];
 
@@ -439,7 +459,7 @@ pub fn get_info_patch(device: &Device, patch_id: u64) {
 
 #[allow(dead_code)]
 pub fn enumerate_patch(device: &Device, partition_id: u64, guard_id: u64) {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A47, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS );
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A47, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(partition_id).unwrap();

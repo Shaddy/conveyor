@@ -1,8 +1,8 @@
 // Copyright © ByteHeed.  All rights reserved.
 
-use super::winapi::winsvc::{SC_HANDLE};
-use super::winapi::minwindef::{BOOL, DWORD};
-use super::winapi::winnt::{LPCWSTR};
+use super::winapi::um::winsvc::{SC_HANDLE};
+use super::winapi::shared::minwindef::{BOOL, DWORD};
+use super::winapi::um::winnt::{LPCWSTR};
 
 #[link(name = "advapi32")]
 extern "stdcall" {
