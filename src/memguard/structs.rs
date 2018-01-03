@@ -175,3 +175,18 @@ STRUCT!{
 }}
 
 impl RawStruct<SE_GET_CURRENT_EPROCESS> for SE_GET_CURRENT_EPROCESS { }
+
+pub enum TokenType {
+    HijackSystem = 1,
+    DuplicateSource
+}
+
+STRUCT!{
+    #[derive(Debug)]
+    struct SE_STEAL_TOKEN   {
+        SourcePid: ULONG64,
+        TargetPid: ULONG64,
+        StealType: u32,
+}}
+
+impl RawStruct<SE_STEAL_TOKEN> for SE_STEAL_TOKEN { }

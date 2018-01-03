@@ -1,4 +1,4 @@
-use super::clap::{App, ArgMatches, SubCommand};
+use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
 
 use std::thread;
@@ -9,9 +9,8 @@ use super::misc;
 
 use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
-use super::core;
+use super::{core, memory, token};
 use super::iochannel::{Device};
-use super::memory;
 use super::memory::{Map};
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
@@ -22,9 +21,18 @@ fn _not_implemented_command(_logger: Logger) {
     unimplemented!()
 }
 
-
 pub fn bind() -> App<'static, 'static> {
+    let target = Arg::with_name("pid").short("p")
+                            .required(true)
+                            .value_name("PID")
+                            .help("process pid target");
+
     SubCommand::with_name("tests")
+            .subcommand(SubCommand::with_name("token")
+                .subcommand(SubCommand::with_name("protect")
+                            .arg(target.clone()))
+                .subcommand(SubCommand::with_name("steal")
+                            .arg(target.clone())))
             .subcommand(SubCommand::with_name("process")
                 .subcommand(SubCommand::with_name("read-eprocess"))
                 .subcommand(SubCommand::with_name("find-eprocess"))
@@ -59,10 +67,63 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         ("partition", Some(matches))  => partition(matches, logger),
         ("guards",    Some(matches))  => guard_tests(matches, logger),
         ("regions",   Some(matches))  => region_tests(matches, logger),
-        ("memory",   Some(matches))   => memory_tests(matches, logger),
+        ("memory",    Some(matches))  => memory_tests(matches, logger),
         ("process",   Some(matches))  => process_tests(matches, logger),
+        ("token",     Some(matches))  => token_tests(matches, logger),
         _                             => println!("{}", matches.usage())
     }
+}
+
+fn token_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("protect", Some(matches))        => protect_token(matches, logger),
+        ("steal",   Some(matches))        => steal_token(matches, logger),
+        _                                 => println!("{}", matches.usage())
+    }
+}
+
+fn steal_token(matches: &ArgMatches, logger: Logger) {
+    let pid: u64 = matches.value_of("pid")
+                     .expect("can't extract PID from arguments")
+                     .parse()
+                     .expect("error parsing pid");
+    
+
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    debug!(logger, "elevating privilege of pid {}", pid);
+    token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
+    debug!(logger, "success");
+}
+
+fn protect_token(matches: &ArgMatches, logger: Logger) {
+    let pid: u64 = matches.value_of("pid")
+                     .expect("can't extract PID from arguments")
+                     .parse()
+                     .expect("error parsing pid");
+
+    let mut process = misc::Process::system();
+    let process = process.find(|p| p.id() == pid)
+           .expect("can't find client pid");
+
+    let token = process.token() & !0xF;
+
+    debug!(logger, "protecting target pid {} with token 0x{:016x}", 
+                        pid, token);
+
+    let partition: Partition = Partition::root();
+    let mut guard = Guard::new(&partition);
+    let region = Sentinel::region(&partition, token, 8, Access::WRITE);
+    guard.add(region);
+
+    guard.set_callback(Box::new(move |_| {
+        println!("{}: attempt to write 0x{:016x} token", pid, token);
+
+        Action::CONTINUE
+    }));
+
+    let duration = Duration::from_secs(60);
+    debug!(logger, "waiting {:?}", duration);
+    thread::sleep(duration);
 }
 
 fn process_tests(matches: &ArgMatches, logger: Logger) {
@@ -154,7 +215,6 @@ fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "reading 0x{:08x} bytes from 0x{:016x}", addr, size);
 
     debug!(logger, "read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
-
 
     let output: String = v.iter().enumerate()
                     .map(|(i, b)| 

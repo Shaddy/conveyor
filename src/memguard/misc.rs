@@ -1,6 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
+use super::core;
 use super::memory;
 use super::iochannel::{Device};
 use super::symbols;
@@ -93,6 +94,13 @@ pub struct Process {
 }
 
 impl Process {
+    pub fn system() -> Process {
+        let device = Device::new(core::SE_NT_DEVICE_NAME);
+        let addr = core::current_process(&device);
+
+        Process::new(Arc::new(device), addr)
+    }
+
     pub fn new(device: Arc<Device>, pointer: u64) -> Process {
         let offset = get_offset("_EPROCESS.ActiveProcessLinks");
 
@@ -122,6 +130,16 @@ impl Process {
             pointer: next.ptr(),
             list: next
         }
+    }
+
+    pub fn token(&self) -> u64 {
+        let offset = get_offset("_EPROCESS.Token");
+        memory::read_u64(&self.device, self.pointer + offset as u64)
+    }
+
+    pub fn id(&self) -> u64 {
+        let offset = get_offset("_EPROCESS.UniqueProcessId");
+        memory::read_u64(&self.device, self.pointer + offset as u64)
     }
 
     pub fn name(&self) -> String {

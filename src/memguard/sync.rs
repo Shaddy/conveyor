@@ -16,7 +16,8 @@ pub struct Event(winnt::HANDLE);
 
 impl Event {
 
-    pub fn _create() -> winnt::HANDLE {
+    #[allow(dead_code)]
+    pub fn create() -> winnt::HANDLE {
         let (manual, init) = (false, false);
 
         unsafe {
@@ -27,15 +28,18 @@ impl Event {
         }
     }
 
-    pub fn _new() -> Event {
-        Event(Event::_create())
+    #[allow(dead_code)]
+    pub fn new() -> Event {
+        Event(Event::create())
     }
 
-    pub fn _as_u64(&self) -> u64 {
+    #[allow(dead_code)]
+    pub fn as_u64(&self) -> u64 {
         self.0 as u64
     }
 
-    pub fn _reset(&self) -> &Self {
+    #[allow(dead_code)]
+    pub fn reset(&self) -> &Self {
         if unsafe { synchapi::ResetEvent(self.0) } == 0 {
             panic!("Failed to wait for the event: {}", 
                     Error::last_os_error());

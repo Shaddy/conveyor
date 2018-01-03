@@ -2,6 +2,7 @@ extern crate byteorder;
 extern crate winapi;
 
 use super::sync::Event;
+
 use std::mem;
 
 use std::fmt::Debug;
@@ -9,6 +10,13 @@ use std::fmt;
 use super::{Action, Access, CallbackMap};
     
 const BUCKET_SIZE: usize = (240 + 16);
+
+bitflags! {
+    pub struct ControlFlags: u32 {
+        const SE_MESSAGE_NORMAL       = 0x00000000;
+        const SE_MESSAGE_ASYNCHRONOUS = 0x00000001;
+    }
+}
 
 #[derive(Debug)]
 #[repr(C)]
@@ -43,7 +51,7 @@ enum MessageType {
 #[repr(C)]
 struct MessageHeader {
     id: u64,
-    flags: u32,
+    control: ControlFlags,
     kind: MessageType
 }
 
@@ -91,11 +99,6 @@ impl Debug for Interception {
     }
 }
 
-// enum Message {
-//     Intercept(Interception),
-//     Terminate
-// }
-
 impl Bucket {
     pub fn slice_buckets(ptr: u64, capacity: usize) -> Vec<Vec<u8>> {
         let chunks = BUCKET_SIZE;
@@ -131,19 +134,25 @@ impl Bucket {
 
         loop {
             // println!("#{:?} - waiting for new messsage.", thread::current().id());
+
             sync.kernel.wait();
+
+            // println!("#{:?} - got bucket", thread::current().id());
 
             let bucket = unsafe{ Bucket::from_raw(buffer.as_mut_ptr()
                                             // skip events
                                             .offset(mem::size_of::<Syncronizers>() as isize)) } ;
 
+            // println!("#{:?} - parsed bucket", thread::current().id());
 
             match bucket.header.kind {
                 MessageType::Terminate => {
+                    // println!("#{:?} - terminate message.", thread::current().id());
                     sync.user.signal();
                     break
                 },
                 MessageType::Intercept => {
+                    // println!("#{:?} - redirecting interception", thread::current().id());
                     let interception = unsafe { Interception::from_raw(buffer.as_mut_ptr()
                                     .offset(mem::size_of::<Syncronizers>() as isize)) };
 
@@ -160,7 +169,11 @@ impl Bucket {
             }
 
             // println!("#{:?} message-ready, notifying back.", thread::current().id());
-            sync.user.signal();
+
+            // TODO: Convert this check into something more fancy.
+            if (bucket.header.control & ControlFlags::SE_MESSAGE_ASYNCHRONOUS) != ControlFlags::SE_MESSAGE_ASYNCHRONOUS {
+                sync.user.signal();
+            }
         }
 
         // just a (leak) hack to avoid unstable free
