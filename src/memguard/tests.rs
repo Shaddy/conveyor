@@ -3,10 +3,9 @@ use super::slog::Logger;
 
 use std::thread;
 use std::time::Duration;
-use std::fmt;
-use std::sync::Arc;
 
-use super::symbols::parser::Error;
+use std::sync::Arc;
+use super::misc;
 
 use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
@@ -14,7 +13,6 @@ use super::core;
 use super::iochannel::{Device};
 use super::memory;
 use super::memory::{Map};
-use super::symbols;
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
     unimplemented!()
@@ -27,9 +25,11 @@ fn _not_implemented_command(_logger: Logger) {
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("tests")
-            .subcommand(SubCommand::with_name("memory")
+            .subcommand(SubCommand::with_name("process")
                 .subcommand(SubCommand::with_name("read-eprocess"))
-                .subcommand(SubCommand::with_name("walk-eprocess"))
+                .subcommand(SubCommand::with_name("find-eprocess"))
+                .subcommand(SubCommand::with_name("walk-eprocess")))
+            .subcommand(SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read"))
                 .subcommand(SubCommand::with_name("virtual"))
                 .subcommand(SubCommand::with_name("write"))
@@ -60,7 +60,17 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         ("guards",    Some(matches))  => guard_tests(matches, logger),
         ("regions",   Some(matches))  => region_tests(matches, logger),
         ("memory",   Some(matches))   => memory_tests(matches, logger),
+        ("process",   Some(matches))  => process_tests(matches, logger),
         _                             => println!("{}", matches.usage())
+    }
+}
+
+fn process_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
+        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
+        ("find-eprocess", Some(matches))  => test_find_eprocess(matches, logger),
+        _                                 => println!("{}", matches.usage())
     }
 }
 
@@ -70,142 +80,34 @@ fn memory_tests(matches: &ArgMatches, logger: Logger) {
         // ("read",  Some(matches))  => test_memory_read(matches, logger),
         ("virtual",  Some(matches))       => test_virtual_memory(matches, logger),
         ("write", Some(matches))          => test_memory_write(matches, logger),
-        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
-        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
         ("map",   Some(matches))          => test_memory_map(matches, logger),
-        _                                         => println!("{}", matches.usage())
+        _                                 => println!("{}", matches.usage())
     }
 }
 
-fn get_offset(target: &str) -> u16 {
-    match symbols::parser::find_offset("ntoskrnl.pdb", &target) {
-        Err(Error::IoError(_)) => {
-            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
-                                            .expect("Error downloading PDB");
+fn test_find_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let addr = core::current_process(&device);
 
-            symbols::parser::find_offset("ntoskrnl.pdb", &target).expect("can't retrieve offset")
-        },
-        Err(err) => {
-            panic!("error parsing PDB {}", err);
-        }
-        Ok(offset) => offset
-    }
-}
+    let mut process = misc::Process::new(Arc::new(device), addr);
 
-struct LinkedList {
-    device: Arc<Device>,
-    offset: u16,
-    pointer: u64,
-}
+    process = process.forward();
 
-impl LinkedList {
-    pub fn new(device: Arc<Device>, pointer: u64, offset: u16) -> LinkedList {
-        LinkedList {
-            device: device,
-            offset: offset,
-            pointer: pointer + offset as u64
-        }
-    }
-
-    pub fn ptr(&self) -> u64 {
-        self.pointer - self.offset as u64
-    }
-
-    pub fn back(&self) -> LinkedList {
-        let blink = memory::read_u64(&self.device, self.pointer + 8);
-
-        LinkedList {
-            device: self.device.clone(),
-            offset: self.offset,
-            pointer: blink
-        }
-    }
-
-    pub fn next(&self) -> LinkedList {
-        let flink = memory::read_u64(&self.device, self.pointer);
-
-        LinkedList {
-            device: self.device.clone(),
-            offset: self.offset,
-            pointer: flink
-        }
-    }
-}
-
-impl fmt::Display for LinkedList {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "LinkedList(flink: 0x{:016x}, blink: 0x{:016x})", self.pointer, self.pointer + 8)
-    }
-}
-impl PartialEq for LinkedList {
-    fn eq(&self, other: &LinkedList) -> bool {
-        self.pointer == other.pointer
-    }
-}
-
-struct Process {
-    device: Arc<Device>,
-    pointer: u64,
-    list: LinkedList
-}
-
-impl Process {
-    pub fn new(device: Arc<Device>, pointer: u64) -> Process {
-        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
-
-        Process {
-            device: device.clone(),
-            pointer: pointer,
-            list: LinkedList::new(device.clone(), pointer, offset)
-        }
-    }
-
-    pub fn back(&self) -> Process {
-        let next = self.list.back();
-
-        Process {
-            device: self.device.clone(),
-            pointer: next.ptr(),
-            list: next
-        }
-    }
-
-    pub fn next(&self) -> Process {
-        let next = self.list.next();
-
-        Process {
-            device: self.device.clone(),
-            pointer: next.ptr(),
-            list: next
-        }
-    }
-
-    pub fn name(&self) -> String {
-        let offset = get_offset("_EPROCESS.ImageFileName");
-        let name = memory::read_virtual_memory(&self.device, self.pointer + (offset as u64), 15);
-        String::from_utf8(name).expect("can't build process name")
-                        .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
-    }
-}
-
-impl fmt::Display for Process {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Process(name: {:?}, list: {})", self.name(), self.list)
-    }
+    debug!(logger, "{}", process.find(|process| process.name().contains("svchost")).unwrap());
 }
 
 fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
     let addr = core::current_process(&device);
 
-    let mut process = Process::new(Arc::new(device), addr);
+    let mut process = misc::Process::new(Arc::new(device), addr);
 
-    process = process.next();
+    process = process.forward();
 
-    loop {
-        process = process.next();
-        debug!(logger, "next: {}", process);
-    }
+    process.take(5).for_each(|process|
+        {
+            debug!(logger, "{}", process);
+    });
 }
 
 fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
@@ -216,7 +118,6 @@ fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "current-eprocess: 0x{:016x}", addr);
 
 }
-
 
 // TODO: Find a more generic kernel pointer
 const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;

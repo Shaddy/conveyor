@@ -23,6 +23,7 @@ mod core;
 mod memory;
 mod sync;
 mod bucket;
+mod misc;
 mod tests;
 pub mod command;
 
