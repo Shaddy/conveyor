@@ -42,6 +42,9 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("virtual"))
                 .subcommand(SubCommand::with_name("write"))
                 .subcommand(SubCommand::with_name("map")))
+            .subcommand(SubCommand::with_name("interceptions")
+                .subcommand(SubCommand::with_name("kernel-intercept"))
+                .subcommand(SubCommand::with_name("callback-intercept")))
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("create-multiple"))
@@ -49,7 +52,6 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(SubCommand::with_name("regions")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("intercept"))
-                .subcommand(SubCommand::with_name("kernel-intercept"))
                 .subcommand(SubCommand::with_name("create-multiple"))
                 .subcommand(SubCommand::with_name("regions-inside-guard"))
                 .subcommand(SubCommand::with_name("delete"))
@@ -57,20 +59,28 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("info")))
             .subcommand(SubCommand::with_name("guards")
                 .subcommand(SubCommand::with_name("create-10"))
-                .subcommand(SubCommand::with_name("interception-callback"))
                 .subcommand(SubCommand::with_name("create-and-start"))
                 .subcommand(SubCommand::with_name("add-a-region")))
 }
 
 pub fn tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("partition", Some(matches))  => partition(matches, logger),
-        ("guards",    Some(matches))  => guard_tests(matches, logger),
-        ("regions",   Some(matches))  => region_tests(matches, logger),
-        ("memory",    Some(matches))  => memory_tests(matches, logger),
-        ("process",   Some(matches))  => process_tests(matches, logger),
-        ("token",     Some(matches))  => token_tests(matches, logger),
+        ("partition",         Some(matches))  => partition(matches, logger),
+        ("guards",            Some(matches))  => guard_tests(matches, logger),
+        ("regions",           Some(matches))  => region_tests(matches, logger),
+        ("memory",            Some(matches))  => memory_tests(matches, logger),
+        ("process",           Some(matches))  => process_tests(matches, logger),
+        ("token",             Some(matches))  => token_tests(matches, logger),
+        ("interceptions",     Some(matches))  => interception_tests(matches, logger),
         _                             => println!("{}", matches.usage())
+    }
+}
+
+fn interception_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("kernel",      Some(matches))  => test_intercept_kernel_region(matches, logger),
+        ("callback",    Some(matches))  => test_interception_callback(matches, logger),
+        _                                 => println!("{}", matches.usage())
     }
 }
 
@@ -280,7 +290,6 @@ pub fn partition(matches: &ArgMatches, logger: Logger) {
 fn guard_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create-and-start", Some(matches))       => start_a_guard(matches, logger),
-        ("interception-callback", Some(matches))  => test_interception_callback(matches, logger),
         ("create-10",        Some(matches))       => create_multiple_guards(matches, logger),
         _                                         => println!("{}", matches.usage())
     }
