@@ -10,6 +10,7 @@ use super::iochannel;
 use super::iochannel::{Device};
 
 use super::symbols;
+use super::cli;
 
 use std::fmt;
 use std::thread;

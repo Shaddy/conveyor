@@ -1,5 +1,6 @@
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
+use super::cli::colorize;
 
 use std::thread;
 use std::time::Duration;
@@ -132,25 +133,24 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
 
     const POOL_SIZE: usize = 0x10;
 
-    debug!(logger, "allocating pool");
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
-    debug!(logger, "addr: 0x{:016x}", addr);
+    debug!(logger, "new pool: 0x{:016x} ({} bytes)", addr, POOL_SIZE);
 
     let bytes = memory::write_virtual_memory(&partition.device, addr, vec![0; POOL_SIZE]);
-    debug!(logger, "cleared {} bytes", bytes);
+    debug!(logger, "zeroed {} bytes", bytes);
 
-    debug!(logger, "reading allocated memory 0x{:016x}", addr);
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
     let output = dump_vector(v);
     debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::WRITE);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE);
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
-        println!("Attemp to write at 0x{:016X} - IGNORING", interception.address);
+        let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
+        colorize::info(&message);
         Action::STEALTH
     }));
 
@@ -164,8 +164,14 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "written {} bytes", bytes);
 
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
-    let output = dump_vector(v);
-    debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
+    if v.iter().any(|&b| b != 0x00) {
+        colorize::failed("STEALTH test result has FAILED.");
+        let output = dump_vector(v);
+        debug!(logger, "inspecting buffer 0x{:016x}", addr);
+        colorize::warning(&output);
+    } else {
+        colorize::success("STEALTH test result has PASSED.");
+    }
 
     debug!(logger, "stoping guard");
     guard.stop();
@@ -173,7 +179,9 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     memory::free_virtual_memory(&partition.device, addr);
 }
 
-fn _callback_test(interception: Interception) -> Action {
+// example of declared function as callback
+#[allow(dead_code)]
+fn callback_test(interception: Interception) -> Action {
     println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
                                     interception.access);
 
@@ -196,7 +204,7 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
-    // guard.set_callback(Box::new(_callback_test));
+    // guard.set_callback(Box::new(callback_test));
     guard.set_callback(Box::new(|interception| {
         println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
                                         interception.access);
@@ -255,7 +263,7 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
-    let region = Sentinel::region(&partition, token, 8, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE);
+    let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
     guard.add(region);
 
     guard.set_callback(Box::new(move |_| {
