@@ -188,16 +188,21 @@ pub enum Sentinel<'p> {
 }
 
 impl<'p> Sentinel<'p> {
-    pub fn region(partition: &'p Partition, base: u64, limit: u64, access: Access) -> Sentinel<'p> {
+    pub fn region(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Sentinel<'p> {
         let range = Range::new(base, limit);
-        let id = core::create_region(&partition.device, partition.id, &range, access, Some(0x100));
+
+        let action = if action.is_some() {
+            action.unwrap()
+        } else { Action::INSPECT | Action::NOTIFY };
+
+        let id = core::create_region(&partition.device, partition.id, &range, action, access, Some(0x100));
 
         Sentinel::Region{
             id: id,
             partition: partition,
             range: range,
             access: Access::READ,
-            action: Action::CONTINUE
+            action: action
         }
     }
 

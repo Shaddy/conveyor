@@ -6,7 +6,7 @@ use super::winapi::um::winioctl;
 
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
-use super::{Access, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
+use super::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
 
 use super::structs::{RawStruct, SE_GET_CURRENT_EPROCESS};
 
@@ -203,7 +203,7 @@ fn control_guard(device: &Device, id: u64, action: ControlGuard) {
                 .expect("control_guard()");
 }
 
-pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: Access, weight: Option<usize>) -> u64 {
+pub fn create_region(device: &Device, partition_id: u64, range: &Range, action: Action, access: Access, weight: Option<usize>) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A20, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
@@ -218,7 +218,7 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, access: 
     input.write_u32::<LittleEndian>(access.bits() as u32).unwrap();
 
     // action
-    input.write_u64::<LittleEndian>(0x0008 | 0x1000).unwrap();
+    input.write_u64::<LittleEndian>(action.bits() as u64).unwrap();
     input.write_u64::<LittleEndian>(0).unwrap();
     input.write_u64::<LittleEndian>(0).unwrap();
 

@@ -144,7 +144,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     let output = dump_vector(v);
     debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::WRITE);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::WRITE);
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -191,7 +191,7 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -255,7 +255,7 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
-    let region = Sentinel::region(&partition, token, 8, Access::WRITE);
+    let region = Sentinel::region(&partition, token, 8, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE);
     guard.add(region);
 
     guard.set_callback(Box::new(move |_| {
@@ -493,7 +493,7 @@ fn test_enumerate_region(_matches: &ArgMatches, _logger: Logger) {
 fn test_create_multiple_regions(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
     let _regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, Access::READ);
+            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
             debug!(logger, "{}", region);
             region
         }).collect();
@@ -506,7 +506,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
     let mut guard: Guard = Guard::new(&partition);
 
     let regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, Access::READ);
+            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
             println!("{}", region);
             region
         }).collect();
@@ -528,7 +528,7 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
 
     debug!(logger, "adding {} to {}", region, guard);
 
@@ -551,7 +551,7 @@ fn test_intercept_region(_matches: &ArgMatches, logger: Logger) {
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
-    let region = Sentinel::region(&partition, v.as_ptr() as u64, 10, Access::READ);
+    let region = Sentinel::region(&partition, v.as_ptr() as u64, 10, None, Access::READ);
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
     debug!(logger, "starting guard, and sleeping 5 seconds");
@@ -575,6 +575,6 @@ fn test_intercept_region(_matches: &ArgMatches, logger: Logger) {
 
 fn test_create_region(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, Access::READ);
+    let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
     debug!(logger, "{}", region);
 }
