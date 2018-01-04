@@ -219,7 +219,11 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, action: 
 
     // action
     input.write_u64::<LittleEndian>(action.bits() as u64).unwrap();
+
+    // readbuffer
     input.write_u64::<LittleEndian>(0).unwrap();
+
+    // writebuffer
     input.write_u64::<LittleEndian>(0).unwrap();
 
     input.write_u64::<LittleEndian>(weight.unwrap_or(0) as u64).unwrap();

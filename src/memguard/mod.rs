@@ -41,7 +41,7 @@ bitflags! {
         const NOTIFY    = 0x00001000;
         const CONTINUE  = 0x00000001;
         const BLOCK     = 0x00000002;
-        const STEALTH   = 0x00000003;
+        const STEALTH   = 0x00000004;
         const INSPECT   = 0x00001008;
     }
 }
@@ -192,9 +192,7 @@ impl<'p> Sentinel<'p> {
     pub fn region(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Sentinel<'p> {
         let range = Range::new(base, limit);
 
-        let action = if action.is_some() {
-            action.unwrap()
-        } else { Action::INSPECT | Action::NOTIFY };
+        let action = action.unwrap_or(Action::INSPECT | Action::NOTIFY);
 
         let id = core::create_region(&partition.device, partition.id, &range, action, access, Some(0x100));
 
