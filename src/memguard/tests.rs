@@ -47,9 +47,9 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("write"))
                 .subcommand(SubCommand::with_name("map")))
             .subcommand(SubCommand::with_name("interceptions")
-                .subcommand(SubCommand::with_name("kernel-intercept"))
-                .subcommand(SubCommand::with_name("stealth-intercept"))
-                .subcommand(SubCommand::with_name("callback-intercept")))
+                .subcommand(SubCommand::with_name("kernel"))
+                .subcommand(SubCommand::with_name("stealth"))
+                .subcommand(SubCommand::with_name("callback")))
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("create-multiple"))
@@ -85,6 +85,35 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
 // 
 // CALLBACK INTERCEPTION TESTS
 //
+fn dummy_vector(size: usize) -> Vec<u8> {
+    let mut v: Vec<u8> = Vec::new();
+
+    (0..(size / 4)).for_each(|_| 
+    {
+        v.push(0xBE);
+        v.push(0xBA);
+        v.push(0xFE);
+        v.push(0xCA);
+    });
+
+    v
+}
+
+fn dump_vector(v: Vec<u8>) -> String {
+    v.iter().enumerate()
+            .map(|(i, b)| 
+            {
+                    let mut s = format!("{:02X}", b);
+                    if i > 1 && i % 16 == 0 { s += "\n"; }  else { s += " "};
+                    s
+            }).collect::<Vec<String>>().join("")
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+// 
+// CALLBACK INTERCEPTION TESTS
+//
 fn interception_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("kernel",      Some(matches))  => test_intercept_kernel_region(matches, logger),
@@ -101,12 +130,19 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition);
 
-    const POOL_SIZE: usize = 0x100;
+    const POOL_SIZE: usize = 0x10;
 
     debug!(logger, "allocating pool");
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
-
     debug!(logger, "addr: 0x{:016x}", addr);
+
+    let bytes = memory::write_virtual_memory(&partition.device, addr, vec![0; POOL_SIZE]);
+    debug!(logger, "cleared {} bytes", bytes);
+
+    debug!(logger, "reading allocated memory 0x{:016x}", addr);
+    let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    let output = dump_vector(v);
+    debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
     let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::WRITE);
 
@@ -121,13 +157,21 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "starting guard");
     guard.start();
     debug!(logger, "accessing memory 0x{:016x}", addr);
-    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+
+    let v = dummy_vector(POOL_SIZE);
+
+    let bytes = memory::write_virtual_memory(&partition.device, addr, v);
+    debug!(logger, "written {} bytes", bytes);
+
+    let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    let output = dump_vector(v);
+    debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
+
     debug!(logger, "stoping guard");
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr);
 }
-
 
 fn _callback_test(interception: Interception) -> Action {
     println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
@@ -244,15 +288,7 @@ fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "opened sentry: {:?}", device);
 
-    let mut v: Vec<u8> = Vec::new();
-
-    (0..(0x200 / 4)).for_each(|_| 
-    {
-        v.push(0xBE);
-        v.push(0xBA);
-        v.push(0xFE);
-        v.push(0xCA);
-    });
+    let v = dummy_vector(0x200);
 
     let size = v.len();
 
@@ -272,13 +308,7 @@ fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
 
-    let output: String = v.iter().enumerate()
-                    .map(|(i, b)| 
-                    {
-                            let mut s = format!("{:02X}", b);
-                            if i > 1 && i % 16 == 0 { s += "\n"; }  else { s += " "};
-                            s
-                    }).collect::<Vec<String>>().join("");;
+    let output = dump_vector(v);
     
     debug!(logger, "{}", output);
 
