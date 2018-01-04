@@ -13,6 +13,10 @@ use super::{core, memory, token};
 use super::iochannel::{Device};
 use super::memory::{Map};
 
+/////////////////////////////////////////////////////////////////////////
+// 
+// DUMMY UNUSED COMMANDS
+//
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
     unimplemented!()
 }
@@ -44,6 +48,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("map")))
             .subcommand(SubCommand::with_name("interceptions")
                 .subcommand(SubCommand::with_name("kernel-intercept"))
+                .subcommand(SubCommand::with_name("stealth-intercept"))
                 .subcommand(SubCommand::with_name("callback-intercept")))
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
@@ -76,6 +81,10 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
     }
 }
 
+/////////////////////////////////////////////////////////////////////////
+// 
+// CALLBACK INTERCEPTION TESTS
+//
 fn interception_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("kernel",      Some(matches))  => test_intercept_kernel_region(matches, logger),
@@ -84,6 +93,51 @@ fn interception_tests(matches: &ArgMatches, logger: Logger) {
     }
 }
 
+
+fn _callback_test(interception: Interception) -> Action {
+    println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
+                                    interception.access);
+
+    Action::CONTINUE
+}
+
+fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
+    let partition: Partition = Partition::root();
+    let mut guard = Guard::new(&partition);
+
+    const POOL_SIZE: usize = 0x100;
+
+    println!("allocating pool");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+
+    println!("addr: 0x{:016x}", addr);
+
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
+
+    println!("adding {} to {}", region, guard);
+    guard.add(region);
+
+    // guard.set_callback(Box::new(_callback_test));
+    guard.set_callback(Box::new(|interception| {
+        println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
+                                        interception.access);
+
+        Action::CONTINUE
+    }));
+    println!("starting guard");
+    guard.start();
+    println!("accessing memory 0x{:016x}", addr);
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    println!("stoping guard");
+    guard.stop();
+
+    memory::free_virtual_memory(&partition.device, addr);
+}
+
+/////////////////////////////////////////////////////////////////////////
+// 
+// TOKEN PROTECTION TESTS
+//
 fn token_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("protect", Some(matches))        => protect_token(matches, logger),
@@ -136,16 +190,10 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
     thread::sleep(duration);
 }
 
-fn process_tests(matches: &ArgMatches, logger: Logger) {
-    match matches.subcommand() {
-        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
-        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
-        ("find-eprocess", Some(matches))  => test_find_eprocess(matches, logger),
-        _                                 => println!("{}", matches.usage())
-    }
-}
-
+/////////////////////////////////////////////////////////////////////////
+// 
 // MEMORY TESTS
+//
 fn memory_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         // ("read",  Some(matches))  => test_memory_read(matches, logger),
@@ -155,43 +203,6 @@ fn memory_tests(matches: &ArgMatches, logger: Logger) {
         _                                 => println!("{}", matches.usage())
     }
 }
-
-fn test_find_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let addr = core::current_process(&device);
-
-    let mut process = misc::Process::new(Arc::new(device), addr);
-
-    process = process.forward();
-
-    debug!(logger, "{}", process.find(|process| process.name().contains("svchost")).unwrap());
-}
-
-fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let addr = core::current_process(&device);
-
-    let mut process = misc::Process::new(Arc::new(device), addr);
-
-    process = process.forward();
-
-    process.take(5).for_each(|process|
-        {
-            debug!(logger, "{}", process);
-    });
-}
-
-fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(core::SE_NT_DEVICE_NAME);
-
-    let addr = core::current_process(&device);
-
-    debug!(logger, "current-eprocess: 0x{:016x}", addr);
-
-}
-
-// TODO: Find a more generic kernel pointer
-const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
 
 fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
@@ -257,6 +268,60 @@ fn test_memory_map(_matches: &ArgMatches, _logger: Logger) {
 
 }
 
+/////////////////////////////////////////////////////////////////////////
+// 
+// PROCESS TESTS
+//
+fn process_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
+        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
+        ("find-eprocess", Some(matches))  => test_find_eprocess(matches, logger),
+        _                                 => println!("{}", matches.usage())
+    }
+}
+
+fn test_find_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let addr = core::current_process(&device);
+
+    let mut process = misc::Process::new(Arc::new(device), addr);
+
+    process = process.forward();
+
+    debug!(logger, "{}", process.find(|process| process.name().contains("svchost")).unwrap());
+}
+
+fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let addr = core::current_process(&device);
+
+    let mut process = misc::Process::new(Arc::new(device), addr);
+
+    process = process.forward();
+
+    process.take(5).for_each(|process|
+        {
+            debug!(logger, "{}", process);
+    });
+}
+
+/////////////////////////////////////////////////////////////////////////
+// 
+// MEMORY TESTS
+//
+fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    let addr = core::current_process(&device);
+
+    debug!(logger, "current-eprocess: 0x{:016x}", addr);
+
+}
+
+// TODO: Find a more generic kernel pointer
+const KERNEL_ADDR: u64 = 0xfffffa800231e9e0;
+
 fn create_multiple_partitions(_logger: Logger) {
     println!("creating 3 partitions");
     let _partition1: Partition = Partition::new();
@@ -286,7 +351,10 @@ pub fn partition(matches: &ArgMatches, logger: Logger) {
     }
 }
 
+/////////////////////////////////////////////////////////////////////////
+// 
 // GUARD TESTS
+//
 fn guard_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create-and-start", Some(matches))       => start_a_guard(matches, logger),
@@ -295,51 +363,6 @@ fn guard_tests(matches: &ArgMatches, logger: Logger) {
     }
 }
 
-
-// callback interception tests
-// 
-//
-fn _callback_test(interception: Interception) -> Action {
-    println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
-                                    interception.access);
-
-    Action::CONTINUE
-}
-
-fn test_interception_callback(_matches: &ArgMatches, _logger: Logger) {
-    let partition: Partition = Partition::root();
-    let mut guard = Guard::new(&partition);
-
-    const POOL_SIZE: usize = 0x100;
-
-    println!("allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
-
-    println!("addr: 0x{:016x}", addr);
-
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Access::READ);
-
-    println!("adding {} to {}", region, guard);
-    guard.add(region);
-
-    // guard.set_callback(Box::new(_callback_test));
-    guard.set_callback(Box::new(|interception| {
-        println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
-                                        interception.access);
-
-        Action::CONTINUE
-    }));
-    println!("starting guard");
-    guard.start();
-    println!("accessing memory 0x{:016x}", addr);
-    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
-    println!("stoping guard");
-    guard.stop();
-
-    memory::free_virtual_memory(&partition.device, addr);
-}
-
-///////////////////////////////////////////////////////////////////////////////////////
 
 fn start_guard_a_second(guard: &Guard) {
     println!("starting {}", guard);
@@ -380,7 +403,11 @@ fn create_multiple_guards(_matches: &ArgMatches, _logger: Logger) {
         println!("{}", guard);
     }
 }
+
+/////////////////////////////////////////////////////////////////////////
+// 
 // REGION TESTS
+//
 fn region_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create", Some(matches))  => test_create_region(matches, logger),
