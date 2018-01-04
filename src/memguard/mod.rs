@@ -201,7 +201,7 @@ impl<'p> Sentinel<'p> {
             id: id,
             partition: partition,
             range: range,
-            access: Access::READ,
+            access: access,
             action: action
         }
     }
