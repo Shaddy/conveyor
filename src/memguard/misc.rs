@@ -89,7 +89,7 @@ impl PartialEq for LinkedList {
 
 pub struct Process {
     device: Arc<Device>,
-    pointer: u64,
+    object: u64,
     list: LinkedList
 }
 
@@ -101,13 +101,13 @@ impl Process {
         Process::new(Arc::new(device), addr)
     }
 
-    pub fn new(device: Arc<Device>, pointer: u64) -> Process {
+    pub fn new(device: Arc<Device>, object: u64) -> Process {
         let offset = get_offset("_EPROCESS.ActiveProcessLinks");
 
         Process {
             device: device.clone(),
-            pointer: pointer,
-            list: LinkedList::new(device.clone(), pointer, offset)
+            object: object,
+            list: LinkedList::new(device.clone(), object, offset)
         }
     }
 
@@ -117,7 +117,7 @@ impl Process {
 
         Process {
             device: self.device.clone(),
-            pointer: next.ptr(),
+            object: next.ptr(),
             list: next
         }
     }
@@ -127,24 +127,24 @@ impl Process {
 
         Process {
             device: self.device.clone(),
-            pointer: next.ptr(),
+            object: next.ptr(),
             list: next
         }
     }
 
     pub fn token(&self) -> u64 {
         let offset = get_offset("_EPROCESS.Token");
-        memory::read_u64(&self.device, self.pointer + offset as u64)
+        memory::read_u64(&self.device, self.object + offset as u64)
     }
 
     pub fn id(&self) -> u64 {
         let offset = get_offset("_EPROCESS.UniqueProcessId");
-        memory::read_u64(&self.device, self.pointer + offset as u64)
+        memory::read_u64(&self.device, self.object + offset as u64)
     }
 
     pub fn name(&self) -> String {
         let offset = get_offset("_EPROCESS.ImageFileName");
-        let name = memory::read_virtual_memory(&self.device, self.pointer + (offset as u64), 15);
+        let name = memory::read_virtual_memory(&self.device, self.object + (offset as u64), 15);
         String::from_utf8(name).expect("can't build process name")
                         .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
     }
@@ -155,7 +155,7 @@ impl Iterator for Process {
 
     fn next(&mut self) -> Option<Process> {
         let process = self.forward();
-        self.pointer = process.pointer;
+        self.object = process.object;
         self.list = process.list.clone();
 
         Some(process)
