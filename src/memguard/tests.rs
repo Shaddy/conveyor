@@ -5,7 +5,6 @@ use super::cli::colorize;
 use std::thread;
 use std::time::Duration;
 
-use std::sync::Arc;
 use super::misc;
 
 use super::{Partition, Sentinel, Guard, Access, Action};
@@ -39,6 +38,8 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("steal")
                             .arg(target.clone())))
             .subcommand(SubCommand::with_name("process")
+                .subcommand(SubCommand::with_name("kernel-base"))
+                .subcommand(SubCommand::with_name("system-process"))
                 .subcommand(SubCommand::with_name("read-eprocess"))
                 .subcommand(SubCommand::with_name("find-eprocess"))
                 .subcommand(SubCommand::with_name("walk-eprocess")))
@@ -349,33 +350,34 @@ fn test_memory_map(_matches: &ArgMatches, logger: Logger) {
 //
 fn process_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("read-eprocess", Some(matches))  => test_read_eprocess(matches, logger),
-        ("walk-eprocess", Some(matches))  => test_walk_eprocess(matches, logger),
-        ("find-eprocess", Some(matches))  => test_find_eprocess(matches, logger),
+        ("read-eprocess",   Some(matches))  => test_read_eprocess(matches, logger),
+        ("walk-eprocess",   Some(matches))  => test_walk_eprocess(matches, logger),
+        ("find-eprocess",   Some(matches))  => test_find_eprocess(matches, logger),
+        ("kernel-base",     Some(matches))  => test_kernel_base(matches, logger),
+        ("system-process",  Some(matches))  => test_system_process(matches, logger),
         _                                 => println!("{}", matches.usage())
     }
 }
 
+fn test_kernel_base(_matches: &ArgMatches, logger: Logger) {
+    let value = core::get_kernel_base().expect("ERROR getting kernel base");
+    debug!(logger, "base: 0x{:016x}", value);
+}
+
+fn test_system_process(_matches: &ArgMatches, logger: Logger) {
+    let system = misc::Process::system();
+    debug!(logger, "system: 0x{:016x}", system.object());
+}
+
 fn test_find_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let addr = core::current_process(&device);
-
-    let mut process = misc::Process::new(Arc::new(device), addr);
-
-    process = process.forward();
-
-    debug!(logger, "{}", process.find(|process| process.name().contains("svchost")).unwrap());
+    let mut system = misc::Process::system();
+    debug!(logger, "{}", system.find(|process| process.name().contains("svchost")).unwrap());
 }
 
 fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(core::SE_NT_DEVICE_NAME);
-    let addr = core::current_process(&device);
+    let system = misc::Process::system();
 
-    let mut process = misc::Process::new(Arc::new(device), addr);
-
-    process = process.forward();
-
-    process.take(5).for_each(|process|
+    system.take(5).for_each(|process|
         {
             debug!(logger, "{}", process);
     });
@@ -386,11 +388,11 @@ fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
 // MEMORY TESTS
 //
 fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    let mut system = misc::Process::system();
 
-    let addr = core::current_process(&device);
+    let current = system.find(|process| process.name().contains("conveyor")).unwrap();
 
-    debug!(logger, "current-eprocess: 0x{:016x}", addr);
+    debug!(logger, "current-eprocess: 0x{:016x}", current.object());
 
 }
 

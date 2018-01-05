@@ -1,6 +1,6 @@
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
-use super::core::Device;
+use super::Device;
 
 
 fn _not_implemented_command(_logger: Logger) {

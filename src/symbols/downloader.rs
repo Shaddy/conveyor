@@ -74,16 +74,18 @@ impl PdbDownloader {
 
 #[cfg(test)]
 mod tests {
+    use super::PdbDownloader;
+
     #[test]
     fn test_nt_pdb_is_correct() {
-        let pdb = PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe");
+        let pdb = PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string());
         assert_eq!(pdb.url(), 
        "https://msdl.microsoft.com/download/symbols/ntkrnlmp.pdb/31C51B7D1C2545A88F69E13FC73E68941/ntkrnlmp.pdb")
     }
 
     #[test]
     fn test_download_is_working() {
-        let pdb = PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe");
+        let pdb = PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string());
         assert!(pdb.download().is_ok());
     }
 }

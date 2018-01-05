@@ -9,8 +9,7 @@ extern crate num;
 use super::iochannel;
 use super::iochannel::{Device};
 
-use super::symbols;
-use super::cli;
+use super::{symbols, cli, ffi};
 
 use std::fmt;
 use std::thread;

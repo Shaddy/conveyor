@@ -168,14 +168,6 @@ STRUCT!{
 
 impl RawStruct<SE_FREE_PROCESS_MEMORY> for SE_FREE_PROCESS_MEMORY { }
 
-STRUCT!{
-    #[derive(Debug)]
-    struct SE_GET_CURRENT_EPROCESS   {
-        Process: ULONG64,
-}}
-
-impl RawStruct<SE_GET_CURRENT_EPROCESS> for SE_GET_CURRENT_EPROCESS { }
-
 pub enum TokenType {
     HijackSystem = 1,
     DuplicateSource

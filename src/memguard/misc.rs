@@ -96,7 +96,7 @@ pub struct Process {
 impl Process {
     pub fn system() -> Process {
         let device = Device::new(core::SE_NT_DEVICE_NAME);
-        let addr = core::current_process(&device);
+        let addr = memory::read_u64(&device, core::system_process_pointer());
 
         Process::new(Arc::new(device), addr)
     }
@@ -130,6 +130,10 @@ impl Process {
             object: next.ptr(),
             list: next
         }
+    }
+
+    pub fn object(&self) -> u64 {
+        self.object
     }
 
     pub fn token(&self) -> u64 {

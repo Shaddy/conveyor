@@ -1,14 +1,18 @@
 // Copyright © ByteHeed.  All rights reserved.
 
+use super::ffi::traits::EncodeUtf16;
 use super::iochannel::{ Device, IoCtl };
 
-use super::winapi::um::winioctl;
+use super::winapi::um::{winioctl, psapi, libloaderapi};
+use super::winapi::shared::minwindef::{ DWORD, 
+                                        LPVOID, 
+                                        HMODULE };
 
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
 
-use super::structs::{RawStruct, SE_GET_CURRENT_EPROCESS};
+use std::io::Error;
 
 use std::mem;
 use std::fmt;
@@ -58,18 +62,57 @@ impl Channel {
     }
 }
 
-pub fn current_process(device: &Device) -> u64 {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A27, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+pub fn get_kernel_base() -> Result<u64, String> {
+    let mut bases = vec![0; 0x1000];
 
+    let mut needed: DWORD = 0;
 
-    let data = SE_GET_CURRENT_EPROCESS::init();
-    
-    let (ptr, len) = (data.as_ptr(), data.size());
+    let value;
 
-    device.raw_call(control.into(), ptr, len)
-                            .expect("Error calling IOCTL_SENTRY_WRITE_PROCESS_MEMORY");
+    unsafe {
+        if psapi::EnumDeviceDrivers(bases.as_mut_ptr() as *mut LPVOID, bases.len() as u32, &mut needed) != 0 { 
+            let array = bases.as_ptr() as *const u64;
+            value = *array;
+        } else {
+            return Err(Error::last_os_error().to_string())
+        }
+    }
 
-    data.Process
+    Ok(value)
+}
+
+pub fn load_library(name: &str) -> Result<u64, String> {
+    unsafe {
+        let value = libloaderapi::LoadLibraryW(name.encode_utf16_null().as_ptr()) as u64;
+        if value != 0 {
+            Ok(value)
+        } else {
+            Err(Error::last_os_error().to_string())
+        }
+    } 
+}
+
+pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, String> {
+    unsafe {
+        let value = libloaderapi::GetProcAddress(base as HMODULE, name.as_ptr() as *const i8) as u64;
+        if value != 0 {
+            Ok(value)
+        } else {
+            Err(Error::last_os_error().to_string())
+        }
+    }
+}
+
+pub fn system_process_pointer() -> u64 {
+    let kernel_base = get_kernel_base()
+                            .expect("can't discover kernel base addr");
+    let dynamic_base = load_library("ntoskrnl.exe")
+                            .expect("can't load ntoskrnl");
+
+    let address = get_proc_addr(dynamic_base, "PsInitialSystemProcess")
+                            .expect("can't retrieve PsInitialSystemProcess");
+
+    (address - dynamic_base) + kernel_base
 }
 
 pub fn create_partition(device: &Device) -> Result<Channel, String> {
