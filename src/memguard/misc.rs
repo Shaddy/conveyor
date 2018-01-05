@@ -1,15 +1,23 @@
 use std::fmt;
 use std::sync::Arc;
 
-use super::core;
-use super::memory;
+use super::ffi::traits::EncodeUtf16;
+
+use super::winapi::um::{psapi, libloaderapi};
+use super::{core, memory, symbols, misc};
+
+use std::io::Error;
+use std::mem;
+
+use super::winapi::shared::minwindef::{ DWORD, 
+                                        LPVOID, 
+                                        HMODULE };
 use super::iochannel::{Device};
-use super::symbols;
-use super::symbols::parser::Error;
+use super::symbols::parser::Error as PdbError;
 
 fn get_offset(target: &str) -> u16 {
     match symbols::parser::find_offset("ntoskrnl.pdb", &target) {
-        Err(Error::IoError(_)) => {
+        Err(PdbError::IoError(_)) => {
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
                                             .expect("Error downloading PDB");
 
@@ -96,7 +104,7 @@ pub struct Process {
 impl Process {
     pub fn system() -> Process {
         let device = Device::new(core::SE_NT_DEVICE_NAME);
-        let addr = memory::read_u64(&device, core::system_process_pointer());
+        let addr = memory::read_u64(&device, misc::system_process_pointer());
 
         Process::new(Arc::new(device), addr)
     }
@@ -170,4 +178,113 @@ impl fmt::Display for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Process(name: {:?}, list: {})", self.name(), self.list)
     }
+}
+
+struct Driver {
+    pub name: String,
+    pub base: u64
+}
+
+impl fmt::Display for Driver {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Driver {{ name: {:?}, base: 0x{:016x} }}", self.name, self.base)
+    }
+}
+
+struct Drivers {
+    drivers: Vec<u64>,
+    curr: usize,
+    limit: usize
+}
+
+impl Drivers {
+    fn iter() -> Drivers {
+        let mut needed: DWORD = 0;
+        let mut drivers: Vec<u64> = vec![0; 1024];
+
+        let result = unsafe {
+            psapi::EnumDeviceDrivers(drivers.as_mut_ptr() as *mut LPVOID, 
+                    drivers.len() as u32, 
+                    &mut needed)
+
+        };
+
+        if result == 0 {
+            panic!(Error::last_os_error().to_string())
+        }
+
+        if needed > (drivers.len() * mem::size_of::<usize>()) as u32 {
+            panic!(format!("buffer is less than {}", needed))
+        }
+
+        Drivers {
+            drivers: drivers,
+            curr: 0,
+            limit: (needed / mem::size_of::<usize>() as u32) as usize
+        }
+    }
+}
+
+impl Iterator for Drivers {
+    type Item = Driver;
+    
+    fn next(&mut self) -> Option<Driver> {
+        let mut content: Vec<u16> = vec![0; 1024];
+        let base = self.drivers[self.curr];
+
+        if base == 0 { return None } else { self.curr += 1 };
+
+        if self.curr > self.limit { return None };
+
+        let length = unsafe { psapi::GetDeviceDriverBaseNameW(base as LPVOID, content.as_mut_ptr(), 1024 / 2) };
+        if length <= 0 { return None } 
+
+        Some(Driver {
+                name: content.iter().take(length as usize).map(|n| *n as u8 as char).collect::<String>(),
+                base: base
+        })
+    }
+}
+
+pub fn list_kernel_drivers() {
+    Drivers::iter().for_each(|driver|
+        println!("{}", driver)
+    );
+}
+
+pub fn get_kernel_base() -> u64 {
+    Drivers::iter().take(1).nth(0).unwrap().base
+}
+
+pub fn load_library(name: &str) -> Result<u64, String> {
+    unsafe {
+        let value = libloaderapi::LoadLibraryW(name.encode_utf16_null().as_ptr()) as u64;
+        if value != 0 {
+            Ok(value)
+        } else {
+            Err(Error::last_os_error().to_string())
+        }
+    } 
+}
+
+pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, String> {
+    unsafe {
+        let value = libloaderapi::GetProcAddress(base as HMODULE, name.as_ptr() as *const i8) as u64;
+        if value != 0 {
+            Ok(value)
+        } else {
+            Err(Error::last_os_error().to_string())
+        }
+    }
+}
+
+pub fn system_process_pointer() -> u64 {
+    let kernel_base = get_kernel_base();
+    let dynamic_base = load_library("ntoskrnl.exe")
+                            .expect("can't load ntoskrnl");
+
+    let address = get_proc_addr(dynamic_base, "PsInitialSystemProcess")
+                            .expect("can't retrieve PsInitialSystemProcess");
+
+    (address - dynamic_base) + kernel_base
 }

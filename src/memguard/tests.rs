@@ -42,6 +42,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("system-process"))
                 .subcommand(SubCommand::with_name("read-eprocess"))
                 .subcommand(SubCommand::with_name("find-eprocess"))
+                .subcommand(SubCommand::with_name("list-drivers"))
                 .subcommand(SubCommand::with_name("walk-eprocess")))
             .subcommand(SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read"))
@@ -162,7 +163,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     let v = dummy_vector(POOL_SIZE);
 
     let bytes = memory::write_virtual_memory(&partition.device, addr, v);
-    debug!(logger, "written {} bytes", bytes);
+    debug!(logger, "{} bytes written", bytes);
 
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
     if v.iter().any(|&b| b != 0x00) {
@@ -355,13 +356,18 @@ fn process_tests(matches: &ArgMatches, logger: Logger) {
         ("find-eprocess",   Some(matches))  => test_find_eprocess(matches, logger),
         ("kernel-base",     Some(matches))  => test_kernel_base(matches, logger),
         ("system-process",  Some(matches))  => test_system_process(matches, logger),
+        ("list-drivers",    Some(matches))  => test_list_drivers(matches, logger),
         _                                 => println!("{}", matches.usage())
     }
 }
 
+fn test_list_drivers(_matches: &ArgMatches, _logger: Logger) {
+    misc::list_kernel_drivers();
+}
+
+
 fn test_kernel_base(_matches: &ArgMatches, logger: Logger) {
-    let value = core::get_kernel_base().expect("ERROR getting kernel base");
-    debug!(logger, "base: 0x{:016x}", value);
+    debug!(logger, "base: 0x{:016x}", misc::get_kernel_base());
 }
 
 fn test_system_process(_matches: &ArgMatches, logger: Logger) {

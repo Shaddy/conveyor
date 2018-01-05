@@ -25,6 +25,7 @@ mod memory;
 mod sync;
 mod bucket;
 mod misc;
+mod search;
 mod tests;
 pub mod command;
 
