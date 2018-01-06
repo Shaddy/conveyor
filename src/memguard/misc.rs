@@ -95,6 +95,7 @@ impl PartialEq for LinkedList {
     }
 }
 
+#[derive(Clone)]
 pub struct Process {
     device: Arc<Device>,
     object: u64,
@@ -162,14 +163,37 @@ impl Process {
     }
 }
 
-impl Iterator for Process {
+impl PartialEq for Process {
+    fn eq(&self, other: &Process) -> bool {
+        self.object == other.object
+    }
+}
+
+pub struct WalkProcess {
+    head: Process,
+    curr: Process
+}
+
+impl WalkProcess {
+    pub fn iter() -> WalkProcess {
+        let head = Process::system();
+        WalkProcess {
+            head: head.clone(),
+            curr: head.forward() 
+        }
+    }
+}
+
+impl Iterator for WalkProcess {
     type Item = Process;
 
     fn next(&mut self) -> Option<Process> {
-        let process = self.forward();
-        self.object = process.object;
-        self.list = process.list.clone();
+        let process = self.curr.clone();
+        let next = self.curr.forward();
 
+        self.curr = next.clone();
+
+        if next == self.head { return None };
         Some(process)
     }
 }

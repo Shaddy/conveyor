@@ -280,8 +280,7 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
                      .parse()
                      .expect("error parsing pid");
 
-    let mut process = misc::Process::system();
-    let process = process.find(|p| p.id() == pid)
+    let process = misc::WalkProcess::iter().find(|p| p.id() == pid)
            .expect("can't find client pid");
 
     let token = process.token() & !0xF;
@@ -402,15 +401,13 @@ fn test_system_process(_matches: &ArgMatches, logger: Logger) {
 }
 
 fn test_find_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let mut system = misc::Process::system();
-    debug!(logger, "{}", system.find(|process| process.name().contains("svchost")).unwrap());
+    debug!(logger, "{}", misc::WalkProcess::iter()
+                                .find(|process| process.name().contains("svchost")).unwrap());
 }
 
 fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let system = misc::Process::system();
-
-    system.take(5).for_each(|process|
-        {
+    misc::WalkProcess::iter().for_each(|process|
+    {
             debug!(logger, "{}", process);
     });
 }
@@ -420,9 +417,8 @@ fn test_walk_eprocess(_matches: &ArgMatches, logger: Logger) {
 // MEMORY TESTS
 //
 fn test_read_eprocess(_matches: &ArgMatches, logger: Logger) {
-    let mut system = misc::Process::system();
-
-    let current = system.find(|process| process.name().contains("conveyor")).unwrap();
+    let current =  misc::WalkProcess::iter()
+                            .find(|process| process.name().contains("conveyor")).unwrap();
 
     debug!(logger, "current-eprocess: 0x{:016x}", current.object());
 
