@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use super::{misc, search};
 
-use super::{Partition, Sentinel, Guard, Access, Action};
+use super::{Partition, Sentinel, Guard, Access, Action, Filter, MatchType};
 use super::bucket::Interception;
 use super::{core, memory, token};
 use super::iochannel::{Device};
@@ -53,6 +53,7 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(SubCommand::with_name("interceptions")
                 .subcommand(SubCommand::with_name("kernel"))
                 .subcommand(SubCommand::with_name("stealth"))
+                .subcommand(SubCommand::with_name("analysis"))
                 .subcommand(SubCommand::with_name("callback")))
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
@@ -147,17 +148,49 @@ fn interception_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("kernel",      Some(matches))  => test_intercept_kernel_region(matches, logger),
         ("stealth",     Some(matches))  => test_stealth_interception(matches, logger),
+        ("analysis",    Some(matches))  => test_analysis_interception(matches, logger),
         ("callback",    Some(matches))  => test_interception_callback(matches, logger),
         _                                 => println!("{}", matches.usage())
     }
 }
+
+fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
+    let partition: Partition = Partition::root();
+
+    let mut guard = Guard::new(&partition, Filter::current_process(&partition.device, MatchType::NOT_EQUAL));
+    let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ExAllocatePoolWithTag");
+    let region = Sentinel::region(&partition, addr, 
+                                  1, 
+                                  Some(Action::NOTIFY | Action::INSPECT), 
+                                  Access::EXECUTE);
+
+    debug!(logger, "adding {} to {}", region, guard);
+    guard.add(region);
+
+    guard.set_callback(Box::new(|interception| {
+        let message = format!("0x{:016x} - ExAllocatePoolWithTag", interception.address);
+        colorize::info(&message);
+        Action::CONTINUE
+    }));
+
+    debug!(logger, "starting guard");
+    guard.start();
+
+    let duration = Duration::from_secs(60);
+    debug!(logger, "waiting {:?}", duration);
+    thread::sleep(duration);
+
+    debug!(logger, "stoping guard");
+    guard.stop();
+}
+
 
 //
 // This test aims to demostrate that we are able to ignore any write to any memory address
 //
 fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let mut guard = Guard::new(&partition);
+    let mut guard = Guard::new(&partition, None);
 
     const POOL_SIZE: usize = 0x10;
 
@@ -218,7 +251,7 @@ fn callback_test(interception: Interception) -> Action {
 
 fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let mut guard = Guard::new(&partition);
+    let mut guard = Guard::new(&partition, None);
 
     const POOL_SIZE: usize = 0x100;
 
@@ -289,7 +322,7 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
                         pid, token);
 
     let partition: Partition = Partition::root();
-    let mut guard = Guard::new(&partition);
+    let mut guard = Guard::new(&partition, None);
     let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
     guard.add(region);
 
@@ -482,17 +515,17 @@ fn start_guard_a_second(guard: &Guard, logger: &Logger) {
 }
 fn start_a_guard(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let guard = Guard::new(&partition);
+    let guard = Guard::new(&partition, None);
 
     start_guard_a_second(&guard, &logger);
 }
 
 fn create_multiple_guards(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let _guard = Guard::new(&partition);
+    let _guard = Guard::new(&partition, None);
 
     let guards: Vec<Guard> = (0..10).map(|_| {
-            let guard = Guard::new(&partition);
+            let guard = Guard::new(&partition, None);
             guard
         }).collect();
 
@@ -541,7 +574,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
 
     let partition: Partition = Partition::root();
 
-    let mut guard: Guard = Guard::new(&partition);
+    let mut guard: Guard = Guard::new(&partition, None);
 
     let regions: Vec<Sentinel> = (0..10).map(|_| {
             let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
@@ -558,7 +591,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
 
 fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let mut guard = Guard::new(&partition);
+    let mut guard = Guard::new(&partition, None);
 
     const POOL_SIZE: usize = 0x100;
 
@@ -588,7 +621,7 @@ fn test_intercept_region(_matches: &ArgMatches, logger: Logger) {
     v.push(13);
 
     let partition: Partition = Partition::root();
-    let mut guard = Guard::new(&partition);
+    let mut guard = Guard::new(&partition, None);
     let region = Sentinel::region(&partition, v.as_ptr() as u64, 10, None, Access::READ);
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);

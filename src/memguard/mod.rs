@@ -11,8 +11,7 @@ use super::iochannel::{Device};
 
 use super::{symbols, cli, ffi};
 
-use std::fmt;
-use std::thread;
+use std::{fmt, thread};
 use std::thread::{JoinHandle};
 
 use std::sync::{Arc, RwLock};
@@ -27,7 +26,19 @@ mod bucket;
 mod misc;
 mod search;
 mod tests;
+
+pub use self::structs::MatchType;
+
+use self::structs::{FieldKey, 
+                    ValueType, 
+                    MG_GUARD_CONDITION, 
+                    MG_GUARD_FILTER, 
+                    MG_FIELD_VALUE, 
+                    RawStruct};
+
 pub mod command;
+
+
 
 const _PARTITION_ROOT_ID: u64 = 4;
 
@@ -323,18 +334,71 @@ impl<'p> Drop for Sentinel<'p> {
     }
 }
 
-#[derive(Debug)]
-pub enum Filter {
-    None
+pub struct Filter<'a> {
+    device: &'a Device,
+    alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
+    filter: MG_GUARD_FILTER
 }
 
-// TODO: Add user callback to notify interceptions.
+impl<'a> Filter<'a> {
+    pub fn new(device: &'a Device) -> Filter {
+        let alloc = memory::KernelAlloc::new(device);
+        let filter = unsafe { *alloc.as_ptr() };
+
+        Filter {
+            alloc: alloc,
+            device: device,
+            filter: filter,
+        }
+    }
+
+    pub fn kernel_ptr(&self) -> u64 {
+        self.alloc.kernel_ptr()
+    }
+
+    pub fn add(&mut self, condition: Condition) {
+        self.filter.Conditions[self.filter.NumberOfConditions as usize] = condition.condition.clone();
+
+        self.filter.NumberOfConditions += 1;
+    }
+
+    pub fn current_process(device: &Device, cmp: MatchType) -> Option<Filter> {
+        let mut filter = Filter::new(&device);
+
+        let current = misc::WalkProcess::iter().find(|p| p.name().contains("conveyor.exe"))
+                                        .expect("conveyor not found");
+
+        filter.add(Condition::new(FieldKey::PROCESS_ID, 
+                                  cmp,
+                                  ValueType::UINT64,
+                                  current.id()));
+        
+        Some(filter)
+    }
+}
+
+pub struct Condition {
+    pub condition: MG_GUARD_CONDITION
+}
+
+impl Condition {
+    pub fn new(field: FieldKey, cmp: MatchType, kind: ValueType, value: u64) -> Condition {
+        Condition {
+            condition: MG_GUARD_CONDITION {
+                Field: field,
+                Match: cmp,
+                Value: MG_FIELD_VALUE {
+                    Kind: kind,
+                    Value: value
+                }
+            }
+        }
+    }
+}
 
 pub struct Guard<'p> {
     id: u64,
-    _filter: Filter,
     partition: &'p Partition,
-    // callback: Fn(&bucket/whatever),
     sentinels: Vec<Sentinel<'p>>,
 }
 
@@ -352,15 +416,16 @@ pub struct Guard<'p> {
 // impl<'p> Partitioned for Sentinel<'p> {}
 
 impl<'p> Guard<'p> {
-    pub fn new(partition: &'p Partition) -> Guard<'p> {
+    pub fn new(partition: &'p Partition, filter: Option<Filter<'p>>) -> Guard<'p> {
 
-        let id = core::register_guard(&partition.device, partition.id)
+        let filter = filter.unwrap_or(Filter::new(&partition.device));
+        let id = core::register_guard(&partition.device, partition.id, filter)
             .expect("Unable to connect guard with root partition");
 
         println!("Guard<0x{:08X}>::new()", id);
+
         Guard {
             id: id,
-            _filter: Filter::None,
             partition: partition,
             sentinels: Vec::new()
         }

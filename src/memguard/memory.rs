@@ -7,8 +7,11 @@ use super::winapi::shared::minwindef::{LPVOID, LPHANDLE};
 use super::winapi::um::{ processthreadsapi, winioctl };
 
 use super::byteorder::{LittleEndian, ReadBytesExt};
+
+use std::marker::PhantomData;
 use std::io::Cursor;
 use std::slice;
+use std::mem;
 
 use super::core::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
@@ -29,11 +32,45 @@ use super::structs::{RawStruct,
                      SE_FREE_PROCESS_MEMORY};
 
 #[derive(Debug)]
+pub struct KernelAlloc<'a, T> {
+    device: &'a Device,
+    map: Map<'a>,
+    phantom: PhantomData<T>
+}
+
+impl<'a, T> KernelAlloc<'a, T> {
+    pub fn new(device: &'a Device) -> KernelAlloc<T> {
+        let size = mem::size_of::<T>();
+        let ptr = alloc_virtual_memory(device, size);
+
+        KernelAlloc {
+            device: device,
+            map: Map::new(device, ptr, size),
+            phantom: PhantomData
+        }
+    }
+    
+    pub fn kernel_ptr(&self) -> u64 {
+        self.map.kernel_ptr()
+    }
+
+    pub fn as_ptr(&self) -> *const T {
+        self.map.raw.MappedMemory as *const u8 as *const T
+    }
+}
+
+impl<'a, T> Drop for KernelAlloc<'a, T> {
+    fn drop(&mut self) {
+        free_virtual_memory(self.device, self.map.kernel_ptr());
+    }
+}
+
+#[derive(Debug)]
 pub struct Map<'a> {
     device: &'a Device,
     address: u64,
     size: usize,
-    pub raw: structs::SE_MAP_VIRTUAL_MEMORY
+    raw: structs::SE_MAP_VIRTUAL_MEMORY
 }
 
 impl<'a> Map<'a> {
@@ -46,6 +83,18 @@ impl<'a> Map<'a> {
             size: size,
             raw: raw
         }
+    }
+
+    pub fn kernel_ptr(&self) -> u64 {
+        self.raw.BaseAddress as u64
+    }
+
+    pub fn as_mut_ptr(&self) -> *mut u8 {
+        self.raw.MappedMemory as *mut u8
+    }
+
+    pub fn as_ptr(&self) -> *const u8 {
+        self.raw.MappedMemory as *const u8
     }
 
     pub fn as_slice(&self) -> &[u8] {

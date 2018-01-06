@@ -6,7 +6,7 @@ use super::winapi::um::winioctl;
 
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
-use super::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus};
+use super::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus, Filter};
 
 use std::mem;
 use std::fmt;
@@ -132,7 +132,7 @@ pub fn _set_partition_option(device: &Device, id: u64, option: u64, value: u64) 
     println!("id: {} | option: {:?} | value: {} ", id, option, value);
 }
 
-pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u64, flags: GuardFlags, priority: u64, _function: u64) -> u64 {
+pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: Filter, flags: GuardFlags, priority: u64, _function: u64) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
 
 
@@ -141,7 +141,7 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u
 
     input.write_u64::<LittleEndian>(id).unwrap();
     input.write_u64::<LittleEndian>(context).unwrap();
-    input.write_u64::<LittleEndian>(filter).unwrap();
+    input.write_u64::<LittleEndian>(filter.kernel_ptr()).unwrap();
     input.write_u64::<LittleEndian>(flags.bits() as u64).unwrap();
     input.write_u64::<LittleEndian>(priority).unwrap();
     
@@ -152,8 +152,8 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: u
     cursor.read_u64::<LittleEndian>().expect("get_partition_option() - IOCTL Buffer is wrong")
 }
 
-pub fn register_guard(device: &Device, id: u64) -> Result<u64, String> {
-    Ok(register_guard_extended(device, id, 0, 0, GuardFlags::STOPPED, 0, 0))
+pub fn register_guard(device: &Device, id: u64, filter: Filter) -> Result<u64, String> {
+    Ok(register_guard_extended(device, id, 0, filter, GuardFlags::STOPPED, 0, 0))
 }
 
 pub fn unregister_guard(device: &Device, id: u64) {
