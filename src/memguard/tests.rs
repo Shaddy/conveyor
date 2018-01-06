@@ -94,8 +94,19 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
 fn test_search_pattern(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
 
-    if let Some(offset) = search::pattern(&device, "ntos", &vec![0, 0, 0, 0, 0], "ExFreePoolWithTag") {
-        debug!(logger, "offset: {}", offset);
+    let switch_context_pattern: Vec<u8> = vec![0x89, 0x60, 0x18, 0x4C, 
+                                               0x89, 0x68, 0x20, 0x4C, 
+                                               0x89, 0x70, 0x28, 0x4C, 
+                                               0x89, 0x78, 0x30, 0x65, 
+                                               0x48, 0x8B, 0x1C, 0x25, 
+                                               0x20, 0x00, 0x00, 0x00, 
+                                               0x48, 0x8B, 0xF9];
+
+    if let Some(offset) = search::pattern(&device, 
+                                          "ntos", 
+                                          &switch_context_pattern, 
+                                          "KeSynchronizeExecution") {
+        debug!(logger, "switch-context: 0x{:016x}", offset);
     }
 }
 

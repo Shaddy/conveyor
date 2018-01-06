@@ -33,7 +33,7 @@ pub struct Map<'a> {
     device: &'a Device,
     address: u64,
     size: usize,
-    raw: structs::SE_MAP_VIRTUAL_MEMORY
+    pub raw: structs::SE_MAP_VIRTUAL_MEMORY
 }
 
 impl<'a> Map<'a> {
@@ -49,7 +49,7 @@ impl<'a> Map<'a> {
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.raw.MapToAddress as *const u8, self.size) }
+        unsafe { slice::from_raw_parts(self.raw.MappedMemory as *const u8, self.size) }
     }
 }
 

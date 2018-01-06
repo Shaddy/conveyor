@@ -279,6 +279,9 @@ pub fn load_library(name: &str) -> Result<u64, String> {
 }
 
 pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, String> {
+    // for some reason its necessary to do this in order to correctly pass the string
+    // at some point the reference to native string breaks the result
+    let name = String::from(name);
     unsafe {
         let value = libloaderapi::GetProcAddress(base as HMODULE, name.as_ptr() as *const i8) as u64;
         if value != 0 {
@@ -289,7 +292,7 @@ pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, String> {
     }
 }
 
-pub fn relative_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
+pub fn fixed_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
     let dynamic_base = load_library(name)
                             .expect(name);
 
@@ -300,16 +303,5 @@ pub fn relative_procedure_address(base: u64, name: &str, procedure: &str) -> u64
 }
 
 pub fn system_process_pointer() -> u64 {
-    relative_procedure_address(get_kernel_base(), "ntoskrnl.exe", "PsInitialSystemProcess")
+    fixed_procedure_address(get_kernel_base(), "ntoskrnl.exe", "PsInitialSystemProcess")
 }
-
-// pub fn system_process_pointer() -> u64 {
-//     let kernel_base = get_kernel_base();
-//     let dynamic_base = load_library("ntoskrnl.exe")
-//                             .expect("can't load ntoskrnl");
-
-//     let address = get_proc_addr(dynamic_base, "PsInitialSystemProcess")
-//                             .expect("can't retrieve PsInitialSystemProcess");
-
-//     (address - dynamic_base) + kernel_base
-// }

@@ -9,15 +9,15 @@ use std::str;
 // use super::symbols::parser::Error;
 const MAX_SEARCH_SIZE: usize = 0x10000;
 
-pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> Option<usize> {
+pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> Option<u64> {
     if let Some(driver) = misc::Drivers::contains(name) {
 
         // TODO: Create an IOCTL to retrieve the procedure address
-        let address = misc::get_proc_addr(driver.base(), neighbour)
-                                .expect(&format!("{}", neighbour));
-
-
-        let map = memory::Map::new(device, driver.base() + address, MAX_SEARCH_SIZE);
+        // let address = misc::get_proc_addr(driver.base(), neighbour)
+        //                         .expect(&format!("{}", neighbour));
+        
+        let address = misc::fixed_procedure_address(driver.base(), "ntoskrnl.exe", neighbour);
+        let map = memory::Map::new(device, address, MAX_SEARCH_SIZE);
 
         //
         // this code looks with side-effects but its verified, there is an algorithm from str
@@ -29,7 +29,9 @@ pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> 
         let pattern = unsafe { str::from_utf8_unchecked(pattern) } ;
         
         if code.contains(pattern) {
-            return code.find(pattern)
+            if let Some(offset) = code.find(pattern) {
+                return Some(address + offset as u64)
+            }
         }
     } 
 
