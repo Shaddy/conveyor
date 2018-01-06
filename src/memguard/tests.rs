@@ -5,7 +5,7 @@ use super::cli::colorize;
 use std::thread;
 use std::time::Duration;
 
-use super::misc;
+use super::{misc, search};
 
 use super::{Partition, Sentinel, Guard, Access, Action};
 use super::bucket::Interception;
@@ -44,6 +44,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("find-eprocess"))
                 .subcommand(SubCommand::with_name("list-drivers"))
                 .subcommand(SubCommand::with_name("walk-eprocess")))
+            .subcommand(SubCommand::with_name("search-pattern"))
             .subcommand(SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read"))
                 .subcommand(SubCommand::with_name("virtual"))
@@ -79,8 +80,22 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         ("memory",            Some(matches))  => memory_tests(matches, logger),
         ("process",           Some(matches))  => process_tests(matches, logger),
         ("token",             Some(matches))  => token_tests(matches, logger),
+        ("search-pattern",    Some(matches))  => test_search_pattern(matches, logger),
         ("interceptions",     Some(matches))  => interception_tests(matches, logger),
         _                             => println!("{}", matches.usage())
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////
+// 
+// SEARCH PATTERN TEST
+//
+
+fn test_search_pattern(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    if let Some(offset) = search::pattern(&device, "ntos", &vec![0, 0, 0, 0, 0], "ExFreePoolWithTag") {
+        debug!(logger, "offset: {}", offset);
     }
 }
 

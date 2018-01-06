@@ -180,9 +180,15 @@ impl fmt::Display for Process {
     }
 }
 
-struct Driver {
+pub struct Driver {
     pub name: String,
     pub base: u64
+}
+
+impl Driver {
+    pub fn base(&self) -> u64 {
+        self.base
+    }
 }
 
 impl fmt::Display for Driver {
@@ -191,14 +197,18 @@ impl fmt::Display for Driver {
     }
 }
 
-struct Drivers {
+pub struct Drivers {
     drivers: Vec<u64>,
     curr: usize,
     limit: usize
 }
 
 impl Drivers {
-    fn iter() -> Drivers {
+    pub fn contains(name: &str) -> Option<Driver> {
+        Drivers::iter().find(|driver| driver.name.contains(name))
+    }
+
+    pub fn iter() -> Drivers {
         let mut needed: DWORD = 0;
         let mut drivers: Vec<u64> = vec![0; 1024];
 
@@ -240,7 +250,8 @@ impl Iterator for Drivers {
         if length <= 0 { return None } 
 
         Some(Driver {
-                name: content.iter().take(length as usize).map(|n| *n as u8 as char).collect::<String>(),
+                name: String::from_utf16(&content[..length as usize])
+                            .expect("failed to parse driver name"),
                 base: base
         })
     }
@@ -278,13 +289,27 @@ pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, String> {
     }
 }
 
-pub fn system_process_pointer() -> u64 {
-    let kernel_base = get_kernel_base();
-    let dynamic_base = load_library("ntoskrnl.exe")
-                            .expect("can't load ntoskrnl");
+pub fn relative_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
+    let dynamic_base = load_library(name)
+                            .expect(name);
 
-    let address = get_proc_addr(dynamic_base, "PsInitialSystemProcess")
-                            .expect("can't retrieve PsInitialSystemProcess");
+    let address = get_proc_addr(dynamic_base, procedure)
+                            .expect(procedure);
 
-    (address - dynamic_base) + kernel_base
+    (address - dynamic_base) + base
 }
+
+pub fn system_process_pointer() -> u64 {
+    relative_procedure_address(get_kernel_base(), "ntoskrnl.exe", "PsInitialSystemProcess")
+}
+
+// pub fn system_process_pointer() -> u64 {
+//     let kernel_base = get_kernel_base();
+//     let dynamic_base = load_library("ntoskrnl.exe")
+//                             .expect("can't load ntoskrnl");
+
+//     let address = get_proc_addr(dynamic_base, "PsInitialSystemProcess")
+//                             .expect("can't retrieve PsInitialSystemProcess");
+
+//     (address - dynamic_base) + kernel_base
+// }

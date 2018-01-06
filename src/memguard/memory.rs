@@ -8,6 +8,7 @@ use super::winapi::um::{ processthreadsapi, winioctl };
 
 use super::byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
+use std::slice;
 
 use super::core::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
@@ -45,6 +46,10 @@ impl<'a> Map<'a> {
             size: size,
             raw: raw
         }
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.raw.MapToAddress as *const u8, self.size) }
     }
 }
 
