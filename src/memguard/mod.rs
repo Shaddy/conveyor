@@ -33,8 +33,7 @@ use self::structs::{FieldKey,
                     ValueType, 
                     MG_GUARD_CONDITION, 
                     MG_GUARD_FILTER, 
-                    MG_FIELD_VALUE, 
-                    RawStruct};
+                    MG_FIELD_VALUE};
 
 pub mod command;
 
@@ -335,19 +334,17 @@ impl<'p> Drop for Sentinel<'p> {
 }
 
 pub struct Filter<'a> {
-    device: &'a Device,
     alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
-    filter: MG_GUARD_FILTER
+    filter: &'a mut MG_GUARD_FILTER
 }
 
 impl<'a> Filter<'a> {
     pub fn new(device: &'a Device) -> Filter {
         let alloc = memory::KernelAlloc::new(device);
-        let filter = unsafe { *alloc.as_ptr() };
+        let filter = unsafe { &mut *alloc.as_mut_ptr() };
 
         Filter {
             alloc: alloc,
-            device: device,
             filter: filter,
         }
     }
@@ -357,7 +354,12 @@ impl<'a> Filter<'a> {
     }
 
     pub fn add(&mut self, condition: Condition) {
-        self.filter.Conditions[self.filter.NumberOfConditions as usize] = condition.condition.clone();
+        let current = &mut self.filter.Conditions[self.filter.NumberOfConditions as usize];
+
+        current.Field = condition.condition.Field;
+        current.Match = condition.condition.Match;
+        current.Value.Kind = condition.condition.Value.Kind;
+        current.Value.Value = condition.condition.Value.Value;
 
         self.filter.NumberOfConditions += 1;
     }

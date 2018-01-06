@@ -50,8 +50,21 @@ impl<'a, T> KernelAlloc<'a, T> {
         }
     }
     
+    pub fn size(&self) -> usize {
+        mem::size_of::<T>()
+    }
+
     pub fn kernel_ptr(&self) -> u64 {
         self.map.kernel_ptr()
+    }
+
+    #[allow(dead_code)]
+    pub fn as_slice(&self) -> &[u8] {
+        self.map.as_slice()
+    }
+
+    pub fn as_mut_ptr(&self) -> *mut T {
+        self.map.raw.MappedMemory as *mut u8 as *mut T
     }
 
     pub fn as_ptr(&self) -> *const T {
@@ -89,10 +102,12 @@ impl<'a> Map<'a> {
         self.raw.BaseAddress as u64
     }
 
+    #[allow(dead_code)]
     pub fn as_mut_ptr(&self) -> *mut u8 {
         self.raw.MappedMemory as *mut u8
     }
 
+    #[allow(dead_code)]
     pub fn as_ptr(&self) -> *const u8 {
         self.raw.MappedMemory as *const u8
     }

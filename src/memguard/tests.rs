@@ -2,7 +2,7 @@ use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::cli::colorize;
 
-use std::thread;
+use std::{thread, fmt};
 use std::time::Duration;
 
 use super::{misc, search};
@@ -49,6 +49,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("read"))
                 .subcommand(SubCommand::with_name("virtual"))
                 .subcommand(SubCommand::with_name("write"))
+                .subcommand(SubCommand::with_name("kernel-map"))
                 .subcommand(SubCommand::with_name("map")))
             .subcommand(SubCommand::with_name("interceptions")
                 .subcommand(SubCommand::with_name("kernel"))
@@ -343,14 +344,52 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
 //
 fn memory_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        // ("read",  Some(matches))  => test_memory_read(matches, logger),
-        ("virtual",  Some(matches))       => test_virtual_memory(matches, logger),
-        ("write", Some(matches))          => test_memory_write(matches, logger),
-        ("map",   Some(matches))          => test_memory_map(matches, logger),
-        _                                 => println!("{}", matches.usage())
+        ("virtual",      Some(matches))  => test_virtual_memory(matches, logger),
+        ("write",        Some(matches))  => test_memory_write(matches, logger),
+        ("map",          Some(matches))  => test_memory_map(matches, logger),
+        ("kernel-map",   Some(matches))  => test_kernel_map(matches, logger),
+        _                                => println!("{}", matches.usage())
     }
 }
 
+fn test_kernel_map(_matches: &ArgMatches, logger: Logger) {
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+
+    struct TestStruct {
+        first:  u64,
+        second: u64, 
+    }
+
+    impl fmt::Display for TestStruct {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "TestStruct {{ first: 0x{:016x}, second: 0x{:016x} }}", self.first, self.second)
+        }
+    }
+
+    let map = memory::KernelAlloc::<TestStruct>::new(&device);
+
+    debug!(logger, "TestStruct: allocated {} bytes at:
+                    kernel: 0x{:016x}
+                    user:   0x{:016x}", map.size(), map.kernel_ptr(), map.as_ptr() as u64);
+
+    unsafe {
+        let test = &mut *map.as_mut_ptr();
+        test.first = 0x11223344;
+        test.second = 0x55667788;
+    }
+
+    debug!(logger, "reading kernel pointer 0x{:016x}", map.kernel_ptr());
+
+    let v = memory::read_virtual_memory(&device, map.kernel_ptr(), map.size());
+
+
+    let u: &TestStruct = unsafe{ &*map.as_ptr() };
+    let k: &TestStruct = unsafe { &*(v.as_ptr() as *const TestStruct) };
+
+    debug!(logger, "from-user: {}", u);
+    debug!(logger, "from-kernel: {}", k);
+
+}
 fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
 
