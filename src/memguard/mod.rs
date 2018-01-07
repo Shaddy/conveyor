@@ -162,7 +162,10 @@ impl Partition
 impl Drop for Partition {
     fn drop(&mut self) {
         println!("deleting partition");
-        core::delete_partition(&self.device, self.id).expect("Can't destroy partition");
+        if let Err(err) = core::delete_partition(&self.device, self.id) {
+            println!("core::delete_partition() {}", err);
+        }
+
         while let Some(handle) = self.workers.pop() {
              handle.join().expect("failed to wait for thread");
         }
@@ -316,7 +319,6 @@ impl<'p> fmt::Display for Sentinel<'p> {
 
     }
 }
-
 
 impl<'p> Drop for Sentinel<'p> {
     fn drop(&mut self) {

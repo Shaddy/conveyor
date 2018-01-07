@@ -73,18 +73,16 @@ pub fn create_partition(device: &Device) -> Result<Channel, String> {
 pub fn delete_partition(device: &Device, id: u64) -> Result<(), String> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A01, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
 
-
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id).expect("delete_partition() - Failed to write partition id into buffer");
     
-    let _ = device.call(control.into(), Some(input), Some(vec![]))
-                .expect("Error calling IOCTL_SENTRY_DELETE_PARTITION");
+    if let Err(err) = device.call(control.into(), Some(input), Some(vec![0; 1024])) {
+        return Err(err.to_string())
+    } 
 
     Ok(())
-
 }
-
 
 pub fn _get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, PartitionError> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
@@ -95,7 +93,7 @@ pub fn _get_partition_option(device: &Device, id: u64, option: u64) -> Result<u6
 
     input.write_u64::<LittleEndian>(id).unwrap();
     input.write_u64::<LittleEndian>(option).unwrap();
-    
+
     let mut cursor = match device.call(control.into(), Some(input), Some(output)) 
     {
         Err(err) => {

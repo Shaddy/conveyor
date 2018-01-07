@@ -190,6 +190,7 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
 // This test aims to demostrate that we are able to ignore any write to any memory address
 //
 fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
+
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
 
@@ -388,8 +389,8 @@ fn test_kernel_map(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "from-user: {}", u);
     debug!(logger, "from-kernel: {}", k);
-
 }
+
 fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
 
