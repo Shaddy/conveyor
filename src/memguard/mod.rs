@@ -343,6 +343,7 @@ pub struct Filter<'a> {
 impl<'a> Filter<'a> {
     pub fn new(device: &'a Device) -> Filter {
         let alloc = memory::KernelAlloc::new(device);
+
         let filter = unsafe { &mut *alloc.as_mut_ptr() };
 
         Filter {
@@ -358,10 +359,12 @@ impl<'a> Filter<'a> {
     pub fn add(&mut self, condition: Condition) {
         let current = &mut self.filter.Conditions[self.filter.NumberOfConditions as usize];
 
+        println!("{:?}", condition);
         current.Field = condition.condition.Field;
         current.Match = condition.condition.Match;
         current.Value.Kind = condition.condition.Value.Kind;
         current.Value.Value = condition.condition.Value.Value;
+        println!("{:?}", current);
 
         self.filter.NumberOfConditions += 1;
     }
@@ -381,6 +384,7 @@ impl<'a> Filter<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Condition {
     pub condition: MG_GUARD_CONDITION
 }
@@ -421,8 +425,6 @@ pub struct Guard<'p> {
 
 impl<'p> Guard<'p> {
     pub fn new(partition: &'p Partition, filter: Option<Filter<'p>>) -> Guard<'p> {
-
-        let filter = filter.unwrap_or(Filter::new(&partition.device));
         let id = core::register_guard(&partition.device, partition.id, filter)
             .expect("Unable to connect guard with root partition");
 

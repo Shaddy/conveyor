@@ -35,7 +35,9 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(SubCommand::with_name("token")
                 .subcommand(SubCommand::with_name("protect")
                             .arg(target.clone()))
-                .subcommand(SubCommand::with_name("steal")
+                .subcommand(SubCommand::with_name("duplicate")
+                            .arg(target.clone()))
+                .subcommand(SubCommand::with_name("hijack")
                             .arg(target.clone())))
             .subcommand(SubCommand::with_name("process")
                 .subcommand(SubCommand::with_name("kernel-base"))
@@ -45,6 +47,8 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("list-drivers"))
                 .subcommand(SubCommand::with_name("walk-eprocess")))
             .subcommand(SubCommand::with_name("search-pattern"))
+            .subcommand(SubCommand::with_name("device")
+                .subcommand(SubCommand::with_name("double-open")))
             .subcommand(SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read"))
                 .subcommand(SubCommand::with_name("virtual"))
@@ -82,10 +86,41 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         ("memory",            Some(matches))  => memory_tests(matches, logger),
         ("process",           Some(matches))  => process_tests(matches, logger),
         ("token",             Some(matches))  => token_tests(matches, logger),
+        ("device",            Some(matches))  => device_tests(matches, logger),
         ("search-pattern",    Some(matches))  => test_search_pattern(matches, logger),
         ("interceptions",     Some(matches))  => interception_tests(matches, logger),
         _                             => println!("{}", matches.usage())
     }
+}
+
+/////////////////////////////////////////////////////////////////////////
+// 
+// DEVICE TESTS
+//
+fn device_tests(matches: &ArgMatches, logger: Logger) {
+    match matches.subcommand() {
+        ("double-open",  Some(matches))  => test_double_open(matches, logger),
+        _                                => println!("{}", matches.usage())
+    }
+}
+
+fn consume_device(device: Device) {
+    println!("good bye - {:?}", device);
+}
+
+fn test_double_open(_matches: &ArgMatches, logger: Logger) {
+        let partition = Partition::root();
+        let device_one = Device::new(core::SE_NT_DEVICE_NAME);
+        println!("dropping: device_one");
+        consume_device(device_one);
+        println!("dropped: device_one");
+        println!("creating a partition");
+
+        if let Err(err) = core::delete_partition(&partition.device, partition.id) {
+            colorize::failed("TEST HAS FAILED");
+        } else {
+            colorize::success("TEST IS SUCCESS");
+        }
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -156,10 +191,12 @@ fn interception_tests(matches: &ArgMatches, logger: Logger) {
 }
 
 fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
-    let partition: Partition = Partition::root();
+    let partition = Partition::root();
 
-    let mut guard = Guard::new(&partition, Filter::current_process(&partition.device, MatchType::NOT_EQUAL));
-    let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ExAllocatePoolWithTag");
+    let filter = Filter::current_process(&partition.device, MatchType::NOT_EQUAL);
+
+    let mut guard = Guard::new(&partition, None);
+    let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ZwCreateKey");
     let region = Sentinel::region(&partition, addr, 
                                   1, 
                                   Some(Action::NOTIFY | Action::INSPECT), 
@@ -169,7 +206,7 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
-        let message = format!("0x{:016x} - ExAllocatePoolWithTag", interception.address);
+        let message = format!("0x{:016x} - NtOpenKeyEx", interception.address);
         colorize::info(&message);
         Action::CONTINUE
     }));
@@ -184,7 +221,6 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "stoping guard");
     guard.stop();
 }
-
 
 //
 // This test aims to demostrate that we are able to ignore any write to any memory address
@@ -290,13 +326,28 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
 //
 fn token_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
-        ("protect", Some(matches))        => protect_token(matches, logger),
-        ("steal",   Some(matches))        => steal_token(matches, logger),
+        ("protect",     Some(matches))        => protect_token(matches, logger),
+        ("duplicate",   Some(matches))        => duplicate_token(matches, logger),
+        ("hijack",      Some(matches))        => hijack_token(matches, logger),
         _                                 => println!("{}", matches.usage())
     }
 }
 
-fn steal_token(matches: &ArgMatches, logger: Logger) {
+fn duplicate_token(matches: &ArgMatches, logger: Logger) {
+    let pid: u64 = matches.value_of("pid")
+                     .expect("can't extract PID from arguments")
+                     .parse()
+                     .expect("error parsing pid");
+    
+
+    let device = Device::new(core::SE_NT_DEVICE_NAME);
+    debug!(logger, "elevating privilege of pid {}", pid);
+    token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
+    debug!(logger, "success");
+}
+
+
+fn hijack_token(matches: &ArgMatches, logger: Logger) {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -328,10 +379,11 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
     let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
     guard.add(region);
 
-    guard.set_callback(Box::new(move |_| {
-        println!("{}: attempt to write 0x{:016x} token", pid, token);
-
-        Action::CONTINUE
+    guard.set_callback(Box::new(|interception| {
+        // let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
+        // colorize::info(&message);
+        println!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
+        Action::STEALTH
     }));
 
     let duration = Duration::from_secs(60);

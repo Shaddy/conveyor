@@ -42,7 +42,7 @@ pub struct KernelAlloc<'a, T> {
 }
 
 impl<'a, T> KernelAlloc<'a, T> {
-    pub fn new(device: &'a Device) -> KernelAlloc<T> {
+    pub fn new(device: &'a Device) -> KernelAlloc<'a, T> {
         let size = mem::size_of::<T>();
         let ptr = alloc_virtual_memory(device, size);
 
