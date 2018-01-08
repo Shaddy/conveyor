@@ -16,6 +16,9 @@ use std::mem;
 use super::core::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
 use super::structs;
+
+pub use super::structs::MapMode;
+
 use super::structs::{RawStruct,
                      SE_MAP_VIRTUAL_MEMORY,
                      SE_UNMAP_VIRTUAL_MEMORY,
@@ -45,7 +48,7 @@ impl<'a, T> KernelAlloc<'a, T> {
 
         KernelAlloc {
             device: device,
-            map: Map::new(device, ptr, size),
+            map: Map::new(device, ptr, size, Some(MapMode::UserMode)),
             phantom: PhantomData
         }
     }
@@ -87,8 +90,8 @@ pub struct Map<'a> {
 }
 
 impl<'a> Map<'a> {
-    pub fn new(device: &'a Device, address: u64, size: usize) -> Map<'a> {
-        let raw = map_memory(&device, address, size);
+    pub fn new(device: &'a Device, address: u64, size: usize, mode: Option<MapMode>) -> Map<'a> {
+        let raw = map_memory(&device, address, size, mode);
 
         Map {
             device: device,
@@ -204,14 +207,14 @@ pub fn unsecure_virtual_memory(device: &Device, handle: u64) {
 
 }
 
-
-pub fn map_memory(device: &Device, address: u64, size: usize) -> SE_MAP_VIRTUAL_MEMORY {
+pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMode>) -> SE_MAP_VIRTUAL_MEMORY {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A55, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
 
     let mut map = SE_MAP_VIRTUAL_MEMORY::init();
 
     map.ToProcessId = unsafe { processthreadsapi::GetCurrentProcessId() as u64 };
     map.BaseAddress = address as LPVOID;
+    map.MapMode = mode.unwrap_or(MapMode::KernelMode);
     map.Size = size as u32;
 
     let ptr = map.as_ptr();

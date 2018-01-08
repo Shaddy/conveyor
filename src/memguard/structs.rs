@@ -26,11 +26,17 @@ pub trait RawStruct<T> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum MapMode {
+    KernelMode,
+    UserMode
+}
 
 STRUCT!{
     #[derive(Debug)]
     struct SE_MAP_VIRTUAL_MEMORY  {
         ToProcessId: ULONG64,
+        MapMode: MapMode,
         BaseAddress: LPVOID,
         MapToAddress: LPVOID,
         Size: ULONG,

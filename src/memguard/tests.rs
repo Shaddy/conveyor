@@ -11,7 +11,7 @@ use super::{Partition, Sentinel, Guard, Access, Action, Filter, MatchType};
 use super::bucket::Interception;
 use super::{core, memory, token};
 use super::iochannel::{Device};
-use super::memory::{Map};
+use super::memory::{Map, MapMode};
 
 /////////////////////////////////////////////////////////////////////////
 // 
@@ -437,7 +437,7 @@ fn test_memory_write(_matches: &ArgMatches, logger: Logger) {
 fn test_memory_map(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(core::SE_NT_DEVICE_NAME);
 
-    let map = Map::new(&device, KERNEL_ADDR, 0x200);
+    let map = Map::new(&device, KERNEL_ADDR, 0x200, Some(MapMode::UserMode));
 
     debug!(logger, "map: {:?}", map);
 

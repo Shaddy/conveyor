@@ -17,7 +17,7 @@ pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> 
         //                         .expect(&format!("{}", neighbour));
         
         let address = misc::fixed_procedure_address(driver.base(), "ntoskrnl.exe", neighbour);
-        let map = memory::Map::new(device, address, MAX_SEARCH_SIZE);
+        let map = memory::Map::new(device, address, MAX_SEARCH_SIZE, None);
 
         //
         // this code looks with side-effects but its verified, there is an algorithm from str
