@@ -372,7 +372,7 @@ fn hijack_token(matches: &ArgMatches, logger: Logger) {
 
     let device = Device::new(core::SE_NT_DEVICE_NAME);
     debug!(logger, "elevating privilege of pid {}", pid);
-    token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
+    token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     debug!(logger, "success");
 }
 
