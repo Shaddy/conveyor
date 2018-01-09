@@ -219,7 +219,7 @@ pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMo
 
     map.ToProcessId = unsafe { processthreadsapi::GetCurrentProcessId() as u64 };
     map.BaseAddress = address as LPVOID;
-    map.MapMode = mode.unwrap_or(MapMode::KernelMode);
+    map.MapMode = mode.unwrap_or(MapMode::UserMode);
     map.Size = size as u32;
 
     let ptr = map.as_ptr();
