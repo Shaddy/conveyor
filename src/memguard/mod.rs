@@ -358,12 +358,10 @@ impl<'a> Filter<'a> {
 
         assert!(self.filter.NumberOfConditions < 16);
 
-        println!("{:?}", condition);
         current.Field = condition.condition.Field;
         current.Match = condition.condition.Match;
         current.Value.Kind = condition.condition.Value.Kind;
         current.Value.Value = condition.condition.Value.Value;
-        println!("{:?}", current);
 
         self.filter.NumberOfConditions += 1;
 
