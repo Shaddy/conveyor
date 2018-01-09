@@ -386,23 +386,28 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
            .expect("can't find client pid");
 
     let token = process.token() & !0xF;
+    let token_offset = misc::get_offset("_EPROCESS.Token");
 
     debug!(logger, "protecting target pid {} with token 0x{:016x}", 
                         pid, token);
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
-    let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
+
+    // TODO: Do it in a stable way.
+    // pointer to token (duplicateway)
+    // let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
+
+    let region = Sentinel::region(&partition, process.object() + token_offset as u64, 8, None, Access::WRITE);
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
-        // let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
-        // colorize::info(&message);
-        println!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
+        let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
+        colorize::info(&message);
         Action::STEALTH
     }));
 
-    let duration = Duration::from_secs(60);
+    let duration = Duration::from_secs(20);
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);
 }

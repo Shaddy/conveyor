@@ -15,7 +15,7 @@ use super::winapi::shared::minwindef::{ DWORD,
 use super::iochannel::{Device};
 use super::symbols::parser::Error as PdbError;
 
-fn get_offset(target: &str) -> u16 {
+pub fn get_offset(target: &str) -> u16 {
     match symbols::parser::find_offset("ntoskrnl.pdb", &target) {
         Err(PdbError::IoError(_)) => {
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
