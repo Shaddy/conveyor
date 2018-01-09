@@ -8,7 +8,7 @@ use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
 use super::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus, Filter};
 
-use std::{mem, fmt, ptr};
+use std::{mem, fmt};
 
 pub const IOCTL_SENTRY_TYPE: u32 = 0xB080;
 pub const SE_NT_DEVICE_NAME: &'static str = "\\\\.\\Sentry";
@@ -132,19 +132,21 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: O
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
 
 
-    let filter = if let Some(filter) = filter { filter.kernel_ptr() } else { 0 };
+    // its important to keep filter lifetime until the end
+    // the device call to avoid dropping the internal allocation
+    let (ptr, _filter) = if let Some(filter) = filter { (filter.kernel_ptr(), Some(filter)) } else { (0, None) };
+
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
 
     input.write_u64::<LittleEndian>(id).unwrap();
     input.write_u64::<LittleEndian>(context).unwrap();
-    input.write_u64::<LittleEndian>(filter).unwrap();
+    input.write_u64::<LittleEndian>(ptr).unwrap();
     input.write_u64::<LittleEndian>(flags.bits() as u64).unwrap();
     input.write_u64::<LittleEndian>(priority).unwrap();
     
     let mut cursor = device.call(control.into(), Some(input), Some(output))
                 .expect("Error calling IOCTL_SENTRY_REGISTER_GUARD");
-
 
     cursor.read_u64::<LittleEndian>().expect("get_partition_option() - IOCTL Buffer is wrong")
 }

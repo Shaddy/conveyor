@@ -73,6 +73,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("enumerate"))
                 .subcommand(SubCommand::with_name("info")))
             .subcommand(SubCommand::with_name("guards")
+                .subcommand(SubCommand::with_name("filter"))
                 .subcommand(SubCommand::with_name("create-10"))
                 .subcommand(SubCommand::with_name("create-and-start"))
                 .subcommand(SubCommand::with_name("add-a-region")))
@@ -111,12 +112,12 @@ fn consume_device(device: Device) {
 fn test_double_open(_matches: &ArgMatches, logger: Logger) {
         let partition = Partition::root();
         let device_one = Device::new(core::SE_NT_DEVICE_NAME);
-        println!("dropping: device_one");
+        debug!(logger, "dropping: device_one");
         consume_device(device_one);
-        println!("dropped: device_one");
-        println!("creating a partition");
+        debug!(logger, "dropped: device_one");
+        debug!(logger, "creating a partition");
 
-        if let Err(err) = core::delete_partition(&partition.device, partition.id) {
+        if let Err(_) = core::delete_partition(&partition.device, partition.id) {
             colorize::failed("TEST HAS FAILED");
         } else {
             colorize::success("TEST IS SUCCESS");
@@ -193,27 +194,42 @@ fn interception_tests(matches: &ArgMatches, logger: Logger) {
 fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
     let partition = Partition::root();
 
-    let filter = Filter::current_process(&partition.device, MatchType::NOT_EQUAL);
+    let mut guard = Guard::new(&partition, Filter::current_process(&partition.device, MatchType::NOT_EQUAL));
+    const POOL_SIZE: usize = 0x100;
 
-    let mut guard = Guard::new(&partition, None);
-    let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ZwCreateKey");
-    let region = Sentinel::region(&partition, addr, 
-                                  1, 
-                                  Some(Action::NOTIFY | Action::INSPECT), 
-                                  Access::EXECUTE);
+    debug!(logger, "allocating pool");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+
+    debug!(logger, "addr: 0x{:016x}", addr);
+
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
+    // let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ZwCreateKey");
+    // let region = Sentinel::region(&partition, addr, 
+    //                               1, 
+    //                               Some(Action::NOTIFY | Action::INSPECT), 
+    //                               Access::EXECUTE);
+
+    // debug!(logger, "adding {} to {}", region, guard);
+    // guard.add(region);
+
     guard.set_callback(Box::new(|interception| {
-        let message = format!("0x{:016x} - NtOpenKeyEx", interception.address);
-        colorize::info(&message);
+        let message = format!("reading 0x{:016x}", interception.address);
+        println!("{}", message);
         Action::CONTINUE
     }));
 
     debug!(logger, "starting guard");
     guard.start();
 
+    debug!(logger, "allocating pool");
+    let _ = memory::read_virtual_memory(&partition.device, addr, 10);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 5);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 4);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 1);
     let duration = Duration::from_secs(60);
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);
@@ -589,10 +605,58 @@ fn guard_tests(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("create-and-start", Some(matches))       => start_a_guard(matches, logger),
         ("create-10",        Some(matches))       => create_multiple_guards(matches, logger),
+        ("filter",           Some(matches))       => test_guard_filters(matches, &logger),
         _                                         => println!("{}", matches.usage())
     }
 }
 
+fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) {
+    let partition = Partition::root();
+    let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL).unwrap();
+
+    debug!(logger, "alloc: {:?}", filter.alloc);
+
+    let before = filter.alloc.as_slice().iter()
+                  .map(|&b| b)
+                  .collect::<Vec<u8>>();
+
+    debug!(logger, "{}", dump_vector(before));
+
+    let mut guard = Guard::new(&partition, Some(filter));
+
+    const POOL_SIZE: usize = 0x100;
+
+    debug!(logger, "allocating pool");
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+
+    debug!(logger, "addr: 0x{:016x}", addr);
+
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
+
+    debug!(logger, "adding {} to {}", region, guard);
+    guard.add(region);
+
+    guard.set_callback(Box::new(|interception| {
+        let message = format!("reading 0x{:016x}", interception.address);
+        println!("{}", message);
+        Action::CONTINUE
+    }));
+
+    debug!(logger, "starting guard");
+    guard.start();
+
+    debug!(logger, "allocating pool");
+    let _ = memory::read_virtual_memory(&partition.device, addr, 10);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 5);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 4);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 1);
+    let duration = Duration::from_secs(60);
+    debug!(logger, "waiting {:?}", duration);
+    thread::sleep(duration);
+
+    debug!(logger, "stoping guard");
+    guard.stop();
+}
 
 fn start_guard_a_second(guard: &Guard, logger: &Logger) {
     debug!(logger, "starting {}", guard);

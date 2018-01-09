@@ -1,4 +1,4 @@
-#![feature(iterator_step_by)]
+#![feature(iterator_step_by, asm)]
 #[macro_use] extern crate slog;
 #[macro_use] extern crate bitflags;
 #[macro_use] mod ffi;

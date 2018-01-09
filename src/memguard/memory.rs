@@ -46,13 +46,18 @@ impl<'a, T> KernelAlloc<'a, T> {
         let size = mem::size_of::<T>();
         let ptr = alloc_virtual_memory(device, size);
 
+        // memset
+        let v: Vec<u8> = vec![0; size];
+        write_virtual_memory(device, ptr, v);
+
+
         KernelAlloc {
             device: device,
             map: Map::new(device, ptr, size, Some(MapMode::UserMode)),
             phantom: PhantomData
         }
     }
-    
+
     pub fn size(&self) -> usize {
         mem::size_of::<T>()
     }

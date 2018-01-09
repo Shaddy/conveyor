@@ -108,7 +108,7 @@ type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 impl Partition
  {
     fn default_callback(interception: bucket::Interception) -> Action {
-        println!("[!] {:?}", interception);
+        println!("{:?}", interception);
         Action::CONTINUE
     }
 
@@ -130,9 +130,6 @@ impl Partition
     pub fn new() -> Partition {
         let device = Device::new(core::SE_NT_DEVICE_NAME);
         let channel = core::create_partition(&device).expect("Unable to create partition");
-
-        println!("Partition::new() => channel: {:?}", channel);
-
         let callbacks = Arc::new(RwLock::new(HashMap::new()));
 
         let mut partition = Partition {
@@ -161,7 +158,6 @@ impl Partition
 
 impl Drop for Partition {
     fn drop(&mut self) {
-        println!("deleting partition");
         if let Err(err) = core::delete_partition(&self.device, self.id) {
             println!("core::delete_partition() {}", err);
         }
@@ -335,6 +331,7 @@ impl<'p> Drop for Sentinel<'p> {
     }
 }
 
+#[derive(Debug)]
 pub struct Filter<'a> {
     alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
     filter: &'a mut MG_GUARD_FILTER
@@ -359,6 +356,8 @@ impl<'a> Filter<'a> {
     pub fn add(&mut self, condition: Condition) {
         let current = &mut self.filter.Conditions[self.filter.NumberOfConditions as usize];
 
+        assert!(self.filter.NumberOfConditions < 16);
+
         println!("{:?}", condition);
         current.Field = condition.condition.Field;
         current.Match = condition.condition.Match;
@@ -367,13 +366,14 @@ impl<'a> Filter<'a> {
         println!("{:?}", current);
 
         self.filter.NumberOfConditions += 1;
+
     }
 
-    pub fn current_process(device: &Device, cmp: MatchType) -> Option<Filter> {
+    pub fn process(device: &'a Device, name: &str, cmp: MatchType) -> Option<Filter<'a>> {
         let mut filter = Filter::new(&device);
 
-        let current = misc::WalkProcess::iter().find(|p| p.name().contains("conveyor.exe"))
-                                        .expect("conveyor not found");
+        let current = misc::WalkProcess::iter().find(|p| p.name().contains(name))
+                                        .expect("process not found");
 
         filter.add(Condition::new(FieldKey::PROCESS_ID, 
                                   cmp,
@@ -381,6 +381,10 @@ impl<'a> Filter<'a> {
                                   current.id()));
         
         Some(filter)
+    }
+
+    pub fn current_process(device: &'a Device, cmp: MatchType) -> Option<Filter<'a>> {
+        Filter::process(device, "conveyor.exe", cmp)
     }
 }
 

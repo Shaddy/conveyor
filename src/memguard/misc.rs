@@ -329,3 +329,10 @@ pub fn fixed_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
 pub fn system_process_pointer() -> u64 {
     fixed_procedure_address(get_kernel_base(), "ntoskrnl.exe", "PsInitialSystemProcess")
 }
+
+
+#[allow(dead_code)]
+#[inline]
+pub fn set_breakpoint() {
+    unsafe { asm!("int3") };
+}

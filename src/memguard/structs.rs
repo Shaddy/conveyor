@@ -190,12 +190,14 @@ STRUCT!{
 impl RawStruct<SE_STEAL_TOKEN> for SE_STEAL_TOKEN { }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(C)]
 pub enum FieldKey {
     PROCESS_ID,
     SID
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(C)]
 pub enum MatchType { 
     EQUAL,
     GREATER,
@@ -206,6 +208,7 @@ pub enum MatchType {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(C)]
 pub enum ValueType { 
     EMPTY,
     UINT8,
