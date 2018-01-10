@@ -9,5 +9,5 @@ pub mod symbols;
 pub mod iochannel;
 pub mod service;
 pub mod tests;
-pub mod memguard;
+pub mod sentry;
 // pub mod lynxv;

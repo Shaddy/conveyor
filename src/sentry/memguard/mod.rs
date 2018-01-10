@@ -1,15 +1,8 @@
-// Copyright © ByteHeed.  All rights reserved.
-
-extern crate clap;
-extern crate slog;
-extern crate winapi;
-extern crate byteorder;
-extern crate num;
-
-use super::iochannel;
 use super::iochannel::{Device};
+mod bucket;
+mod sync;
 
-use super::{symbols, cli, ffi};
+use super::{io, memory, misc};
 
 use std::{fmt, thread};
 use std::thread::{JoinHandle};
@@ -17,27 +10,15 @@ use std::thread::{JoinHandle};
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
-mod structs;
-mod core;
-mod token;
-mod memory;
-mod sync;
-mod bucket;
-mod misc;
-mod search;
-mod tests;
+pub use self::bucket::Interception;
 
-pub use self::structs::MatchType;
+pub use super::structs::MatchType;
 
-use self::structs::{FieldKey, 
+use super::structs::{FieldKey, 
                     ValueType, 
                     MG_GUARD_CONDITION, 
                     MG_GUARD_FILTER, 
                     MG_FIELD_VALUE};
-
-pub mod command;
-
-
 
 const _PARTITION_ROOT_ID: u64 = 4;
 
@@ -102,8 +83,8 @@ impl fmt::Debug for Partition {
     }
 }
 
-type SyncCallback = Box<Fn(bucket::Interception) -> Action + Send + Sync>;
-type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
+pub type SyncCallback = Box<Fn(bucket::Interception) -> Action + Send + Sync>;
+pub type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 
 impl Partition
  {
@@ -128,8 +109,8 @@ impl Partition
     }
 
     pub fn new() -> Partition {
-        let device = Device::new(core::SE_NT_DEVICE_NAME);
-        let channel = core::create_partition(&device).expect("Unable to create partition");
+        let device = Device::new(io::SE_NT_DEVICE_NAME);
+        let channel = io::create_partition(&device).expect("Unable to create partition");
         let callbacks = Arc::new(RwLock::new(HashMap::new()));
 
         let mut partition = Partition {
@@ -150,7 +131,7 @@ impl Partition
     
     }
 
-    fn root() -> Partition {
+    pub fn root() -> Partition {
         Partition::new()
     }
 
@@ -158,8 +139,8 @@ impl Partition
 
 impl Drop for Partition {
     fn drop(&mut self) {
-        if let Err(err) = core::delete_partition(&self.device, self.id) {
-            println!("core::delete_partition() {}", err);
+        if let Err(err) = io::delete_partition(&self.device, self.id) {
+            println!("io::delete_partition() {}", err);
         }
 
         while let Some(handle) = self.workers.pop() {
@@ -203,7 +184,7 @@ impl<'p> Sentinel<'p> {
 
         let action = action.unwrap_or(Action::INSPECT | Action::NOTIFY);
 
-        let id = core::create_region(&partition.device, partition.id, &range, action, access, Some(0x100));
+        let id = io::create_region(&partition.device, partition.id, &range, action, access, Some(0x100));
 
         Sentinel::Region{
             id: id,
@@ -231,13 +212,13 @@ impl<'p> Sentinel<'p> {
                 access: _,
                 action: _
             } => {
-                core::remove_region(&guard.partition.device, guard.id, region_id);
+                io::remove_region(&guard.partition.device, guard.id, region_id);
             },
             Sentinel::Tracepoint(_) =>  {
-                // core::remove_tracepoint(guard.id, trace_id)
+                // io::remove_tracepoint(guard.id, trace_id)
             },
             Sentinel::Patches => {
-                // core::remove_patch(guard.id, trace_id)
+                // io::remove_patch(guard.id, trace_id)
             },
         }
 
@@ -253,13 +234,13 @@ impl<'p> Sentinel<'p> {
                 access: _,
                 action: _
             } => {
-                core::add_region(&guard.partition.device, guard.id, region_id);
+                io::add_region(&guard.partition.device, guard.id, region_id);
             },
             Sentinel::Tracepoint(_) =>  {
-                // core::add_tracepoint(&self.partition.device, guard.id, trace_id)
+                // io::add_tracepoint(&self.partition.device, guard.id, trace_id)
             },
             Sentinel::Patches => {
-                // core::add_patch(&self.partition.device, guard.id, trace_id)
+                // io::add_patch(&self.partition.device, guard.id, trace_id)
             },
         }
 
@@ -325,7 +306,7 @@ impl<'p> Drop for Sentinel<'p> {
                 range: _,
                 access: _,
                 action: _
-            } => core::delete_region(&partition.device, region_id),
+            } => io::delete_region(&partition.device, region_id),
             _ => {}
         };
     }
@@ -333,8 +314,8 @@ impl<'p> Drop for Sentinel<'p> {
 
 #[derive(Debug)]
 pub struct Filter<'a> {
-    alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
-    filter: &'a mut MG_GUARD_FILTER
+    pub alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
+    pub filter: &'a mut MG_GUARD_FILTER
 }
 
 impl<'a> Filter<'a> {
@@ -427,7 +408,7 @@ pub struct Guard<'p> {
 
 impl<'p> Guard<'p> {
     pub fn new(partition: &'p Partition, filter: Option<Filter<'p>>) -> Guard<'p> {
-        let id = core::register_guard(&partition.device, partition.id, filter)
+        let id = io::register_guard(&partition.device, partition.id, filter)
             .expect("Unable to connect guard with root partition");
 
         println!("Guard<0x{:08X}>::new()", id);
@@ -440,13 +421,13 @@ impl<'p> Guard<'p> {
     }
 
     pub fn start<'a>(&'a self) -> &'a Self{
-        core::start_guard(&self.partition.device, self.id);
+        io::start_guard(&self.partition.device, self.id);
 
         self
     }
 
     pub fn stop<'a>(&'a self) -> &'a Self{
-        core::stop_guard(&self.partition.device, self.id);
+        io::stop_guard(&self.partition.device, self.id);
         self
     }
 
@@ -478,6 +459,6 @@ impl<'p> fmt::Display for Guard<'p> {
 impl<'p> Drop for Guard<'p> {
     fn drop(&mut self) {
         println!("Guard<0x{:08X}>::drop()", self.id);
-        core::unregister_guard(&self.partition.device, self.id);
+        io::unregister_guard(&self.partition.device, self.id);
     }
 }

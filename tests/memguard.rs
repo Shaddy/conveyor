@@ -2,9 +2,9 @@
 #![cfg_attr(test, plugin(stainless))]
 extern crate conveyor;
 
-use conveyor::memguard::{Guard, Range, Access, Action, Sentinel};
+use conveyor::sentry::{Guard, Range, Access, Action, Sentinel};
 
-use conveyor::memguard;
+use conveyor::sentry;
 
 // describe! region_api {
 //     before_each {

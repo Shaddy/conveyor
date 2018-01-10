@@ -13,7 +13,7 @@ use std::io::Cursor;
 use std::slice;
 use std::mem;
 
-use super::core::IOCTL_SENTRY_TYPE;
+use super::io::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
 use super::structs;
 

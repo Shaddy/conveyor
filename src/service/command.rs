@@ -8,7 +8,7 @@ fn _not_implemented_command(_logger: Logger) {
 }
 
 pub fn parse(matches: &ArgMatches, logger: Logger) {
-    let mut services: Vec<&str> = "lynxv memguard sentry".split(" ").collect();
+    let mut services: Vec<&str> = "lynxv sentry sentry".split(" ").collect();
 
     let action: &Fn(&str, &Logger) = match matches.subcommand_name() {
         Some("install") => { &super::functions::install },
@@ -51,7 +51,7 @@ pub fn bind() -> App<'static, 'static> {
         .about("service controller for lynxvisor and memoryguard")
         .version("0.1")
         .author("Sherab G. <sherab.giovannini@byteheed.com>")
-        .subcommand(SubCommand::with_name("install").about("installs lynxv.sys and memguard.sys"))
+        .subcommand(SubCommand::with_name("install").about("installs lynxv.sys and sentry.sys"))
         .subcommand(SubCommand::with_name("run").about("stops, reinstalls and starts all services"))
         .subcommand(SubCommand::with_name("remove").about("deletes services"))
         .subcommand(SubCommand::with_name("update").about("reinstalls services"))

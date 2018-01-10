@@ -6,7 +6,11 @@ use super::winapi::um::winioctl;
 
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::num::FromPrimitive;
-use super::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus, Filter};
+use super::memguard::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus, Filter};
+
+use super::misc;
+
+use self::misc::Process;
 
 use std::{mem, fmt};
 
@@ -128,7 +132,7 @@ pub fn _set_partition_option(device: &Device, id: u64, option: u64, value: u64) 
     println!("id: {} | option: {:?} | value: {} ", id, option, value);
 }
 
-pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: Option<Filter>, flags: GuardFlags, priority: u64, _function: u64) -> u64 {
+pub fn register_guard_extended(device: &Device, id: u64, process: Option<Process>, filter: Option<Filter>, flags: GuardFlags, priority: u64, _function: u64) -> u64 {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A10, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
 
 
@@ -139,8 +143,10 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: O
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
 
+    let eprocess = if let Some(process) = process { process.object() } else { 0 };
+
     input.write_u64::<LittleEndian>(id).unwrap();
-    input.write_u64::<LittleEndian>(context).unwrap();
+    input.write_u64::<LittleEndian>(eprocess).unwrap();
     input.write_u64::<LittleEndian>(ptr).unwrap();
     input.write_u64::<LittleEndian>(flags.bits() as u64).unwrap();
     input.write_u64::<LittleEndian>(priority).unwrap();
@@ -152,7 +158,8 @@ pub fn register_guard_extended(device: &Device, id: u64, context: u64, filter: O
 }
 
 pub fn register_guard(device: &Device, id: u64, filter: Option<Filter>) -> Result<u64, String> {
-    Ok(register_guard_extended(device, id, 0, filter, GuardFlags::STOPPED, 0, 0))
+    let current = misc::Process::current();
+    Ok(register_guard_extended(device, id, Some(current), filter, GuardFlags::STOPPED, 0, 0))
 }
 
 pub fn unregister_guard(device: &Device, id: u64) {

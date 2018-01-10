@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use super::ffi::traits::EncodeUtf16;
 
-use super::winapi::um::{psapi, libloaderapi};
-use super::{core, memory, symbols, misc};
+use super::winapi::um::{psapi, libloaderapi, processthreadsapi};
+use super::{io, memory, symbols, misc};
 
 use std::io::Error;
 use std::mem;
@@ -103,8 +103,13 @@ pub struct Process {
 }
 
 impl Process {
+    pub fn current() -> Process {
+        let pid = unsafe { processthreadsapi::GetCurrentProcessId() };
+        misc::WalkProcess::iter().find(|p| p.id() == pid as u64)
+                                    .expect("can't find own EPROCESS")
+    }
     pub fn system() -> Process {
-        let device = Device::new(core::SE_NT_DEVICE_NAME);
+        let device = Device::new(io::SE_NT_DEVICE_NAME);
         let addr = memory::read_u64(&device, misc::system_process_pointer());
 
         Process::new(Arc::new(device), addr)

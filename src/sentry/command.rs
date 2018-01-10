@@ -17,7 +17,7 @@ fn _not_implemented_command(_logger: Logger) {
 }
 
 pub fn bind() -> App<'static, 'static> {
-    SubCommand::with_name("memguard")
+    SubCommand::with_name("sentry")
         .about("enable protection features")
         .version("0.1")
         .author("Sherab G. <sherab.giovannini@byteheed.com>")
@@ -25,7 +25,6 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(SubCommand::with_name("tokenguard").about("activates privilege elevation protection tests"))
             .subcommand(SubCommand::with_name("hotpatching").about("starts exploits patches protection"))
             .subcommand(SubCommand::with_name("analyzer").about("activates kernel analysis")))
-        .subcommand(super::tests::bind())
 }
 
 
@@ -34,7 +33,6 @@ pub fn parse(matches: &ArgMatches, logger: Logger) {
     match matches.subcommand() {
         ("features", Some(_))        => _not_implemented_command(logger),
         ("region", Some(_))          => _not_implemented_command(logger),
-        ("tests", Some(matches))     => super::tests::tests(matches, logger),
         _                            => println!("{}", matches.usage())
     }
 }

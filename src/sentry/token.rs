@@ -2,7 +2,7 @@
 
 use super::winapi::um::winioctl;
 
-use super::core::IOCTL_SENTRY_TYPE;
+use super::io::IOCTL_SENTRY_TYPE;
 use super::iochannel::{Device, IoCtl};
 use super::structs::{RawStruct, SE_STEAL_TOKEN};
 
@@ -23,4 +23,3 @@ pub fn steal_token(device: &Device, source: u64, target: u64, kind: TokenType) {
           .expect("Error calling IOCTL_SENTRY_STEAL_TOKEN");
 
 }
-

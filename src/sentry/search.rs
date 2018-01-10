@@ -27,7 +27,7 @@ pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> 
         //
         let code    = unsafe { str::from_utf8_unchecked(map.as_slice())};
         let pattern = unsafe { str::from_utf8_unchecked(pattern) } ;
-        
+
         if code.contains(pattern) {
             if let Some(offset) = code.find(pattern) {
                 return Some(address + offset as u64)
