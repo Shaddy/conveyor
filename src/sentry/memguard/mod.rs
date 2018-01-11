@@ -14,6 +14,8 @@ pub use self::bucket::Interception;
 
 pub use super::structs::MatchType;
 
+use super::failure::Error;
+
 use super::structs::{FieldKey, 
                     ValueType, 
                     MG_GUARD_CONDITION, 
@@ -108,9 +110,9 @@ impl Partition
         }).collect()
     }
 
-    pub fn new() -> Partition {
-        let device = Device::new(io::SE_NT_DEVICE_NAME);
-        let channel = io::create_partition(&device).expect("Unable to create partition");
+    pub fn new() -> Result<Partition, Error> {
+        let device = Device::new(io::SE_NT_DEVICE_NAME)?;
+        let channel = io::create_partition(&device)?;
         let callbacks = Arc::new(RwLock::new(HashMap::new()));
 
         let mut partition = Partition {
@@ -127,12 +129,12 @@ impl Partition
 
         partition.workers.extend(workers.into_iter());
 
-        partition
+        Ok(partition)
     
     }
 
     pub fn root() -> Partition {
-        Partition::new()
+        Partition::new().unwrap()
     }
 
 }
@@ -179,20 +181,21 @@ pub enum Sentinel<'p> {
 }
 
 impl<'p> Sentinel<'p> {
-    pub fn region(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Sentinel<'p> {
+    pub fn region(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Result<Sentinel<'p>, Error> {
         let range = Range::new(base, limit);
 
         let action = action.unwrap_or(Action::INSPECT | Action::NOTIFY);
 
-        let id = io::create_region(&partition.device, partition.id, &range, action, access, Some(0x100));
+        let id = io::create_region(&partition.device, partition.id, &range, action, access, Some(0x100))?;
 
-        Sentinel::Region{
-            id: id,
-            partition: partition,
-            range: range,
-            access: access,
-            action: action
-        }
+        Ok(
+            Sentinel::Region{
+                id: id,
+                partition: partition,
+                range: range,
+                access: access,
+                action: action
+        })
     }
 
     pub fn patch() -> Sentinel<'p> {
@@ -306,7 +309,7 @@ impl<'p> Drop for Sentinel<'p> {
                 range: _,
                 access: _,
                 action: _
-            } => io::delete_region(&partition.device, region_id),
+            } => io::delete_region(&partition.device, region_id).unwrap(),
             _ => {}
         };
     }

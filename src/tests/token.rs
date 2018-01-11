@@ -43,7 +43,7 @@ fn duplicate_token(matches: &ArgMatches, logger: Logger) {
                      .expect("error parsing pid");
     
 
-    let device = Device::new(io::SE_NT_DEVICE_NAME);
+    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     debug!(logger, "elevating privilege of pid {}", pid);
     token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
     debug!(logger, "success");
@@ -57,7 +57,7 @@ fn hijack_token(matches: &ArgMatches, logger: Logger) {
                      .expect("error parsing pid");
     
 
-    let device = Device::new(io::SE_NT_DEVICE_NAME);
+    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     debug!(logger, "elevating privilege of pid {}", pid);
     token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     debug!(logger, "success");
@@ -85,7 +85,7 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
     // pointer to token (duplicateway)
     // let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
 
-    let region = Sentinel::region(&partition, process.object() + token_offset as u64, 8, None, Access::WRITE);
+    let region = Sentinel::region(&partition, process.object() + token_offset as u64, 8, None, Access::WRITE).unwrap();
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {

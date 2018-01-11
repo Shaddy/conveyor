@@ -1,16 +1,20 @@
 // Copyright © ByteHeed.  All rights reserved.
 
+extern crate failure;
 extern crate clap;
 extern crate slog;
 extern crate winapi;
 
 pub mod command;
+pub mod error;
 
 use self::winapi::um::{ioapiset, fileapi, handleapi};
 
 use std::ptr::{null_mut};
-use std::io::Cursor;
-use std::io::Error;
+
+use std::io::{Cursor, Error};
+
+use self::error::DeviceError;
 
 use std::mem::{zeroed};
 
@@ -66,29 +70,21 @@ impl From<u32> for IoCtl {
 
 
 #[derive(Debug)]
-pub enum DeviceError {
-    InvalidHandleValue(String)
-}
-
-#[derive(Debug)]
 pub struct Device {
     name: String,
     device: winnt::HANDLE
 }
 
 impl Device {
-    pub fn new(name: &str) -> Device {
-        let device = Device::open(name).expect("Open device error");
+    pub fn new(name: &str) -> Result<Device, DeviceError> {
+        let device = Device::open(name)?;
 
-        Device {
+        Ok(
+            Device {
             name: name.to_string(),
             device: device
-        }
+        })
     }
-
-    // fn last_error() -> DeviceError {
-    //     DeviceError::InvalidHandleValue(Error::last_os_error().to_string()) 
-    // }
 
     pub fn open(name: &str) -> Result<winnt::HANDLE, DeviceError> {
         let handle = unsafe {
@@ -102,13 +98,13 @@ impl Device {
         };
 
         if handle == handleapi::INVALID_HANDLE_VALUE {
-            return Err(DeviceError::InvalidHandleValue(Error::last_os_error().to_string()))
+            return Err(DeviceError::Open(name.to_string(), Error::last_os_error()))
         }
 
         Ok( handle )
     }
 
-    pub fn raw_call(&self, control: u32, ptr: LPVOID, len: usize) -> Result<(), Error> {
+    pub fn raw_call(&self, control: u32, ptr: LPVOID, len: usize) -> Result<(), DeviceError> {
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
@@ -125,17 +121,12 @@ impl Device {
                 &mut overlapped) != 0
         };
 
-        match success {
-            true => {
-                return Ok(())
-            },
-            false => {
-                return Err(Error::last_os_error())
-            }
-        }
+        if !success { return Err(DeviceError::IoCall(control, Error::last_os_error()))};
+
+        Ok(())
     }
 
-    pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, Error> {
+    pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, DeviceError> {
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
@@ -166,16 +157,12 @@ impl Device {
                 &mut overlapped) != 0
         };
 
-        match success {
-            true => {
-                unsafe { output.set_len(bytes as usize) };
-                output.shrink_to_fit();
-                return Ok(Cursor::new(output))
-            },
-            false => {
-                return Err(Error::last_os_error())
-            }
-        }
+
+        if !success { return Err(DeviceError::IoCall(control, Error::last_os_error()))};
+        
+        unsafe { output.set_len(bytes as usize) };
+        output.shrink_to_fit();
+        return Ok(Cursor::new(output))
     }
 }
 

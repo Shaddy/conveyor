@@ -8,7 +8,7 @@ fn _not_implemented_command(_logger: Logger) {
 }
 
 pub fn parse(matches: &ArgMatches, logger: Logger) {
-    let mut services: Vec<&str> = "lynxv sentry sentry".split(" ").collect();
+    let mut services: Vec<&str> = "lynxv memguard sentry".split(" ").collect();
 
     let action: &Fn(&str, &Logger) = match matches.subcommand_name() {
         Some("install") => { &super::functions::install },

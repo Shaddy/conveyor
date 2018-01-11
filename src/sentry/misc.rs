@@ -109,7 +109,7 @@ impl Process {
                                     .expect("can't find own EPROCESS")
     }
     pub fn system() -> Process {
-        let device = Device::new(io::SE_NT_DEVICE_NAME);
+        let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
         let addr = memory::read_u64(&device, misc::system_process_pointer());
 
         Process::new(Arc::new(device), addr)

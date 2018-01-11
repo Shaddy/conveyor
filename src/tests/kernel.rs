@@ -63,7 +63,7 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         test.set_flag(TestFlags::INTERCEPT_STRESS_AFFINITY);
     }
 
-    let device = Device::new(io::SE_NT_DEVICE_NAME);
+    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     sentry_run_test(&device, test);
 }
 

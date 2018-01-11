@@ -87,7 +87,7 @@ fn consume_device(device: Device) {
 
 fn test_double_open(_matches: &ArgMatches, logger: Logger) {
         let partition = Partition::root();
-        let device_one = Device::new(io::SE_NT_DEVICE_NAME);
+        let device_one = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
         debug!(logger, "dropping: device_one");
         consume_device(device_one);
         debug!(logger, "dropped: device_one");
@@ -106,7 +106,7 @@ fn test_double_open(_matches: &ArgMatches, logger: Logger) {
 //
 
 fn test_search_pattern(_matches: &ArgMatches, logger: Logger) {
-    let device = Device::new(io::SE_NT_DEVICE_NAME);
+    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     let switch_context_pattern: Vec<u8> = vec![0x89, 0x60, 0x18, 0x4C, 
                                                0x89, 0x68, 0x20, 0x4C, 
@@ -126,9 +126,9 @@ fn test_search_pattern(_matches: &ArgMatches, logger: Logger) {
 
 fn create_multiple_partitions(logger: Logger) {
     debug!(logger, "creating 3 partitions");
-    let _partition1: Partition = Partition::new();
-    let _partition2: Partition = Partition::new();
-    let _partition3: Partition = Partition::new();
+    let _partition1: Partition = Partition::new().unwrap();
+    let _partition2: Partition = Partition::new().unwrap();
+    let _partition3: Partition = Partition::new().unwrap();
     debug!(logger, "waiting 5 seconds");
     thread::sleep(Duration::from_secs(5));
     debug!(logger, "done, destroying partitions");
@@ -187,7 +187,7 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) {
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -275,7 +275,7 @@ fn test_enumerate_region(_matches: &ArgMatches, _logger: Logger) {
 fn test_create_multiple_regions(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
     let _regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
+            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ).unwrap();
             debug!(logger, "{}", region);
             region
         }).collect();
@@ -288,7 +288,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
     let mut guard: Guard = Guard::new(&partition, None);
 
     let regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
+            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ).unwrap();
             println!("{}", region);
             region
         }).collect();
@@ -302,6 +302,6 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
 
 fn test_create_region(_matches: &ArgMatches, logger: Logger) {
     let partition: Partition = Partition::root();
-    let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ);
+    let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ).unwrap();
     debug!(logger, "{}", region);
 }

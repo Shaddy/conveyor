@@ -40,7 +40,7 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -96,7 +96,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     let output = common::dump_vector(v);
     debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -152,7 +152,7 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -184,7 +184,7 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ);
+    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
 

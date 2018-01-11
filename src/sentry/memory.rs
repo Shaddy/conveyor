@@ -10,6 +10,9 @@ use super::byteorder::{LittleEndian, ReadBytesExt};
 
 use std::marker::PhantomData;
 use std::io::Cursor;
+
+use super::failure::Error;
+
 use std::slice;
 use std::mem;
 

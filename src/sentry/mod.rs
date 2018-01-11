@@ -1,5 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
+extern crate failure;
 extern crate clap;
 extern crate slog;
 extern crate winapi;
@@ -12,6 +13,7 @@ use super::iochannel;
 use super::{symbols, ffi};
 
 
+pub mod error;
 pub mod structs;
 pub mod io;
 pub mod token;

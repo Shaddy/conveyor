@@ -25,7 +25,7 @@ pub fn device_open(matches: &ArgMatches, _logger: Logger) {
     let name = matches.value_of("name").expect("can't find name flag");
     match Device::open(name) {
         Ok(device) => println!("device: {:?}", device),
-        Err(err) => println!("error: {:?}", err),
+        Err(err) => { println!("{}", err) }
     }
 }
 
