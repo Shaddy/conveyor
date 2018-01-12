@@ -13,4 +13,3 @@ pub mod iochannel;
 pub mod service;
 pub mod tests;
 pub mod sentry;
-// pub mod lynxv;

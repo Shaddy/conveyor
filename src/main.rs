@@ -1,14 +1,16 @@
 // Copyright © ByteHeed.  All rights reserved.
 use conveyor::{service, iochannel, sentry, tests, symbols};
 
+extern crate failure;
 extern crate conveyor;
 extern crate clap;
 extern crate termcolor;
+#[macro_use]
 extern crate slog;
 extern crate slog_term;
 
-use slog::*;
-
+use failure::Error;
+use slog::{Logger, Drain};
 // mod service;
 
 use std::process;
@@ -29,19 +31,17 @@ fn get_logger(matches: &ArgMatches) -> Logger {
     )
 }
 
-fn run(app: ArgMatches) -> Result<()> {
-    let logger = get_logger(&app);
+fn run(app: &ArgMatches) -> Result<(), Error> {
+    let logger = get_logger(app);
 
     match app.subcommand() {
-        ("device",   Some(matches)) => iochannel::command::parse(matches, logger),
-        ("pdb",      Some(matches)) => symbols::command::parse(matches, logger),
-        ("services", Some(matches)) => service::command::parse(matches, logger),
-        ("tests",    Some(matches)) => tests::command::parse(matches, logger),
-        ("sentry",   Some(matches)) => sentry::command::parse(matches, logger),
-        _                           => println!("{}", app.usage())
+        ("device",   Some(matches)) => iochannel::command::parse(matches, &logger),
+        ("pdb",      Some(matches)) => symbols::command::parse(matches, &logger),
+        ("services", Some(matches)) => service::command::parse(matches, &logger),
+        ("tests",    Some(matches)) => tests::command::parse(matches, &logger),
+        ("sentry",   Some(matches)) => sentry::command::parse(matches, &logger),
+        _                           => Ok(println!("{}", app.usage()))
     }
-
-    Ok(())
 }
 
 fn main() {
@@ -57,7 +57,7 @@ fn main() {
         .subcommand(conveyor::symbols::command::bind())
         .get_matches();
 
-    if let Err(e) = run(matches) {
+    if let Err(e) = run(&matches) {
         println!("Application error: {}", e);
         process::exit(1);
     }

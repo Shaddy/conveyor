@@ -99,7 +99,7 @@ pub struct Map<'a> {
 
 impl<'a> Map<'a> {
     pub fn new(device: &'a Device, address: u64, size: usize, mode: Option<MapMode>) -> Map<'a> {
-        let raw = map_memory(&device, address, size, mode)
+        let raw = map_memory(device, address, size, mode)
                             .expect("failed to map memory");
 
         Map {
@@ -223,7 +223,7 @@ pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMo
 
     let mut map = SE_MAP_VIRTUAL_MEMORY::init();
 
-    map.ToProcessId = unsafe { processthreadsapi::GetCurrentProcessId() as u64 };
+    map.ToProcessId = u64::from(unsafe { processthreadsapi::GetCurrentProcessId()});
     map.BaseAddress = address as LPVOID;
     map.MapMode = mode.unwrap_or(MapMode::UserMode);
     map.Size = size as u32;

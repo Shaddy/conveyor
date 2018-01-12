@@ -6,6 +6,7 @@ use super::cli::colorize;
 use std::{thread};
 use std::time::Duration;
 
+use super::failure::Error;
 use super::common;
 use super::sentry::memguard::{ Partition, Sentinel, Guard, Access, Action, Filter, MatchType};
 use super::sentry::{search, io, memory};
@@ -15,11 +16,11 @@ use super::iochannel::{Device};
 // 
 // DUMMY UNUSED COMMANDS
 //
-pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
+pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
-fn _not_implemented_command(_logger: Logger) {
+fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
@@ -53,7 +54,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("add-a-region")))
 }
 
-pub fn parse(matches: &ArgMatches, logger: Logger) {
+pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("partition",         Some(matches))  => partition(matches, logger),
         ("guards",            Some(matches))  => guard_tests(matches, logger),
@@ -66,7 +67,7 @@ pub fn parse(matches: &ArgMatches, logger: Logger) {
         ("search-pattern",    Some(matches))  => test_search_pattern(matches, logger),
         ("misc",              Some(matches))  => super::miscellaneous::tests(matches, logger),
         ("interceptions",     Some(matches))  => super::interceptions::tests(matches, logger),
-        _                             => println!("{}", matches.usage())
+        _                                     => Ok(println!("{}", matches.usage()))
     }
 }
 
@@ -74,10 +75,10 @@ pub fn parse(matches: &ArgMatches, logger: Logger) {
 // 
 // DEVICE TESTS
 //
-fn device_tests(matches: &ArgMatches, logger: Logger) {
+fn device_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("double-open",  Some(matches))  => test_double_open(matches, logger),
-        _                                => println!("{}", matches.usage())
+        _                                => Ok(println!("{}", matches.usage()))
     }
 }
 
@@ -85,7 +86,7 @@ fn consume_device(device: Device) {
     println!("good bye - {:?}", device);
 }
 
-fn test_double_open(_matches: &ArgMatches, logger: Logger) {
+fn test_double_open(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
         let partition = Partition::root();
         let device_one = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
         debug!(logger, "dropping: device_one");
@@ -93,11 +94,13 @@ fn test_double_open(_matches: &ArgMatches, logger: Logger) {
         debug!(logger, "dropped: device_one");
         debug!(logger, "creating a partition");
 
-        if let Err(_) = io::delete_partition(&partition.device, partition.id) {
+        if io::delete_partition(&partition.device, partition.id).is_err() {
             colorize::failed("TEST HAS FAILED");
         } else {
             colorize::success("TEST IS SUCCESS");
         }
+
+        Ok(())
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -105,7 +108,7 @@ fn test_double_open(_matches: &ArgMatches, logger: Logger) {
 // SEARCH PATTERN TEST
 //
 
-fn test_search_pattern(_matches: &ArgMatches, logger: Logger) {
+fn test_search_pattern(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     let switch_context_pattern: Vec<u8> = vec![0x89, 0x60, 0x18, 0x4C, 
@@ -122,9 +125,11 @@ fn test_search_pattern(_matches: &ArgMatches, logger: Logger) {
                                           "KeSynchronizeExecution") {
         debug!(logger, "switch-context: 0x{:016x}", offset);
     }
+
+    Ok(())
 }
 
-fn create_multiple_partitions(logger: Logger) {
+fn create_multiple_partitions(logger: &Logger) -> Result<(), Error> {
     debug!(logger, "creating 3 partitions");
     let _partition1: Partition = Partition::new().unwrap();
     let _partition2: Partition = Partition::new().unwrap();
@@ -132,24 +137,27 @@ fn create_multiple_partitions(logger: Logger) {
     debug!(logger, "waiting 5 seconds");
     thread::sleep(Duration::from_secs(5));
     debug!(logger, "done, destroying partitions");
+    Ok(())
 }
 
-fn create_partition(logger: Logger) {
+fn create_partition(logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     debug!(logger, "created partition: {:?}", partition);
     debug!(logger, "waiting 5 seconds");
     thread::sleep(Duration::from_secs(5));
     debug!(logger, "done, destroying partition");
+
+    Ok(())
 }
 
-pub fn partition(matches: &ArgMatches, logger: Logger) {
+pub fn partition(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("create",  Some(_))           => create_partition(logger),
         ("create-multiple",  Some(_))  => create_multiple_partitions(logger),
-        ("delete",  Some(_))           => _not_implemented_command(logger),
-        ("getinfo", Some(_))           => _not_implemented_command(logger),
+        ("delete",  Some(_)) | 
+        ("getinfo", Some(_)) | 
         ("setinfo", Some(_))           => _not_implemented_command(logger),
-        _                              => println!("{}", matches.usage())
+        _                              => Ok(println!("{}", matches.usage()))
     }
 }
 
@@ -157,26 +165,24 @@ pub fn partition(matches: &ArgMatches, logger: Logger) {
 // 
 // GUARD TESTS
 //
-fn guard_tests(matches: &ArgMatches, logger: Logger) {
+fn guard_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("create-and-start", Some(matches))       => start_a_guard(matches, logger),
         ("create-10",        Some(matches))       => create_multiple_guards(matches, logger),
-        ("filter",           Some(matches))       => test_guard_filters(matches, &logger),
-        _                                         => println!("{}", matches.usage())
+        ("filter",           Some(matches))       => test_guard_filters(matches, logger),
+        _                                         => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) {
+fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition = Partition::root();
     let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL).unwrap();
 
     debug!(logger, "alloc: {:?}", filter.alloc);
 
-    let before = filter.alloc.as_slice().iter()
-                  .map(|&b| b)
-                  .collect::<Vec<u8>>();
+    let before: Vec<u8> = filter.alloc.as_slice().to_vec();
 
-    debug!(logger, "{}", common::dump_vector(before));
+    debug!(logger, "{}", common::dump_vector(&before));
 
     let mut guard = Guard::new(&partition, Some(filter));
 
@@ -212,9 +218,11 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) {
 
     debug!(logger, "stoping guard");
     guard.stop();
+
+    Ok(())
 }
 
-fn start_guard_a_second(guard: &Guard, logger: &Logger) {
+fn start_guard_a_second(guard: &Guard, logger: &Logger) -> Result<(), Error> {
     debug!(logger, "starting {}", guard);
     guard.start();
 
@@ -224,22 +232,23 @@ fn start_guard_a_second(guard: &Guard, logger: &Logger) {
 
     debug!(logger, "stopping {}", guard);
     guard.stop();
+
+    Ok(())
 }
-fn start_a_guard(_matches: &ArgMatches, logger: Logger) {
+fn start_a_guard(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let guard = Guard::new(&partition, None);
 
-    start_guard_a_second(&guard, &logger);
+    start_guard_a_second(&guard, logger)?;
+
+    Ok(())
 }
 
-fn create_multiple_guards(_matches: &ArgMatches, logger: Logger) {
+fn create_multiple_guards(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let _guard = Guard::new(&partition, None);
 
-    let guards: Vec<Guard> = (0..10).map(|_| {
-            let guard = Guard::new(&partition, None);
-            guard
-        }).collect();
+    let guards: Vec<Guard> = (0..10).map(|_| { Guard::new(&partition, None) }).collect();
 
     debug!(logger, "guards-created: {}", guards.len());
 
@@ -252,43 +261,50 @@ fn create_multiple_guards(_matches: &ArgMatches, logger: Logger) {
     for guard in guards {
         debug!(logger, "{}", guard);
     }
+
+    Ok(())
 }
 
 /////////////////////////////////////////////////////////////////////////
 // 
 // REGION TESTS
 //
-fn region_tests(matches: &ArgMatches, logger: Logger) {
+fn region_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("create",               Some(matches)) => test_create_region(matches, logger),
         ("enumerate",            Some(matches)) => test_enumerate_region(matches, logger),
         ("create-multiple",      Some(matches)) => test_create_multiple_regions(matches, logger),
         ("regions-inside-guard", Some(matches)) => test_regions_inside_guard(matches, logger),
-        _                                       => println!("{}", matches.usage())
+        _                                       => {
+            println!("{}", matches.usage());
+            Ok(())
+        }
     }
 }
 
-fn test_enumerate_region(_matches: &ArgMatches, _logger: Logger) {
+fn test_enumerate_region(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
-fn test_create_multiple_regions(_matches: &ArgMatches, logger: Logger) {
+fn test_create_multiple_regions(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let _regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ).unwrap();
+            let region = Sentinel::region(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
             debug!(logger, "{}", region);
             region
         }).collect();
+
+    Ok(())
 }
 
-fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
+fn test_regions_inside_guard(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 
     let partition: Partition = Partition::root();
 
     let mut guard: Guard = Guard::new(&partition, None);
 
     let regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ).unwrap();
+            let region = Sentinel::region(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
             println!("{}", region);
             region
         }).collect();
@@ -297,11 +313,15 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: Logger) {
         guard.add(region);
     }
 
-    start_guard_a_second(&guard, &logger);
+    start_guard_a_second(&guard, logger)?;
+
+    Ok(())
 }
 
-fn test_create_region(_matches: &ArgMatches, logger: Logger) {
+fn test_create_region(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
-    let region = Sentinel::region(&partition, 0xCAFEBABE, 0x1000, None, Access::READ).unwrap();
+    let region = Sentinel::region(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
     debug!(logger, "{}", region);
+
+    Ok(())
 }

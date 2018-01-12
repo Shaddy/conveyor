@@ -12,7 +12,7 @@ pub fn dummy_vector(size: usize) -> Vec<u8> {
     v
 }
 
-pub fn dump_vector(v: Vec<u8>) -> String {
+pub fn dump_vector(v: &[u8]) -> String {
     v.iter().enumerate()
             .map(|(i, b)| 
             {

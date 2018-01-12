@@ -18,7 +18,7 @@ use self::misc::Process;
 use std::{mem, fmt};
 
 pub const IOCTL_SENTRY_TYPE: u32 = 0xB080;
-pub const SE_NT_DEVICE_NAME: &'static str = "\\\\.\\Sentry";
+pub const SE_NT_DEVICE_NAME: &str = "\\\\.\\Sentry";
 
 enum_from_primitive! {
     #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ pub fn delete_partition(device: &Device, id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(id)?;
+    input.write_u64::<LittleEndian>(id)?;
     
     device.call(control.into(), Some(input), Some(vec![0; 1024]))?;
 
@@ -84,19 +84,19 @@ pub fn delete_partition(device: &Device, id: u64) -> Result<(), Error> {
 fn partition_result(id: u64, result: Result<Cursor<Vec<u8>>, DeviceError>) -> Result<Cursor<Vec<u8>>, PartitionError> {
     match result {
         Err(err) => {
-            if let DeviceError::IoCall(n, io_err) = err {
+            if let DeviceError::IoCall(n, s, io_err) = err {
                 if let Some(1167) = io_err.raw_os_error() {
                     return Err(PartitionError::NotExists(id))
                 } else {
-                    return Err(PartitionError::UnknownError(DeviceError::IoCall(n, io_err)));
+                    return Err(PartitionError::UnknownError(DeviceError::IoCall(n, s, io_err)));
                 } 
             }  else {
                 return Err(PartitionError::UnknownError(err));
             }
                     
         },
-        Ok(cursor) => return Ok(cursor)
-    };
+        Ok(cursor) => Ok(cursor)
+    }
 }
 
 #[allow(dead_code)]
@@ -107,8 +107,8 @@ pub fn get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
 
-    let _ = input.write_u64::<LittleEndian>(id)?;
-    let _ = input.write_u64::<LittleEndian>(option)?;
+    input.write_u64::<LittleEndian>(id)?;
+    input.write_u64::<LittleEndian>(option)?;
 
     let mut cursor = partition_result(id, device.call(control.into(), Some(input), Some(output)))?;
 
@@ -123,9 +123,9 @@ pub fn set_partition_option(device: &Device, id: u64, option: u64, value: u64) -
     let mut input = vec![];
     let output: Vec<u8> = Vec::with_capacity(1000);
 
-    let _ = input.write_u64::<LittleEndian>(id)?;
-    let _ = input.write_u64::<LittleEndian>(option)?;
-    let _ = input.write_u64::<LittleEndian>(value)?;
+    input.write_u64::<LittleEndian>(id)?;
+    input.write_u64::<LittleEndian>(option)?;
+    input.write_u64::<LittleEndian>(value)?;
     
     let _ = device.call(control.into(), Some(input), Some(output))?;
 
@@ -145,11 +145,11 @@ pub fn register_guard_extended(device: &Device, id: u64, process: Option<Process
 
     let eprocess = if let Some(process) = process { process.object() } else { 0 };
 
-    let _ = input.write_u64::<LittleEndian>(id)?;
-    let _ = input.write_u64::<LittleEndian>(eprocess)?;
-    let _ = input.write_u64::<LittleEndian>(ptr)?;
-    let _ = input.write_u64::<LittleEndian>(flags.bits() as u64)?;
-    let _ = input.write_u64::<LittleEndian>(priority)?;
+    input.write_u64::<LittleEndian>(id)?;
+    input.write_u64::<LittleEndian>(eprocess)?;
+    input.write_u64::<LittleEndian>(ptr)?;
+    input.write_u64::<LittleEndian>(u64::from(flags.bits()))?;
+    input.write_u64::<LittleEndian>(priority)?;
     
     let mut cursor = device.call(control.into(), Some(input), Some(output))?;
 
@@ -167,7 +167,7 @@ pub fn unregister_guard(device: &Device, id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(id)?;
+    input.write_u64::<LittleEndian>(id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -187,8 +187,8 @@ fn control_guard(device: &Device, id: u64, action: ControlGuard) -> Result<(), E
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A12, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(id)?;
-    let _ = input.write_u64::<LittleEndian>(action as u64)?;
+    input.write_u64::<LittleEndian>(id)?;
+    input.write_u64::<LittleEndian>(action as u64)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
 
@@ -199,26 +199,26 @@ pub fn create_region(device: &Device, partition_id: u64, range: &Range, action: 
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A20, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(partition_id)?;
-    let _ = input.write_u64::<LittleEndian>(range.base)?;
-    let _ = input.write_u64::<LittleEndian>(range.limit)?;
+    input.write_u64::<LittleEndian>(partition_id)?;
+    input.write_u64::<LittleEndian>(range.base)?;
+    input.write_u64::<LittleEndian>(range.limit)?;
 
     // each regions starts disabled
-    let _ = input.write_u32::<LittleEndian>(RegionFlags::ENABLED.bits())?; // flags
+    input.write_u32::<LittleEndian>(RegionFlags::ENABLED.bits())?; // flags
 
     // access
-    let _ = input.write_u32::<LittleEndian>(access.bits() as u32)?;
+    input.write_u32::<LittleEndian>(u32::from(access.bits()))?;
 
     // action
-    let _ = input.write_u64::<LittleEndian>(action.bits() as u64)?;
+    input.write_u64::<LittleEndian>(u64::from(action.bits()))?;
 
     // readbuffer
-    let _ = input.write_u64::<LittleEndian>(0)?;
+    input.write_u64::<LittleEndian>(0)?;
 
     // writebuffer
-    let _ = input.write_u64::<LittleEndian>(0)?;
+    input.write_u64::<LittleEndian>(0)?;
 
-    let _ = input.write_u64::<LittleEndian>(weight.unwrap_or(0) as u64)?;
+    input.write_u64::<LittleEndian>(weight.unwrap_or(0) as u64)?;
 
     let output: Vec<u8> = Vec::with_capacity(1000);
     let mut cursor = device.call(control.into(), Some(input), Some(output))?;
@@ -232,7 +232,7 @@ pub fn delete_region(device: &Device, region_id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(region_id)?;
+    input.write_u64::<LittleEndian>(region_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -244,8 +244,8 @@ pub fn add_region(device: &Device, guard_id: u64, region_id: u64) -> Result<(), 
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(guard_id)?;
-    let _ = input.write_u64::<LittleEndian>(region_id)?;
+    input.write_u64::<LittleEndian>(guard_id)?;
+    input.write_u64::<LittleEndian>(region_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -258,8 +258,8 @@ pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) -> Result<(
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(guard_id)?;
-    let _ = input.write_u64::<LittleEndian>(region_id)?;
+    input.write_u64::<LittleEndian>(guard_id)?;
+    input.write_u64::<LittleEndian>(region_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -272,8 +272,8 @@ pub fn set_state_region(device: &Device, region_id: u64, state: RegionStatus) ->
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(region_id)?;
-    let _ = input.write_u64::<LittleEndian>(state as u64)?;
+    input.write_u64::<LittleEndian>(region_id)?;
+    input.write_u64::<LittleEndian>(state as u64)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -286,7 +286,7 @@ pub fn get_info_region(device: &Device, region_id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(region_id)?;
+    input.write_u64::<LittleEndian>(region_id)?;
 
     let mut cursor = device.call(control.into(), Some(input), None)?;
 
@@ -323,8 +323,8 @@ pub fn enumerate_region(device: &Device, partition_id: u64, guard_id: u64) -> Re
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A26, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(partition_id)?;
-    let _ = input.write_u64::<LittleEndian>(guard_id)?;
+    input.write_u64::<LittleEndian>(partition_id)?;
+    input.write_u64::<LittleEndian>(guard_id)?;
 
     let output: Vec<u8> = Vec::with_capacity(8 * 1000); // by default it supports 1000 regions
     
@@ -342,11 +342,11 @@ pub fn create_patch(device: &Device, partition_id: u64, base_address: u64, patch
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A40, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(partition_id)?;
-    let _ = input.write_u64::<LittleEndian>(base_address)?;
-    let _ = input.write_u64::<LittleEndian>(patch_range.base)?;
-    let _ = input.write_u64::<LittleEndian>(patch_range.limit)?;
-    let _ = input.write_u64::<LittleEndian>(0)?;
+    input.write_u64::<LittleEndian>(partition_id)?;
+    input.write_u64::<LittleEndian>(base_address)?;
+    input.write_u64::<LittleEndian>(patch_range.base)?;
+    input.write_u64::<LittleEndian>(patch_range.limit)?;
+    input.write_u64::<LittleEndian>(0)?;
 
     let output: Vec<u8> = Vec::with_capacity(1000);
     let mut cursor = device.call(control.into(), Some(input), Some(output))?;
@@ -361,7 +361,7 @@ pub fn delete_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(patch_id)?;
+    input.write_u64::<LittleEndian>(patch_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -374,8 +374,8 @@ pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(), Er
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(guard_id)?;
-    let _ = input.write_u64::<LittleEndian>(patch_id)?;
+    input.write_u64::<LittleEndian>(guard_id)?;
+    input.write_u64::<LittleEndian>(patch_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -388,8 +388,8 @@ pub fn remove_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(),
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(guard_id)?;
-    let _ = input.write_u64::<LittleEndian>(patch_id)?;
+    input.write_u64::<LittleEndian>(guard_id)?;
+    input.write_u64::<LittleEndian>(patch_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -402,7 +402,7 @@ pub fn enable_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(patch_id)?;
+    input.write_u64::<LittleEndian>(patch_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -415,7 +415,7 @@ pub fn disable_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(patch_id)?;
+    input.write_u64::<LittleEndian>(patch_id)?;
     
     let _ = device.call(control.into(), Some(input), None)?;
     Ok(())
@@ -429,7 +429,7 @@ pub fn get_info_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
 
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(patch_id)?;
+    input.write_u64::<LittleEndian>(patch_id)?;
     
     let mut cursor = device.call(control.into(), Some(input), None)?;
 
@@ -456,8 +456,8 @@ pub fn enumerate_patch(device: &Device, partition_id: u64, guard_id: u64) -> Res
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A47, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS );
     let mut input = vec![];
 
-    let _ = input.write_u64::<LittleEndian>(partition_id)?;
-    let _ = input.write_u64::<LittleEndian>(guard_id)?;
+    input.write_u64::<LittleEndian>(partition_id)?;
+    input.write_u64::<LittleEndian>(guard_id)?;
 
     let output: Vec<u8> = Vec::with_capacity(8 * 1000);
     

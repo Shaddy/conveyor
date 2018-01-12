@@ -2,6 +2,7 @@
 
 use super::clap::{App, ArgMatches, SubCommand};
 use super::slog::Logger;
+use super::failure::Error;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("misc")
@@ -9,10 +10,10 @@ pub fn bind() -> App<'static, 'static> {
 }
 
 
-pub fn tests(matches: &ArgMatches, logger: Logger) {
+pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("dissasm",  Some(matches))  => test_disassembler(matches, logger),
-        _                                => println!("{}", matches.usage())
+        _                            => Ok(println!("{}", matches.usage()))
     }
 }
 
@@ -74,7 +75,7 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
 //     Ok(())
 // }
 
-fn test_disassembler(_matches: &ArgMatches, _logger: Logger) {
+fn test_disassembler(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
     // debug!(logger, "{}", ());
     // example().unwrap();
     unimplemented!()

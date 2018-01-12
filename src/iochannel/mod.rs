@@ -8,6 +8,7 @@ extern crate winapi;
 pub mod command;
 pub mod error;
 
+use std::fmt;
 use self::winapi::um::{ioapiset, fileapi, handleapi};
 
 use std::ptr::{null_mut};
@@ -25,7 +26,7 @@ use self::winapi::um::winnt;
 
 use ffi::traits::EncodeUtf16;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct IoCtl {
     pub device_type: u32,
     pub function: u32,
@@ -60,11 +61,23 @@ impl Into<u32> for IoCtl {
 impl From<u32> for IoCtl {
     fn from(number: u32) -> IoCtl {
         IoCtl {
-            device_type: (number & 0xFFFF0000) >> 16,
+            device_type: (number & 0xFFFF_0000) >> 16,
             access: (number >> 14) & 3,
             function: (number >> 2) & ((1 << 12) - 1),
             method: number & 3,
         }
+    }
+}
+
+impl fmt::Display for IoCtl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Debug for IoCtl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "IoCtl{{ device: 0x{:X}, function: 0x{:03X} }}", self.device_type, self.function)
     }
 }
 
@@ -98,7 +111,7 @@ impl Device {
         };
 
         if handle == handleapi::INVALID_HANDLE_VALUE {
-            return Err(DeviceError::Open(name.to_string(), Error::last_os_error()))
+            return Err(DeviceError::Open(name.to_string(), Error::last_os_error().to_string()))
         }
 
         Ok( handle )
@@ -121,7 +134,9 @@ impl Device {
                 &mut overlapped) != 0
         };
 
-        if !success { return Err(DeviceError::IoCall(control, Error::last_os_error()))};
+        if !success { return Err(DeviceError::IoCall(IoCtl::from(control), 
+                                                     Error::last_os_error().to_string(),
+                                                     Error::last_os_error()))};
 
         Ok(())
     }
@@ -158,11 +173,14 @@ impl Device {
         };
 
 
-        if !success { return Err(DeviceError::IoCall(control, Error::last_os_error()))};
+        if !success { return Err(DeviceError::IoCall(IoCtl::from(control), 
+                                                     Error::last_os_error().to_string(),
+                                                     Error::last_os_error()))};
         
         unsafe { output.set_len(bytes as usize) };
         output.shrink_to_fit();
-        return Ok(Cursor::new(output))
+
+        Ok(Cursor::new(output))
     }
 }
 

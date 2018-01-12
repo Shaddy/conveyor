@@ -9,6 +9,8 @@ use super::{io, memory, symbols, misc};
 use std::io::Error;
 use std::mem;
 
+use super::error::MiscError;
+
 use super::winapi::shared::minwindef::{ DWORD, 
                                         LPVOID, 
                                         HMODULE };
@@ -16,12 +18,12 @@ use super::iochannel::{Device};
 use super::symbols::parser::Error as PdbError;
 
 pub fn get_offset(target: &str) -> u16 {
-    match symbols::parser::find_offset("ntoskrnl.pdb", &target) {
+    match symbols::parser::find_offset("ntoskrnl.pdb", target) {
         Err(PdbError::IoError(_)) => {
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
                                             .expect("Error downloading PDB");
 
-            symbols::parser::find_offset("ntoskrnl.pdb", &target).expect("can't retrieve offset")
+            symbols::parser::find_offset("ntoskrnl.pdb", target).expect("can't retrieve offset")
         },
         Err(err) => {
             panic!("error parsing PDB {}", err);
@@ -43,12 +45,12 @@ impl LinkedList {
         LinkedList {
             device: device,
             offset: offset,
-            pointer: pointer + offset as u64
+            pointer: pointer + u64::from(offset)
         }
     }
 
     pub fn ptr(&self) -> u64 {
-        self.pointer - self.offset as u64
+        self.pointer - u64::from(self.offset)
     }
 
     #[allow(dead_code)]
@@ -56,7 +58,7 @@ impl LinkedList {
         let blink = memory::read_u64(&self.device, self.pointer + 8).unwrap();
 
         LinkedList {
-            device: self.device.clone(),
+            device: Arc::clone(&self.device),
             offset: self.offset,
             pointer: blink
         }
@@ -66,7 +68,7 @@ impl LinkedList {
         let flink = memory::read_u64(&self.device, self.pointer).unwrap();
 
         LinkedList {
-            device: self.device.clone(),
+            device: Arc::clone(&self.device),
             offset: self.offset,
             pointer: flink
         }
@@ -105,7 +107,7 @@ pub struct Process {
 impl Process {
     pub fn current() -> Process {
         let pid = unsafe { processthreadsapi::GetCurrentProcessId() };
-        misc::WalkProcess::iter().find(|p| p.id() == pid as u64)
+        misc::WalkProcess::iter().find(|p| p.id() == u64::from(pid))
                                     .expect("can't find own EPROCESS")
     }
     pub fn system() -> Process {
@@ -119,9 +121,9 @@ impl Process {
         let offset = get_offset("_EPROCESS.ActiveProcessLinks");
 
         Process {
-            device: device.clone(),
+            device: Arc::clone(&device),
             object: object,
-            list: LinkedList::new(device.clone(), object, offset)
+            list: LinkedList::new(Arc::clone(&device), object, offset)
         }
     }
 
@@ -130,7 +132,7 @@ impl Process {
         let next = self.list.backward();
 
         Process {
-            device: self.device.clone(),
+            device: Arc::clone(&self.device),
             object: next.ptr(),
             list: next
         }
@@ -140,7 +142,7 @@ impl Process {
         let next = self.list.forward();
 
         Process {
-            device: self.device.clone(),
+            device: Arc::clone(&self.device),
             object: next.ptr(),
             list: next
         }
@@ -152,17 +154,17 @@ impl Process {
 
     pub fn token(&self) -> u64 {
         let offset = get_offset("_EPROCESS.Token");
-        memory::read_u64(&self.device, self.object + offset as u64).unwrap()
+        memory::read_u64(&self.device, self.object + u64::from(offset)).unwrap()
     }
 
     pub fn id(&self) -> u64 {
         let offset = get_offset("_EPROCESS.UniqueProcessId");
-        memory::read_u64(&self.device, self.object + offset as u64).unwrap()
+        memory::read_u64(&self.device, self.object + u64::from(offset)).unwrap()
     }
 
     pub fn name(&self) -> String {
         let offset = get_offset("_EPROCESS.ImageFileName");
-        let name = memory::read_virtual_memory(&self.device, self.object + (offset as u64), 15).unwrap();
+        let name = memory::read_virtual_memory(&self.device, self.object + u64::from(offset), 15).unwrap();
         String::from_utf8(name).expect("can't build process name")
                         .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
     }
@@ -276,7 +278,8 @@ impl Iterator for Drivers {
         if self.curr > self.limit { return None };
 
         let length = unsafe { psapi::GetDeviceDriverBaseNameW(base as LPVOID, content.as_mut_ptr(), 1024 / 2) };
-        if length <= 0 { return None } 
+
+        if length == 0 { return None } 
 
         Some(Driver {
                 name: String::from_utf16(&content[..length as usize])
@@ -296,27 +299,28 @@ pub fn get_kernel_base() -> u64 {
     Drivers::iter().take(1).nth(0).unwrap().base
 }
 
-pub fn load_library(name: &str) -> Result<u64, String> {
+pub fn load_library(name: &str) -> Result<u64, MiscError> {
     unsafe {
         let value = libloaderapi::LoadLibraryW(name.encode_utf16_null().as_ptr()) as u64;
         if value != 0 {
             Ok(value)
         } else {
-            Err(Error::last_os_error().to_string())
+            Err(MiscError::LoadLibrary(Error::last_os_error().to_string()))
         }
     } 
 }
 
-pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, String> {
+pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, MiscError> {
     // for some reason its necessary to do this in order to correctly pass the string
     // at some point the reference to native string breaks the result
     let name = String::from(name);
+
     unsafe {
         let value = libloaderapi::GetProcAddress(base as HMODULE, name.as_ptr() as *const i8) as u64;
         if value != 0 {
             Ok(value)
         } else {
-            Err(Error::last_os_error().to_string())
+            Err(MiscError::GetProcedure(Error::last_os_error().to_string()))
         }
     }
 }
@@ -325,8 +329,10 @@ pub fn fixed_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
     let dynamic_base = load_library(name)
                             .expect(name);
 
-    let address = get_proc_addr(dynamic_base, procedure)
-                            .expect(procedure);
+    let address = match get_proc_addr(dynamic_base, procedure) {
+        Err(err) => { panic!("{}", err.to_string()) },
+        Ok(address) => address
+    };
 
     (address - dynamic_base) + base
 }

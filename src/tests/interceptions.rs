@@ -7,6 +7,7 @@ use super::cli::colorize;
 use std::{thread};
 use std::time::Duration;
 
+use super::failure::Error;
 use super::common;
 use super::sentry::{memory};
 use super::sentry::memguard::{Interception, Partition, Sentinel, Guard, Access, Action, Filter, MatchType};
@@ -19,17 +20,17 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("callback"))
 }
 
-pub fn tests(matches: &ArgMatches, logger: Logger) {
+pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("kernel",      Some(matches))  => test_intercept_kernel_region(matches, logger),
         ("stealth",     Some(matches))  => test_stealth_interception(matches, logger),
         ("analysis",    Some(matches))  => test_analysis_interception(matches, logger),
         ("callback",    Some(matches))  => test_interception_callback(matches, logger),
-        _                                 => println!("{}", matches.usage())
+        _                                 => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
+fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition = Partition::root();
 
     let mut guard = Guard::new(&partition, Filter::current_process(&partition.device, MatchType::NOT_EQUAL));
@@ -74,12 +75,13 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "stoping guard");
     guard.stop();
+    Ok(())
 }
 
 //
 // This test aims to demostrate that we are able to ignore any write to any memory address
 //
-fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
+fn test_stealth_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
@@ -93,7 +95,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "zeroed {} bytes", bytes);
 
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
-    let output = common::dump_vector(v);
+    let output = common::dump_vector(&v);
     debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
     let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE).unwrap();
@@ -119,7 +121,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
     if v.iter().any(|&b| b != 0x00) {
         colorize::failed("STEALTH test result has FAILED.");
-        let output = common::dump_vector(v);
+        let output = common::dump_vector(&v);
         debug!(logger, "inspecting buffer 0x{:016x}", addr);
         colorize::warning(&output);
     } else {
@@ -130,6 +132,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr).unwrap();
+    Ok(())
 }
 
 // example of declared function as callback
@@ -141,7 +144,7 @@ fn callback_test(interception: Interception) -> Action {
     Action::CONTINUE
 }
 
-fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
+fn test_interception_callback(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
 
@@ -172,9 +175,10 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr).unwrap();
+    Ok(())
 }
 
-fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
+fn test_intercept_kernel_region(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
 
@@ -199,9 +203,11 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr).unwrap();
+
+    Ok(())
 }
 
-// fn test_intercept_region(_matches: &ArgMatches, logger: Logger) {
+// fn test_intercept_region(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 //     let mut v: Vec<u8> = Vec::new();
 //     v.push(13);
 

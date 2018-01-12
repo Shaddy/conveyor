@@ -31,18 +31,18 @@ pub enum ControlGuard {
 
 bitflags! {
     pub struct Action: u16 {
-        const NOTIFY    = 0x00001000;
-        const CONTINUE  = 0x00000001;
-        const BLOCK     = 0x00000002;
-        const STEALTH   = 0x00000004;
-        const INSPECT   = 0x00001008;
+        const NOTIFY    = 0x0000_1000;
+        const CONTINUE  = 0x0000_0001;
+        const BLOCK     = 0x0000_0002;
+        const STEALTH   = 0x0000_0004;
+        const INSPECT   = 0x0000_1008;
     }
 }
 
 bitflags! {
     pub struct GuardFlags: u32 {
-        const STARTED      = 0x00000000;
-        const STOPPED      = 0x00000001;
+        const STARTED      = 0x0000_0000;
+        const STOPPED      = 0x0000_0001;
     }
 }
 
@@ -53,16 +53,16 @@ pub enum RegionStatus {
 
 bitflags! {
     pub struct RegionFlags: u32 {
-        const ENABLED    = 0x00000000;
-        const DISABLED   = 0x00000001;
+        const ENABLED    = 0x0000_0000;
+        const DISABLED   = 0x0000_0001;
     }
 }
 
 bitflags! {
     pub struct Access: u16 {
-        const READ       = 0x00000001;
-        const WRITE      = 0x00000002;
-        const EXECUTE    = 0x00000004;
+        const READ       = 0x0000_0001;
+        const WRITE      = 0x0000_0002;
+        const EXECUTE    = 0x0000_0004;
     }
 }
 
@@ -101,11 +101,11 @@ impl Partition
     }
 
     fn create_workers(&self, buckets: Vec<Vec<u8>>, 
-                             callbacks: CallbackMap) -> Vec<JoinHandle<()>> {
+                             callbacks: &CallbackMap) -> Vec<JoinHandle<()>> {
         buckets.into_iter().map(|bucket| 
         {
-            let callbacks_copy = callbacks.clone();
-            thread::spawn(move|| bucket::Bucket::handler(bucket, Box::new(Partition::default_callback), callbacks_copy))
+            let callbacks = Arc::clone(callbacks);
+            thread::spawn(move|| bucket::Bucket::handler(bucket, Box::new(Partition::default_callback), callbacks))
 
         }).collect()
     }
@@ -117,14 +117,14 @@ impl Partition
 
         let mut partition = Partition {
             id: channel.id,
-            callbacks: callbacks.clone(),
+            callbacks: Arc::clone(&callbacks),
             device: device,
             workers: Vec::new()
         };
         
         let workers = partition.create_workers(
             bucket::Bucket::slice_buckets(channel.address, channel.size as usize),
-            callbacks.clone()
+            &callbacks
         );
 
         partition.workers.extend(workers.into_iter());
@@ -208,20 +208,12 @@ impl<'p> Sentinel<'p> {
 
     pub fn remove(&self, guard: &Guard) -> Result<(), Error> {
         match *self {
-            Sentinel::Region{
-                id: region_id,
-                partition: _, 
-                range: _,
-                access: _,
-                action: _
-            } => {
+            Sentinel::Region{id: region_id, .. } => {
                 io::remove_region(&guard.partition.device, guard.id, region_id)?;
             },
-            Sentinel::Tracepoint(_) =>  {
-                // io::remove_tracepoint(guard.id, trace_id)
-            },
-            Sentinel::Patches => {
-                // io::remove_patch(guard.id, trace_id)
+            Sentinel::Tracepoint(_) | Sentinel::Patches => {
+                // io::remove_sentinel(guard.id, trace_id)
+                println!("not implemented");
             },
         }
 
@@ -232,19 +224,14 @@ impl<'p> Sentinel<'p> {
         match *self {
             Sentinel::Region{
                 id: region_id,
-                partition: _, 
-                range: _,
-                access: _,
-                action: _
+                ..
             } => {
                 io::add_region(&guard.partition.device, guard.id, region_id)?;
             },
-            Sentinel::Tracepoint(_) =>  {
-                // io::add_tracepoint(&self.partition.device, guard.id, trace_id)
-            },
-            Sentinel::Patches => {
-                // io::add_patch(&self.partition.device, guard.id, trace_id)
-            },
+            Sentinel::Tracepoint(_) | Sentinel::Patches =>  {
+                // io::add_sentinel(&self.partition.device, guard.id, trace_id)
+                println!("not implemented");
+            }
         }
 
         Ok(())
@@ -281,13 +268,11 @@ impl<'p> fmt::Display for Sentinel<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Sentinel::Region{
-                id: region_id,
-                partition: _, 
+                id,
                 ref range,
-                access: _,
-                action: _
+                ..
             } => {
-                write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})", region_id, range.base, range.limit)
+                write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})", id, range.base, range.limit)
             },
             Sentinel::Tracepoint(_) =>  {
                 write!(f, "Tracepoint")
@@ -303,13 +288,8 @@ impl<'p> fmt::Display for Sentinel<'p> {
 impl<'p> Drop for Sentinel<'p> {
     fn drop(&mut self) {
         match *self {
-            Sentinel::Region {
-                id: region_id,
-                partition, 
-                range: _,
-                access: _,
-                action: _
-            } => io::delete_region(&partition.device, region_id).unwrap(),
+            Sentinel::Region { id, partition, ..} => io::delete_region(&partition.device, id).unwrap(),
+            Sentinel::Tracepoint { .. } => (),
             _ => {}
         };
     }
@@ -337,7 +317,7 @@ impl<'a> Filter<'a> {
         self.alloc.kernel_ptr()
     }
 
-    pub fn add(&mut self, condition: Condition) {
+    pub fn add(&mut self, condition: &Condition) {
         let current = &mut self.filter.Conditions[self.filter.NumberOfConditions as usize];
 
         assert!(self.filter.NumberOfConditions < 16);
@@ -352,12 +332,12 @@ impl<'a> Filter<'a> {
     }
 
     pub fn process(device: &'a Device, name: &str, cmp: MatchType) -> Option<Filter<'a>> {
-        let mut filter = Filter::new(&device);
+        let mut filter = Filter::new(device);
 
         let current = misc::WalkProcess::iter().find(|p| p.name().contains(name))
                                         .expect("process not found");
 
-        filter.add(Condition::new(FieldKey::PROCESS_ID, 
+        filter.add(&Condition::new(FieldKey::PROCESS_ID, 
                                   cmp,
                                   ValueType::UINT64,
                                   current.id()));
@@ -423,20 +403,21 @@ impl<'p> Guard<'p> {
         }
     }
 
-    pub fn start<'a>(&'a self) -> &'a Self {
+    pub fn start(&self) -> &Self {
         io::start_guard(&self.partition.device, self.id)
                             .expect("start error");
 
         self
     }
 
-    pub fn stop<'a>(&'a self) -> &'a Self{
+    pub fn stop(&self) -> &Self {
         io::stop_guard(&self.partition.device, self.id)
                             .expect("stop error");
         self
     }
 
-    pub fn remove(&mut self, _sentinel: Sentinel) {
+    #[allow(dead_code, unused_variables)]
+    pub fn remove(&mut self, sentinel: &Sentinel) {
         unimplemented!()
         // sentinel.unregister().expect(format!("Unable to register {:?}", sentinel));
         // self.sentinels.remove(sentinel)
@@ -444,11 +425,11 @@ impl<'p> Guard<'p> {
     }
 
     pub fn set_callback(&self, callback: SyncCallback) {
-        self.partition.register_callback(&self, callback)
+        self.partition.register_callback(self, callback)
     }
 
     pub fn add(&mut self, sentinel: Sentinel<'p>) {
-        sentinel.register(&self).expect(format!("Unable to register {}", sentinel).as_ref());
+        sentinel.register(self).expect(format!("Unable to register {}", sentinel).as_ref());
         self.sentinels.push(sentinel)
     }
 

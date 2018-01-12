@@ -13,8 +13,8 @@ const BUCKET_SIZE: usize = (240 + 16);
 
 bitflags! {
     pub struct ControlFlags: u32 {
-        const SE_MESSAGE_NORMAL       = 0x00000000;
-        const SE_MESSAGE_ASYNCHRONOUS = 0x00000001;
+        const SE_MESSAGE_NORMAL       = 0x0000_0000;
+        const SE_MESSAGE_ASYNCHRONOUS = 0x0000_0001;
     }
 }
 
@@ -41,7 +41,7 @@ impl Syncronizers {
 #[allow(dead_code)]
 #[derive(Debug)]
 enum MessageType {
-    Unknown = 0x0000000000000000,
+    Unknown = 0x0000_0000_0000_0000,
     Intercept,
     Terminate,
     Error,
@@ -107,7 +107,7 @@ impl Bucket {
 
         let size = capacity / chunks;
 
-        let buffers = unsafe {
+        unsafe {
             let mut buffers: Vec<Vec<u8>> = Vec::new();
             
             for current in (0..capacity).step_by(BUCKET_SIZE) {
@@ -115,13 +115,12 @@ impl Bucket {
             };
             
             buffers
-        };
-
-        buffers
+        }
     }
 
     fn set_action(&self, buffer: &mut Vec<u8>, action: Action) {
         unsafe {
+            // let intercept: &mut Interception = &mut buffer.as_mut_ptr().offset(mem::size_of::<Syncronizers>() as isize) as *mut Interception;
             let intercept: &mut Interception = mem::transmute::<*mut u8, &mut Interception>(buffer.as_mut_ptr()
                                                 .offset(mem::size_of::<Syncronizers>() as isize));
             intercept.action = action;

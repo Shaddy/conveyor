@@ -1,3 +1,4 @@
+extern crate failure;
 extern crate clap;
 extern crate slog;
 extern crate pdb;

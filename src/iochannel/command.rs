@@ -1,9 +1,10 @@
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::Device;
+use super::failure::Error;
 
 
-fn _not_implemented_command(_logger: Logger) {
+fn _not_implemented_command(_logger: &Logger) {
     unimplemented!()
 }
 
@@ -17,22 +18,24 @@ pub fn bind() -> App<'static, 'static> {
 }
 
 
-fn device_call(_matches: &ArgMatches, _logger: Logger) {
+fn device_call(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
-pub fn device_open(matches: &ArgMatches, _logger: Logger) {
-    let name = matches.value_of("name").expect("can't find name flag");
-    match Device::open(name) {
-        Ok(device) => println!("device: {:?}", device),
-        Err(err) => { println!("{}", err) }
-    }
+pub fn device_open(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+    let name = matches.value_of("name").expect("argument `name` is not present");
+
+    let handle = Device::open(name)?;
+    
+    debug!(logger, "handle: 0x{:x}", handle as u64);
+
+    Ok(())
 }
 
-pub fn parse(matches: &ArgMatches, logger: Logger) {
+pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("open", Some(matches))  => device_open(matches, logger),
         ("call", Some(matches))  => device_call(matches, logger),
-        _             => println!("{}", matches.usage())
+        _                        => Ok(println!("{}", matches.usage()))
     }
 }

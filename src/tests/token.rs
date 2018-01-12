@@ -6,6 +6,7 @@ use super::cli::colorize;
 
 use std::{thread};
 use std::time::Duration;
+use super::failure::Error;
 
 
 use super::sentry::memguard::{Partition, Sentinel, Guard, Access, Action};
@@ -27,16 +28,16 @@ pub fn bind() -> App<'static, 'static> {
                                 .arg(target.clone()))
 }
 
-pub fn tests(matches: &ArgMatches, logger: Logger) {
+pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("protect",     Some(matches))        => protect_token(matches, logger),
         ("duplicate",   Some(matches))        => duplicate_token(matches, logger),
         ("hijack",      Some(matches))        => hijack_token(matches, logger),
-        _                                 => println!("{}", matches.usage())
+        _                                     => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn duplicate_token(matches: &ArgMatches, logger: Logger) {
+fn duplicate_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -47,10 +48,11 @@ fn duplicate_token(matches: &ArgMatches, logger: Logger) {
     debug!(logger, "elevating privilege of pid {}", pid);
     token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
     debug!(logger, "success");
+    Ok(())
 }
 
 
-fn hijack_token(matches: &ArgMatches, logger: Logger) {
+fn hijack_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -61,9 +63,11 @@ fn hijack_token(matches: &ArgMatches, logger: Logger) {
     debug!(logger, "elevating privilege of pid {}", pid);
     token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     debug!(logger, "success");
+
+    Ok(())
 }
 
-fn protect_token(matches: &ArgMatches, logger: Logger) {
+fn protect_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -85,7 +89,7 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
     // pointer to token (duplicateway)
     // let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
 
-    let region = Sentinel::region(&partition, process.object() + token_offset as u64, 8, None, Access::WRITE).unwrap();
+    let region = Sentinel::region(&partition, process.object() + u64::from(token_offset), 8, None, Access::WRITE).unwrap();
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
@@ -97,4 +101,5 @@ fn protect_token(matches: &ArgMatches, logger: Logger) {
     let duration = Duration::from_secs(20);
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);
+    Ok(())
 }

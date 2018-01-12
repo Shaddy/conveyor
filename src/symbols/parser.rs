@@ -425,12 +425,12 @@ impl<'p> fmt::Display for Data<'p> {
             }
         }
 
-        for e in self.enums.iter() {
+        for e in &self.enums {
             writeln!(f, "")?;
             e.fmt(f)?;
         }
 
-        for class in self.classes.iter() {
+        for class in &self.classes {
             writeln!(f, "")?;
             class.fmt(f)?;
         }

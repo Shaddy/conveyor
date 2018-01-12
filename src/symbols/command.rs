@@ -1,13 +1,14 @@
 use super::parser;
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
+use super::failure::Error;
 use super::downloader::PdbDownloader;
 
-pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: Logger) {
+pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
-fn _not_implemented_command(_logger: Logger) {
+fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
@@ -44,32 +45,35 @@ pub fn bind() -> App<'static, 'static> {
         .subcommand(SubCommand::with_name("dump").about("dumps pdb information into console"))
 }
 
-pub fn parse(matches: &ArgMatches, logger: Logger) {
+pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
-        ("download", Some(matches))  => download_pdb(matches, &logger),
-        ("parse", Some(matches))     => parse_pdb(matches, &logger),
-        ("offset", Some(matches))    => find_offset(matches, &logger),
+        ("download", Some(matches))  => download_pdb(matches, logger),
+        ("parse", Some(matches))     => parse_pdb(matches, logger),
+        ("offset", Some(matches))    => find_offset(matches, logger),
         ("analyze", Some(_))         => _not_implemented_command(logger),
-        _                            => println!("{}", matches.usage())
+        _                            => Ok(println!("{}", matches.usage()))
     }
 }
-fn find_offset(matches: &ArgMatches, logger: &Logger) {
+
+fn find_offset(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
 
     debug!(logger, "parsing {} to find {} offset", target, name);
-    let _ = parser::find_offset(&target, &name);
+    let _ = parser::find_offset(target, name);
+    Ok(())
 }
 
-fn parse_pdb(matches: &ArgMatches, logger: &Logger) {
+fn parse_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
 
     debug!(logger, "parsing {} searching {}", target, name);
-    parser::pdb_to_c_struct(&target, &name);
+    parser::pdb_to_c_struct(target, name);
+    Ok(())
 }
 
-fn download_pdb(matches: &ArgMatches, logger: &Logger) {
+fn download_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
 
     debug!(logger, "downloading PDB for {}", target);
@@ -79,4 +83,5 @@ fn download_pdb(matches: &ArgMatches, logger: &Logger) {
     pdb.download().expect("Unable to download PDB");
 
     debug!(logger, "download success");
+    Ok(())
 }

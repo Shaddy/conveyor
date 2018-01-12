@@ -1,14 +1,15 @@
+use super::failure::Error;
 use super::clap::{App, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::process;
 
 
-fn _not_implemented_command(_logger: Logger) {
+fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
-pub fn parse(matches: &ArgMatches, logger: Logger) {
-    let mut services: Vec<&str> = "lynxv memguard sentry".split(" ").collect();
+pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+    let mut services: Vec<&str> = "lynxv memguard sentry".split(' ').collect();
 
     let action: &Fn(&str, &Logger) = match matches.subcommand_name() {
         Some("install") => { &super::functions::install },
@@ -17,15 +18,15 @@ pub fn parse(matches: &ArgMatches, logger: Logger) {
         Some("start")   => { &super::functions::start },
         Some("run")     => { 
             services.iter().rev().for_each(|service| {
-                super::functions::reinstall(service, &logger);
+                super::functions::reinstall(service, logger);
             });
 
             services.iter().for_each(|service| {
-                super::functions::update(service, &logger);
-                super::functions::start(service, &logger);
+                super::functions::update(service, logger);
+                super::functions::start(service, logger);
             });
 
-            return;
+            return Ok(());
 
         },
         Some("stop")    => { 
@@ -36,14 +37,16 @@ pub fn parse(matches: &ArgMatches, logger: Logger) {
         Some("query")   => { &super::functions::query },
         _               => {
             println!("{}", matches.usage());
-            process::exit(0);
+            process::exit(0)
         }
 
     };
 
     services.iter().for_each(|service| {
-        action(service, &logger);
+        action(service, logger);
     });
+    
+    Ok(())
 }
 
 pub fn bind() -> App<'static, 'static> {

@@ -7,6 +7,7 @@ use super::iochannel::{IoCtl, Device};
 
 use super::winapi::um::winioctl;
 
+use super::failure::Error;
 use super::sentry::io;
 
 use super::structs::{TestType, TestFlags, SE_RUN_TEST, RawStruct};
@@ -19,7 +20,7 @@ struct SentryTest {
 
 impl SentryTest {
     pub fn set_flag(&mut self, flag: TestFlags) {
-        self.flags = self.flags | flag;
+        self.flags |= flag;
     }
 
     pub fn new(kind: TestType, flags: Option<TestFlags>) -> SentryTest {
@@ -47,12 +48,12 @@ pub fn bind() -> App<'static, 'static> {
                         .subcommand(SubCommand::with_name("pagefault")))
 }
 
-pub fn tests(matches: &ArgMatches, logger: Logger) {
+pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let mut test = match matches.subcommand() {
         ("guard",        Some(_))  => SentryTest::new(TestType::BasicGuard, None),
         ("region",       Some(_))  => SentryTest::new(TestType::BasicGuardedRegion, None),
         ("tracepoint",   Some(_))  => SentryTest::new(TestType::BasicTracePoint, None),
-        ("intercept",    Some(matches))  => parse_intercept(matches, &logger),
+        ("intercept",    Some(matches))  => parse_intercept(matches, logger),
         _                                => {
             let message = format!("{}", matches.usage());
             panic!(message);
@@ -63,8 +64,9 @@ pub fn tests(matches: &ArgMatches, logger: Logger) {
         test.set_flag(TestFlags::INTERCEPT_STRESS_AFFINITY);
     }
 
-    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
-    sentry_run_test(&device, test);
+    let device = Device::new(io::SE_NT_DEVICE_NAME)?;
+
+    sentry_run_test(&device, test)
 }
 
 fn parse_intercept(matches: &ArgMatches, _logger: &Logger) -> SentryTest {
@@ -80,7 +82,7 @@ fn parse_intercept(matches: &ArgMatches, _logger: &Logger) -> SentryTest {
     }
 }
 
-fn sentry_run_test(device: &Device, test: SentryTest) {
+fn sentry_run_test(device: &Device, test: SentryTest) -> Result<(), Error> {
     let control: IoCtl = IoCtl::new(io::IOCTL_SENTRY_TYPE, 0x0A63, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
 
     let mut write = SE_RUN_TEST::init();
@@ -90,7 +92,7 @@ fn sentry_run_test(device: &Device, test: SentryTest) {
 
     let (ptr, len) = (write.as_ptr(), write.size());
 
-    device.raw_call(control.into(), ptr, len)
-                            .expect("Error calling IOCTL_SE_RUN_TESTS");
+    device.raw_call(control.into(), ptr, len)?;
 
+    Ok(())
 }

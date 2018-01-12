@@ -3,6 +3,7 @@
 extern crate clap;
 extern crate slog;
 extern crate winapi;
+extern crate failure;
 
 
 use super::ffi;

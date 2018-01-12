@@ -17,3 +17,12 @@ pub enum PartitionError {
     #[fail(display = "UnknownError: {}", _0)]
     UnknownError(#[cause] DeviceError),
 }
+
+
+#[derive(Fail, Debug)]
+pub enum MiscError {
+    #[fail(display = "Can't load library: {}", _0)]
+    LoadLibrary(String),
+    #[fail(display = "Unable to get procedure: {}", _0)]
+    GetProcedure(String),
+}

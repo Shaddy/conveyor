@@ -7,7 +7,7 @@ use super::iochannel::{Device};
 use std::str;
 
 // use super::symbols::parser::Error;
-const MAX_SEARCH_SIZE: usize = 0x10000;
+const MAX_SEARCH_SIZE: usize = 0x1_0000;
 
 pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> Option<u64> {
     if let Some(driver) = misc::Drivers::contains(name) {

@@ -8,6 +8,7 @@ use super::common;
 use super::sentry::{io, memory};
 use super::iochannel::{Device};
 use super::sentry::memory::{Map, MapMode};
+use super::failure::Error;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("memory")
@@ -18,17 +19,17 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("map"))
 }
 
-pub fn tests(matches: &ArgMatches, logger: Logger) {
+pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("virtual",      Some(matches))  => test_virtual_memory(matches, logger),
         ("write",        Some(matches))  => test_memory_write(matches, logger),
         ("map",          Some(matches))  => test_memory_map(matches, logger),
         ("kernel-map",   Some(matches))  => test_kernel_map(matches, logger),
-        _                                => println!("{}", matches.usage())
+        _                                => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn test_kernel_map(_matches: &ArgMatches, logger: Logger) {
+fn test_kernel_map(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     struct TestStruct {
@@ -50,8 +51,8 @@ fn test_kernel_map(_matches: &ArgMatches, logger: Logger) {
 
     unsafe {
         let test = &mut *map.as_mut_ptr();
-        test.first = 0x11223344;
-        test.second = 0x55667788;
+        test.first  = 0x1122_3344;
+        test.second = 0x5566_7788;
     }
 
     debug!(logger, "reading kernel pointer 0x{:016x}", map.kernel_ptr());
@@ -65,9 +66,10 @@ fn test_kernel_map(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "from-user: {}", u);
     debug!(logger, "from-kernel: {}", k);
+    Ok(())
 }
 
-fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
+fn test_virtual_memory(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     debug!(logger, "opened sentry: {:?}", device);
@@ -92,15 +94,16 @@ fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
 
-    let output = common::dump_vector(v);
+    let output = common::dump_vector(&v);
     
     debug!(logger, "{}", output);
 
     debug!(logger, "free_virtual_memory: 0x{:016x}", addr);
     memory::free_virtual_memory(&device, addr).unwrap();
+    Ok(())
 }
 
-fn test_memory_write(_matches: &ArgMatches, logger: Logger) {
+fn test_memory_write(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     let addr = memory::alloc_virtual_memory(&device, 0x200).unwrap();
     debug!(logger, "reading virtual memory");
@@ -109,10 +112,11 @@ fn test_memory_write(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "writting virtual memory");
     memory::write_virtual_memory(&device, addr, v).unwrap();
     memory::free_virtual_memory(&device, addr).unwrap();
+    Ok(())
 }
 
 
-fn test_memory_map(_matches: &ArgMatches, logger: Logger) {
+fn test_memory_map(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     let addr = memory::alloc_virtual_memory(&device, 0x200).unwrap();
@@ -121,4 +125,5 @@ fn test_memory_map(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "map: {:?}", map);
     memory::free_virtual_memory(&device, addr).unwrap();
 
+    Ok(())
 }

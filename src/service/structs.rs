@@ -63,10 +63,10 @@ pub enum ServiceStatus {
 
 bitflags! {
     pub struct ServiceType: u32 {
-        const FILE_SYSTEM_DRIVER       = 0x00000001;
-        const KERNEL_DRIVER            = 0x00000002;
-        const WIN32_OWN_PROCESS        = 0x00000010;
-        const WIN32_SHARE_PROCESS      = 0x00000020;
+        const FILE_SYSTEM_DRIVER       = 0x0000_0001;
+        const KERNEL_DRIVER            = 0x0000_0002;
+        const WIN32_OWN_PROCESS        = 0x0000_0010;
+        const WIN32_SHARE_PROCESS      = 0x0000_0020;
     }
 }
 

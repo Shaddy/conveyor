@@ -6,7 +6,7 @@ use std::thread;
 
 use std::ptr::null_mut;
 use std::io::Error;
-use std::mem::{transmute, zeroed, size_of_val};
+use std::mem::{zeroed, size_of_val};
 
 use super::ffi;
 use super::winapi;
@@ -182,16 +182,17 @@ impl WindowsService {
             winsvc::QueryServiceStatusEx(
                 service,
                 winsvc::SC_STATUS_PROCESS_INFO,
-                transmute::<&mut SERVICE_STATUS_PROCESS, *mut u8>(&mut process),
+                &mut process as *mut SERVICE_STATUS_PROCESS as *mut u8,
                 size,
                 &mut size,
             )
         };
 
-        match result == 0 {
-            false => return Ok(process),
-            true => return Err(Error::last_os_error().to_string())
+        if result == 0 {
+            return Err(Error::last_os_error().to_string())
         }
+
+        Ok(process)
     }
 
 
@@ -228,22 +229,22 @@ impl WindowsService {
 
     fn service_error() -> ServiceError {
         match Error::last_os_error().raw_os_error() {
-            Some(1056) => return ServiceError::ServiceAlreadyRunning,
-            Some(1058) => return ServiceError::ServiceDisabled,
-            Some(1060) => return ServiceError::ServiceDoesNotExist,
-            Some(1061) => return ServiceError::ServiceCannotAcceptCtrl,
-            Some(1062) => return ServiceError::ServiceNotActive,
-            Some(1072) => return ServiceError::DeletePending,
-            Some(1073) => return ServiceError::ServiceAlreadyExists,
-            Some(5) => return ServiceError::AccessViolation,
-            Some(6) => return ServiceError::InvalidHandle,
-            Some(code) => return ServiceError::UnknownError(code),
-            _ => panic!("Can't retrieve OS Error, panicking!")
+            Some(1056) => ServiceError::ServiceAlreadyRunning,
+            Some(1058) => ServiceError::ServiceDisabled,
+            Some(1060) => ServiceError::ServiceDoesNotExist,
+            Some(1061) => ServiceError::ServiceCannotAcceptCtrl,
+            Some(1062) => ServiceError::ServiceNotActive,
+            Some(1072) => ServiceError::DeletePending,
+            Some(1073) => ServiceError::ServiceAlreadyExists,
+            Some(5)    => ServiceError::AccessViolation,
+            Some(6)    => ServiceError::InvalidHandle,
+            Some(code) => ServiceError::UnknownError(code),
+            _          => panic!("Can't retrieve OS Error, panicking!")
         }
     }
 
     pub fn exists(&self) -> bool {
-        let result = match self.open() {
+        match self.open() {
             Err(ServiceError::AccessViolation) => {
                 println!("INFO: Access violation while opening service.");
                 false
@@ -253,9 +254,7 @@ impl WindowsService {
                 self.close(handle);
                 true
             }
-        };
-
-        result
+        }
     }
 
     pub fn delete(&self) -> Result<(), ServiceError> {
