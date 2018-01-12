@@ -5,13 +5,13 @@ use super::iochannel::{ Device, IoCtl };
 use super::winapi::um::winioctl;
 
 use super::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use super::num::FromPrimitive;
 use super::memguard::{Access, Action, Range, GuardFlags, ControlGuard, RegionFlags, RegionStatus, Filter};
 
 use super::misc;
 use super::iochannel::error::DeviceError;
 use super::error::PartitionError;
 use super::failure::Error;
+use std::io::Cursor;
 
 use self::misc::Process;
 
@@ -81,6 +81,24 @@ pub fn delete_partition(device: &Device, id: u64) -> Result<(), Error> {
     Ok(())
 }
 
+fn partition_result(id: u64, result: Result<Cursor<Vec<u8>>, DeviceError>) -> Result<Cursor<Vec<u8>>, PartitionError> {
+    match result {
+        Err(err) => {
+            if let DeviceError::IoCall(n, io_err) = err {
+                if let Some(1167) = io_err.raw_os_error() {
+                    return Err(PartitionError::NotExists(id))
+                } else {
+                    return Err(PartitionError::UnknownError(DeviceError::IoCall(n, io_err)));
+                } 
+            }  else {
+                return Err(PartitionError::UnknownError(err));
+            }
+                    
+        },
+        Ok(cursor) => return Ok(cursor)
+    };
+}
+
 #[allow(dead_code)]
 pub fn get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64, Error> {
     let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A02, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
@@ -92,19 +110,7 @@ pub fn get_partition_option(device: &Device, id: u64, option: u64) -> Result<u64
     let _ = input.write_u64::<LittleEndian>(id)?;
     let _ = input.write_u64::<LittleEndian>(option)?;
 
-    let mut cursor = match device.call(control.into(), Some(input), Some(output)) 
-    {
-        Err(err) => {
-            if let DeviceError::IoCall(_, io_err) = err {
-                if let Some(1167) = io_err.raw_os_error() {
-                    return Err(PartitionError::NotExists(id))
-                } 
-            }  
-                    
-            return Err(PartitionError::UnknownError(err));
-        },
-        Ok(cursor) => cursor
-    };
+    let mut cursor = partition_result(id, device.call(control.into(), Some(input), Some(output)))?;
 
     Ok(cursor.read_u64::<LittleEndian>()?)
 }
@@ -121,11 +127,7 @@ pub fn set_partition_option(device: &Device, id: u64, option: u64, value: u64) -
     let _ = input.write_u64::<LittleEndian>(option)?;
     let _ = input.write_u64::<LittleEndian>(value)?;
     
-    println!("{:?}", PartitionOption::from_u64(option));
-    
     let _ = device.call(control.into(), Some(input), Some(output))?;
-
-    println!("id: {} | option: {:?} | value: {} ", id, option, value);
 
     Ok(())
 }
@@ -329,6 +331,8 @@ pub fn enumerate_region(device: &Device, partition_id: u64, guard_id: u64) -> Re
     let mut cursor = device.call(control.into(), Some(input), Some(output))?;
 
     let _region_id = cursor.read_u64::<LittleEndian>()?;
+
+    // TODO: result in an enumerate object (iterator over buffer?)
     Ok(())
 }
 

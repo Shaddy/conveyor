@@ -206,7 +206,7 @@ impl<'p> Sentinel<'p> {
         Sentinel::Tracepoint(Range { base: base, limit: limit})
     }
 
-    pub fn remove(&self, guard: &Guard) -> Result<(), ()> {
+    pub fn remove(&self, guard: &Guard) -> Result<(), Error> {
         match *self {
             Sentinel::Region{
                 id: region_id,
@@ -215,7 +215,7 @@ impl<'p> Sentinel<'p> {
                 access: _,
                 action: _
             } => {
-                io::remove_region(&guard.partition.device, guard.id, region_id);
+                io::remove_region(&guard.partition.device, guard.id, region_id)?;
             },
             Sentinel::Tracepoint(_) =>  {
                 // io::remove_tracepoint(guard.id, trace_id)
@@ -228,7 +228,7 @@ impl<'p> Sentinel<'p> {
         Ok(())
     }
 
-    pub fn register(&self, guard: &Guard) -> Result<(), ()> {
+    pub fn register(&self, guard: &Guard) -> Result<(), Error> {
         match *self {
             Sentinel::Region{
                 id: region_id,
@@ -237,7 +237,7 @@ impl<'p> Sentinel<'p> {
                 access: _,
                 action: _
             } => {
-                io::add_region(&guard.partition.device, guard.id, region_id);
+                io::add_region(&guard.partition.device, guard.id, region_id)?;
             },
             Sentinel::Tracepoint(_) =>  {
                 // io::add_tracepoint(&self.partition.device, guard.id, trace_id)
@@ -423,14 +423,16 @@ impl<'p> Guard<'p> {
         }
     }
 
-    pub fn start<'a>(&'a self) -> &'a Self{
-        io::start_guard(&self.partition.device, self.id);
+    pub fn start<'a>(&'a self) -> &'a Self {
+        io::start_guard(&self.partition.device, self.id)
+                            .expect("start error");
 
         self
     }
 
     pub fn stop<'a>(&'a self) -> &'a Self{
-        io::stop_guard(&self.partition.device, self.id);
+        io::stop_guard(&self.partition.device, self.id)
+                            .expect("stop error");
         self
     }
 
@@ -462,6 +464,8 @@ impl<'p> fmt::Display for Guard<'p> {
 impl<'p> Drop for Guard<'p> {
     fn drop(&mut self) {
         println!("Guard<0x{:08X}>::drop()", self.id);
-        io::unregister_guard(&self.partition.device, self.id);
+        if let Err(err) = io::unregister_guard(&self.partition.device, self.id) {
+            println!("error unregistering guard: {}", err);
+        }
     }
 }

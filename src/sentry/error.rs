@@ -1,4 +1,3 @@
-use super::failure;
 use std::io::Error;
 
 use super::iochannel::error::DeviceError;

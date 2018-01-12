@@ -53,7 +53,7 @@ impl LinkedList {
 
     #[allow(dead_code)]
     pub fn backward(&self) -> LinkedList {
-        let blink = memory::read_u64(&self.device, self.pointer + 8);
+        let blink = memory::read_u64(&self.device, self.pointer + 8).unwrap();
 
         LinkedList {
             device: self.device.clone(),
@@ -63,7 +63,7 @@ impl LinkedList {
     }
 
     pub fn forward(&self) -> LinkedList {
-        let flink = memory::read_u64(&self.device, self.pointer);
+        let flink = memory::read_u64(&self.device, self.pointer).unwrap();
 
         LinkedList {
             device: self.device.clone(),
@@ -110,7 +110,7 @@ impl Process {
     }
     pub fn system() -> Process {
         let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
-        let addr = memory::read_u64(&device, misc::system_process_pointer());
+        let addr = memory::read_u64(&device, misc::system_process_pointer()).unwrap();
 
         Process::new(Arc::new(device), addr)
     }
@@ -152,17 +152,17 @@ impl Process {
 
     pub fn token(&self) -> u64 {
         let offset = get_offset("_EPROCESS.Token");
-        memory::read_u64(&self.device, self.object + offset as u64)
+        memory::read_u64(&self.device, self.object + offset as u64).unwrap()
     }
 
     pub fn id(&self) -> u64 {
         let offset = get_offset("_EPROCESS.UniqueProcessId");
-        memory::read_u64(&self.device, self.object + offset as u64)
+        memory::read_u64(&self.device, self.object + offset as u64).unwrap()
     }
 
     pub fn name(&self) -> String {
         let offset = get_offset("_EPROCESS.ImageFileName");
-        let name = memory::read_virtual_memory(&self.device, self.object + (offset as u64), 15);
+        let name = memory::read_virtual_memory(&self.device, self.object + (offset as u64), 15).unwrap();
         String::from_utf8(name).expect("can't build process name")
                         .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
     }

@@ -183,7 +183,7 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) {
     const POOL_SIZE: usize = 0x100;
 
     debug!(logger, "allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
@@ -202,10 +202,10 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) {
     guard.start();
 
     debug!(logger, "allocating pool");
-    let _ = memory::read_virtual_memory(&partition.device, addr, 10);
-    let _ = memory::read_virtual_memory(&partition.device, addr, 5);
-    let _ = memory::read_virtual_memory(&partition.device, addr, 4);
-    let _ = memory::read_virtual_memory(&partition.device, addr, 1);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 10).unwrap();
+    let _ = memory::read_virtual_memory(&partition.device, addr, 5).unwrap();
+    let _ = memory::read_virtual_memory(&partition.device, addr, 4).unwrap();
+    let _ = memory::read_virtual_memory(&partition.device, addr, 1).unwrap();
     let duration = Duration::from_secs(60);
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);

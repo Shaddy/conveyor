@@ -56,7 +56,8 @@ fn test_kernel_map(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "reading kernel pointer 0x{:016x}", map.kernel_ptr());
 
-    let v = memory::read_virtual_memory(&device, map.kernel_ptr(), map.size());
+    let v = memory::read_virtual_memory(&device, map.kernel_ptr(), map.size())
+                            .expect("error reading memory");
 
 
     let u: &TestStruct = unsafe{ &*map.as_ptr() };
@@ -77,15 +78,15 @@ fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
 
     debug!(logger, "write-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
 
-    let addr = memory::alloc_virtual_memory(&device, size);
+    let addr = memory::alloc_virtual_memory(&device, size).unwrap();
 
     debug!(logger, "alloc_virtual_memory: 0x{:016x}", addr);
 
-    let written = memory::write_virtual_memory(&device, addr, v);
+    let written = memory::write_virtual_memory(&device, addr, v).unwrap();
 
     debug!(logger, "write_virtual_memory: {} bytes written", written);
 
-    let v = memory::read_virtual_memory(&device, addr, size);
+    let v = memory::read_virtual_memory(&device, addr, size).unwrap();
 
     debug!(logger, "reading 0x{:08x} bytes from 0x{:016x}", addr, size);
 
@@ -96,28 +97,28 @@ fn test_virtual_memory(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "{}", output);
 
     debug!(logger, "free_virtual_memory: 0x{:016x}", addr);
-    memory::free_virtual_memory(&device, addr);
+    memory::free_virtual_memory(&device, addr).unwrap();
 }
 
 fn test_memory_write(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
-    let addr = memory::alloc_virtual_memory(&device, 0x200);
+    let addr = memory::alloc_virtual_memory(&device, 0x200).unwrap();
     debug!(logger, "reading virtual memory");
-    let v = memory::read_virtual_memory(&device, addr, 0x200);
+    let v = memory::read_virtual_memory(&device, addr, 0x200).unwrap();
 
     debug!(logger, "writting virtual memory");
-    memory::write_virtual_memory(&device, addr, v);
-    memory::free_virtual_memory(&device, addr);
+    memory::write_virtual_memory(&device, addr, v).unwrap();
+    memory::free_virtual_memory(&device, addr).unwrap();
 }
 
 
 fn test_memory_map(_matches: &ArgMatches, logger: Logger) {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
-    let addr = memory::alloc_virtual_memory(&device, 0x200);
+    let addr = memory::alloc_virtual_memory(&device, 0x200).unwrap();
     let map = Map::new(&device, addr, 0x200, Some(MapMode::UserMode));
 
     debug!(logger, "map: {:?}", map);
-    memory::free_virtual_memory(&device, addr);
+    memory::free_virtual_memory(&device, addr).unwrap();
 
 }

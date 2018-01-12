@@ -36,7 +36,7 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
     const POOL_SIZE: usize = 0x100;
 
     debug!(logger, "allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
@@ -64,10 +64,10 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: Logger) {
     guard.start();
 
     debug!(logger, "allocating pool");
-    let _ = memory::read_virtual_memory(&partition.device, addr, 10);
-    let _ = memory::read_virtual_memory(&partition.device, addr, 5);
-    let _ = memory::read_virtual_memory(&partition.device, addr, 4);
-    let _ = memory::read_virtual_memory(&partition.device, addr, 1);
+    let _ = memory::read_virtual_memory(&partition.device, addr, 10).unwrap();
+    let _ = memory::read_virtual_memory(&partition.device, addr, 5).unwrap();
+    let _ = memory::read_virtual_memory(&partition.device, addr, 4).unwrap();
+    let _ = memory::read_virtual_memory(&partition.device, addr, 1).unwrap();
     let duration = Duration::from_secs(60);
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);
@@ -86,13 +86,13 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
 
     const POOL_SIZE: usize = 0x10;
 
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
     debug!(logger, "new pool: 0x{:016x} ({} bytes)", addr, POOL_SIZE);
 
-    let bytes = memory::write_virtual_memory(&partition.device, addr, vec![0; POOL_SIZE]);
+    let bytes = memory::write_virtual_memory(&partition.device, addr, vec![0; POOL_SIZE]).unwrap();
     debug!(logger, "zeroed {} bytes", bytes);
 
-    let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
     let output = common::dump_vector(v);
     debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
@@ -113,10 +113,10 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
 
     let v = common::dummy_vector(POOL_SIZE);
 
-    let bytes = memory::write_virtual_memory(&partition.device, addr, v);
+    let bytes = memory::write_virtual_memory(&partition.device, addr, v).unwrap();
     debug!(logger, "{} bytes written", bytes);
 
-    let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
     if v.iter().any(|&b| b != 0x00) {
         colorize::failed("STEALTH test result has FAILED.");
         let output = common::dump_vector(v);
@@ -129,7 +129,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "stoping guard");
     guard.stop();
 
-    memory::free_virtual_memory(&partition.device, addr);
+    memory::free_virtual_memory(&partition.device, addr).unwrap();
 }
 
 // example of declared function as callback
@@ -148,7 +148,7 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
     const POOL_SIZE: usize = 0x100;
 
     debug!(logger, "allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
@@ -167,11 +167,11 @@ fn test_interception_callback(_matches: &ArgMatches, logger: Logger) {
     debug!(logger, "starting guard");
     guard.start();
     debug!(logger, "accessing memory 0x{:016x}", addr);
-    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
     debug!(logger, "stoping guard");
     guard.stop();
 
-    memory::free_virtual_memory(&partition.device, addr);
+    memory::free_virtual_memory(&partition.device, addr).unwrap();
 }
 
 fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
@@ -181,7 +181,7 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
     const POOL_SIZE: usize = 0x100;
 
     debug!(logger, "allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE);
+    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
     debug!(logger, "addr: 0x{:016x}", addr);
 
     let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
@@ -193,12 +193,12 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: Logger) {
     guard.start();
     debug!(logger, "accessing memory 0x{:016x}", addr);
 
-    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE);
+    let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
 
     debug!(logger, "stoping guard");
     guard.stop();
 
-    memory::free_virtual_memory(&partition.device, addr);
+    memory::free_virtual_memory(&partition.device, addr).unwrap();
 }
 
 // fn test_intercept_region(_matches: &ArgMatches, logger: Logger) {
