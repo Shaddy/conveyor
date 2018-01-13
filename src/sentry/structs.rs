@@ -273,11 +273,15 @@ use std::fmt;
 
 impl fmt::Debug for SE_GET_EXPORT_ADDRESS {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = self.Name.iter()
+                    .map(|&c| char::from(c))
+                    .take_while(|&c| c != char::from(00)).collect::<String>();
+
         write!(f, "SE_GET_EXPORT_ADDRESS {{ base: {:016x},
                                          name: {:?},
                                          addr: 0x{:016x} }}", 
         self.ModuleBase,
-        String::from_utf8(self.Name.to_vec()).unwrap(),
+        name,
         self.Address)
     }
 }

@@ -9,11 +9,11 @@ use super::sentry::{misc};
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("process")
                 .subcommand(SubCommand::with_name("kernel-base"))
-                .subcommand(SubCommand::with_name("system-process"))
-                .subcommand(SubCommand::with_name("read-eprocess"))
-                .subcommand(SubCommand::with_name("find-eprocess"))
+                .subcommand(SubCommand::with_name("system"))
+                .subcommand(SubCommand::with_name("current"))
+                .subcommand(SubCommand::with_name("find"))
                 .subcommand(SubCommand::with_name("list-drivers"))
-                .subcommand(SubCommand::with_name("walk-eprocess"))
+                .subcommand(SubCommand::with_name("list"))
 }
 
 pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {

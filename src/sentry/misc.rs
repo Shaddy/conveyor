@@ -3,19 +3,25 @@ use std::sync::Arc;
 
 use super::ffi::traits::EncodeUtf16;
 
-use super::winapi::um::{psapi, libloaderapi, processthreadsapi};
+use super::winapi::um::{psapi, libloaderapi, processthreadsapi, winioctl};
 use super::{io, memory, symbols, misc};
 
-use std::io::Error;
 use std::mem;
 
 use super::error::MiscError;
+use super::failure::Error;
+
+use std::io::Error as BaseError;
 
 use super::winapi::shared::minwindef::{ DWORD, 
                                         LPVOID, 
                                         HMODULE };
-use super::iochannel::{Device};
+use super::iochannel::{Device, IoCtl};
+use super::io::{IOCTL_SENTRY_TYPE};
+
 use super::symbols::parser::Error as PdbError;
+
+use super::structs::{SE_GET_EXPORT_ADDRESS, RawStruct};
 
 pub fn get_offset(target: &str) -> u16 {
     match symbols::parser::find_offset("ntoskrnl.pdb", target) {
@@ -111,8 +117,10 @@ impl Process {
                                     .expect("can't find own EPROCESS")
     }
     pub fn system() -> Process {
-        let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
-        let addr = memory::read_u64(&device, misc::system_process_pointer()).unwrap();
+        let device = Device::new(io::SE_NT_DEVICE_NAME).expect("can't open sentry");
+        let system_pointer = system_process_pointer(&device)
+                                    .expect("can't retrieve system process");
+        let addr = memory::read_u64(&device, system_pointer).unwrap();
 
         Process::new(Arc::new(device), addr)
     }
@@ -251,7 +259,7 @@ impl Drivers {
         };
 
         if result == 0 {
-            panic!(Error::last_os_error().to_string())
+            panic!(BaseError::last_os_error().to_string())
         }
 
         if needed > (drivers.len() * mem::size_of::<usize>()) as u32 {
@@ -305,12 +313,28 @@ pub fn load_library(name: &str) -> Result<u64, MiscError> {
         if value != 0 {
             Ok(value)
         } else {
-            Err(MiscError::LoadLibrary(Error::last_os_error().to_string()))
+            Err(MiscError::LoadLibrary(BaseError::last_os_error().to_string()))
         }
     } 
 }
 
-pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, MiscError> {
+pub fn kernel_export_address(device: &Device, base: u64, name: &str) -> Result<u64, Error> {
+    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A62, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+
+    let mut info = SE_GET_EXPORT_ADDRESS::init();
+
+    info.ModuleBase = base;
+
+    name.chars().enumerate().for_each(|(index, value)| info.Name[index] = value as u8);
+
+    let (ptr, len) = (info.as_ptr(), info.size());
+
+    device.raw_call(control.into(), ptr, len)?;
+
+    Ok(info.Address)
+}
+
+pub fn user_proc_addr(base: u64, name: &str) -> Result<u64, MiscError> {
     // for some reason its necessary to do this in order to correctly pass the string
     // at some point the reference to native string breaks the result
     let name = String::from(name);
@@ -320,7 +344,7 @@ pub fn get_proc_addr(base: u64, name: &str) -> Result<u64, MiscError> {
         if value != 0 {
             Ok(value)
         } else {
-            Err(MiscError::GetProcedure(Error::last_os_error().to_string()))
+            Err(MiscError::GetProcedure(BaseError::last_os_error().to_string()))
         }
     }
 }
@@ -329,7 +353,7 @@ pub fn fixed_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
     let dynamic_base = load_library(name)
                             .expect(name);
 
-    let address = match get_proc_addr(dynamic_base, procedure) {
+    let address = match user_proc_addr(dynamic_base, procedure) {
         Err(err) => { panic!("{}", err.to_string()) },
         Ok(address) => address
     };
@@ -337,10 +361,9 @@ pub fn fixed_procedure_address(base: u64, name: &str, procedure: &str) -> u64 {
     (address - dynamic_base) + base
 }
 
-pub fn system_process_pointer() -> u64 {
-    fixed_procedure_address(get_kernel_base(), "ntoskrnl.exe", "PsInitialSystemProcess")
+pub fn system_process_pointer(device: &Device) -> Result<u64, Error> {
+    kernel_export_address(device, get_kernel_base(), "PsInitialSystemProcess")
 }
-
 
 #[allow(dead_code)]
 #[inline]
