@@ -40,7 +40,7 @@ pub enum TestType {
 }
 
 bitflags! {
-    pub struct TestFlags: u16 {
+    pub struct TestFlags: u32 {
         const INTERCEPT_NORMAL          = 0x0000_0000;
         const INTERCEPT_STRESS_AFFINITY = 0x0000_0001;
     }

@@ -75,6 +75,7 @@ fn parse_intercept(matches: &ArgMatches, _logger: &Logger) -> SentryTest {
         ("delay",      Some(_))  => SentryTest::new(TestType::DelayIntercept, None),
         ("pagefault",  Some(_))  => SentryTest::new(TestType::PageFaultIntercept, None),
         ("priority",   Some(_))  => SentryTest::new(TestType::PriorityIntercept, None),
+        ("timer",      Some(_))  => SentryTest::new(TestType::TimerIntercept, None),
         _                              => {
             let message = format!("{}", matches.usage());
             panic!(message);

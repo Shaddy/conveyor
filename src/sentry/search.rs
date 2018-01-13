@@ -12,10 +12,6 @@ const MAX_SEARCH_SIZE: usize = 0x1_0000;
 pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> Option<u64> {
     if let Some(driver) = misc::Drivers::contains(name) {
 
-        // TODO: Create an IOCTL to retrieve the procedure address
-        // let address = misc::get_proc_addr(driver.base(), neighbour)
-        //                         .expect(&format!("{}", neighbour));
-        
         let address = misc::kernel_export_address(device, driver.base(), neighbour)
                             .expect("unable to find neighbour");
         let map = memory::Map::new(device, address, MAX_SEARCH_SIZE, None);
@@ -31,7 +27,7 @@ pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> 
 
         if code.contains(pattern) {
             if let Some(offset) = code.find(pattern) {
-                return Some(address + u64::from(offset))
+                return Some(address + offset as u64)
             }
         }
     } 
