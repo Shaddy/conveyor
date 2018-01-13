@@ -4,7 +4,7 @@
 
 use super::winapi::shared::minwindef::{LPVOID, LPHANDLE};
 
-use super::winapi::um::{ processthreadsapi, winioctl };
+use super::winapi::um::{ processthreadsapi};
 
 use super::byteorder::{LittleEndian, ReadBytesExt};
 
@@ -137,7 +137,7 @@ impl<'a> Drop for Map<'a> {
 }
 
 pub fn alloc_virtual_memory(device: &Device, size: usize) -> Result<u64, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A50, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_ALLOC_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A50, None, None);
 
     let mut alloc = SE_ALLOC_VIRTUAL_MEMORY::init();
 
@@ -145,14 +145,14 @@ pub fn alloc_virtual_memory(device: &Device, size: usize) -> Result<u64, Error> 
 
     let (ptr, len) = (alloc.as_ptr(), alloc.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     
     Ok(alloc.BaseAddress as u64)
 }
 
 pub fn free_virtual_memory(device: &Device, address: u64) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A51, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_FREE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A51, None, None);
 
     let mut alloc = SE_FREE_VIRTUAL_MEMORY::init();
 
@@ -160,7 +160,7 @@ pub fn free_virtual_memory(device: &Device, address: u64) -> Result<(), Error> {
 
     let (ptr, len) = (alloc.as_ptr(), alloc.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 
@@ -168,7 +168,7 @@ pub fn free_virtual_memory(device: &Device, address: u64) -> Result<(), Error> {
 
 #[allow(dead_code)]
 pub fn copy_virtual_memory(device: &Device, from: u64, to: u64, size: usize) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A52, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_COPY_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A52, None, None);
 
     let mut copy = SE_COPY_VIRTUAL_MEMORY::init();
 
@@ -178,7 +178,7 @@ pub fn copy_virtual_memory(device: &Device, from: u64, to: u64, size: usize) -> 
 
     let (ptr, len) = (copy.as_ptr(), copy.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 
@@ -186,7 +186,7 @@ pub fn copy_virtual_memory(device: &Device, from: u64, to: u64, size: usize) -> 
 
 #[allow(dead_code)]
 pub fn secure_virtual_memory(device: &Device, address: u64, size: usize) -> Result<u64, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A53, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_SECURE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A53, None, None);
 
     let mut secure = SE_SECURE_VIRTUAL_MEMORY::init();
 
@@ -196,7 +196,7 @@ pub fn secure_virtual_memory(device: &Device, address: u64, size: usize) -> Resu
 
     let (ptr, len) = (secure.as_ptr(), secure.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(secure.SecureHandle as u64)
 
@@ -204,7 +204,7 @@ pub fn secure_virtual_memory(device: &Device, address: u64, size: usize) -> Resu
 
 #[allow(dead_code)]
 pub fn unsecure_virtual_memory(device: &Device, handle: u64) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A54, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_UNSECURE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A54, None, None);
 
     let mut secure = SE_UNSECURE_VIRTUAL_MEMORY::init();
 
@@ -212,14 +212,14 @@ pub fn unsecure_virtual_memory(device: &Device, handle: u64) -> Result<(), Error
 
     let (ptr, len) = (secure.as_ptr(), secure.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 
 }
 
 pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMode>) -> Result<SE_MAP_VIRTUAL_MEMORY, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A55, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_MAP_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A55, None, None);
 
     let mut map = SE_MAP_VIRTUAL_MEMORY::init();
 
@@ -231,14 +231,14 @@ pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMo
     let ptr = map.as_ptr();
     let len = map.size();
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     
     Ok(map)
 }
 
 pub fn unmap_memory(device: &Device, map: SE_MAP_VIRTUAL_MEMORY) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A56, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_UNMAP_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A56, None, None);
 
     let mut unmap = SE_UNMAP_VIRTUAL_MEMORY::init();
 
@@ -247,14 +247,14 @@ pub fn unmap_memory(device: &Device, map: SE_MAP_VIRTUAL_MEMORY) -> Result<(), E
 
     let (ptr, len) = (unmap.as_ptr(), unmap.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 }
 
 // TODO: Evaluate if we should shrink_to_if output vector to BytesCopied
 pub fn read_virtual_memory(device: &Device, address: u64, size: usize) -> Result<Vec<u8>, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A57, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_READ_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A57, None, None);
 
     let mut read = SE_READ_VIRTUAL_MEMORY::init();
 
@@ -268,13 +268,13 @@ pub fn read_virtual_memory(device: &Device, address: u64, size: usize) -> Result
 
     let (ptr, len) = (read.as_ptr(), read.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(v)
 }
 
 pub fn write_virtual_memory(device: &Device, address: u64, mut data: Vec<u8>) -> Result<usize, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A58, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_WRITE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A58, None, None);
 
     let mut write = SE_WRITE_VIRTUAL_MEMORY::init();
 
@@ -284,14 +284,14 @@ pub fn write_virtual_memory(device: &Device, address: u64, mut data: Vec<u8>) ->
 
     let (ptr, len) = (write.as_ptr(), write.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(write.BytesCopied as usize)
 }
 
 #[allow(dead_code)]
 pub fn alloc_process_memory(device: &Device, pid: u64, size: usize) -> Result<u64, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A59, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_ALLOC_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A59, None, None);
 
     let mut alloc = SE_ALLOC_PROCESS_MEMORY::init();
 
@@ -300,14 +300,14 @@ pub fn alloc_process_memory(device: &Device, pid: u64, size: usize) -> Result<u6
 
     let (ptr, len) = (alloc.as_ptr(), alloc.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(alloc.BaseAddress as u64)
 }
 
 #[allow(dead_code)]
 pub fn free_process_memory(device: &Device, pid: u64, address: u64) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A5A, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_FREE_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A5A, None, None);
 
     let mut alloc = SE_FREE_PROCESS_MEMORY::init();
 
@@ -316,7 +316,7 @@ pub fn free_process_memory(device: &Device, pid: u64, address: u64) -> Result<()
 
     let (ptr, len) = (alloc.as_ptr(), alloc.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 
@@ -324,7 +324,7 @@ pub fn free_process_memory(device: &Device, pid: u64, address: u64) -> Result<()
 
 #[allow(dead_code)]
 pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize) -> Result<Vec<u8>, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A5B, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_READ_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A5B, None, None);
 
     let mut read = SE_READ_PROCESS_MEMORY::init();
 
@@ -338,7 +338,7 @@ pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize)
 
     let (ptr, len) = (read.as_ptr(), read.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     
     Ok(v)
@@ -346,7 +346,7 @@ pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize)
 
 #[allow(dead_code)]
 pub fn write_process_memory(device: &Device, pid: u64, address: u64, mut data: Vec<u8>) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A5C, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_WRITE_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A5C, None, None);
 
     let mut write = SE_WRITE_PROCESS_MEMORY::init();
 
@@ -357,7 +357,7 @@ pub fn write_process_memory(device: &Device, pid: u64, address: u64, mut data: V
 
     let (ptr, len) = (write.as_ptr(), write.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 }

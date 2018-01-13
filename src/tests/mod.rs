@@ -11,6 +11,7 @@ use super::{iochannel, cli, sentry};
 
 
 mod token;
+mod errors;
 mod process;
 mod kernel;
 mod miscellaneous;

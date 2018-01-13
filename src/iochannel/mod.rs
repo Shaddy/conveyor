@@ -9,7 +9,7 @@ pub mod command;
 pub mod error;
 
 use std::fmt;
-use self::winapi::um::{ioapiset, fileapi, handleapi};
+use self::winapi::um::{ioapiset, fileapi, handleapi, winioctl};
 
 use std::ptr::{null_mut};
 
@@ -28,6 +28,7 @@ use ffi::traits::EncodeUtf16;
 
 #[derive(Clone)]
 pub struct IoCtl {
+    name: String,
     pub device_type: u32,
     pub function: u32,
     pub method: u32,
@@ -35,12 +36,13 @@ pub struct IoCtl {
 }
 
 impl IoCtl {
-    pub fn new(device_type: u32, function: u32, method: u32, access: u32) -> IoCtl {
+    pub fn new(name: Option<&str>, device_type: u32, function: u32, method: Option<u32>, access: Option<u32>) -> IoCtl {
         IoCtl {
+            name: name.unwrap_or(&format!("0x{:03X}", function)).to_string(),
             device_type: device_type,
             function: function,
-            method: method,
-            access: access
+            method: method.unwrap_or(winioctl::METHOD_BUFFERED),
+            access: access.unwrap_or(winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS)
         }
     }
 
@@ -60,10 +62,13 @@ impl Into<u32> for IoCtl {
 
 impl From<u32> for IoCtl {
     fn from(number: u32) -> IoCtl {
+        let function = (number >> 2) & ((1 << 12) - 1);
+
         IoCtl {
+            name: format!("0x{:03X}", function),
             device_type: (number & 0xFFFF_0000) >> 16,
+            function: function,
             access: (number >> 14) & 3,
-            function: (number >> 2) & ((1 << 12) - 1),
             method: number & 3,
         }
     }
@@ -71,7 +76,7 @@ impl From<u32> for IoCtl {
 
 impl fmt::Display for IoCtl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self.name)
     }
 }
 
@@ -80,7 +85,6 @@ impl fmt::Debug for IoCtl {
         write!(f, "IoCtl{{ device: 0x{:X}, function: 0x{:03X} }}", self.device_type, self.function)
     }
 }
-
 
 #[derive(Debug)]
 pub struct Device {
@@ -117,7 +121,7 @@ impl Device {
         Ok( handle )
     }
 
-    pub fn raw_call(&self, control: u32, ptr: LPVOID, len: usize) -> Result<(), DeviceError> {
+    pub fn raw_call(&self, control: IoCtl, ptr: LPVOID, len: usize) -> Result<(), DeviceError> {
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
@@ -125,7 +129,7 @@ impl Device {
         let success = unsafe {
             ioapiset::DeviceIoControl(
                 self.device,
-                control,
+                control.code(),
                 ptr,
                 len as u32,
                 ptr,
@@ -134,14 +138,14 @@ impl Device {
                 &mut overlapped) != 0
         };
 
-        if !success { return Err(DeviceError::IoCall(IoCtl::from(control), 
+        if !success { return Err(DeviceError::IoCall(control, 
                                                      Error::last_os_error().to_string(),
                                                      Error::last_os_error()))};
 
         Ok(())
     }
 
-    pub fn call(&self, control: u32, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, DeviceError> {
+    pub fn call(&self, control: IoCtl, input: Option<Vec<u8>>, output: Option<Vec<u8>>) -> Result<Cursor<Vec<u8>>, DeviceError> {
 
         let mut bytes = 0;
         let mut overlapped: OVERLAPPED = unsafe { zeroed() };
@@ -163,7 +167,7 @@ impl Device {
         let success = unsafe {
             ioapiset::DeviceIoControl(
                 self.device,
-                control,
+                control.code(),
                 input_ptr,
                 input_size,
                 output_ptr,
@@ -173,7 +177,7 @@ impl Device {
         };
 
 
-        if !success { return Err(DeviceError::IoCall(IoCtl::from(control), 
+        if !success { return Err(DeviceError::IoCall(control, 
                                                      Error::last_os_error().to_string(),
                                                      Error::last_os_error()))};
         

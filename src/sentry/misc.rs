@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use super::ffi::traits::EncodeUtf16;
 
-use super::winapi::um::{psapi, libloaderapi, processthreadsapi, winioctl};
+use super::winapi::um::{psapi, libloaderapi, processthreadsapi};
 use super::{io, memory, symbols, misc};
 
 use std::mem;
@@ -319,7 +319,7 @@ pub fn load_library(name: &str) -> Result<u64, MiscError> {
 }
 
 pub fn kernel_export_address(device: &Device, base: u64, name: &str) -> Result<u64, Error> {
-    let control: IoCtl = IoCtl::new(IOCTL_SENTRY_TYPE, 0x0A62, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_GET_EXPORT_ADDRESS"), IOCTL_SENTRY_TYPE, 0x0A62, None, None);
 
     let mut info = SE_GET_EXPORT_ADDRESS::init();
 
@@ -329,7 +329,7 @@ pub fn kernel_export_address(device: &Device, base: u64, name: &str) -> Result<u
 
     let (ptr, len) = (info.as_ptr(), info.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(info.Address)
 }

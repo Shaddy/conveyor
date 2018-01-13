@@ -5,8 +5,6 @@ use super::slog::Logger;
 
 use super::iochannel::{IoCtl, Device};
 
-use super::winapi::um::winioctl;
-
 use super::failure::Error;
 use super::sentry::io;
 
@@ -84,7 +82,7 @@ fn parse_intercept(matches: &ArgMatches, _logger: &Logger) -> SentryTest {
 }
 
 fn sentry_run_test(device: &Device, test: SentryTest) -> Result<(), Error> {
-    let control: IoCtl = IoCtl::new(io::IOCTL_SENTRY_TYPE, 0x0A63, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+    let control = IoCtl::new(Some("SE_RUN_TEST"), io::IOCTL_SENTRY_TYPE, 0x0A63, None, None);
 
     let mut write = SE_RUN_TEST::init();
 
@@ -93,7 +91,7 @@ fn sentry_run_test(device: &Device, test: SentryTest) -> Result<(), Error> {
 
     let (ptr, len) = (write.as_ptr(), write.size());
 
-    device.raw_call(control.into(), ptr, len)?;
+    device.raw_call(control, ptr, len)?;
 
     Ok(())
 }

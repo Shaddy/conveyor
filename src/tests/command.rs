@@ -35,6 +35,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("double-open")))
             .subcommand(super::mem::bind())
             .subcommand(super::interceptions::bind())
+            .subcommand(super::errors::bind())
             .subcommand(SubCommand::with_name("partition")
                 .subcommand(SubCommand::with_name("create"))
                 .subcommand(SubCommand::with_name("create-multiple"))
@@ -62,6 +63,7 @@ pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
         ("memory",            Some(matches))  => super::mem::tests(matches, logger),
         ("process",           Some(matches))  => super::process::tests(matches, logger),
         ("token",             Some(matches))  => super::token::tests(matches, logger),
+        ("errors",            Some(matches))  => super::errors::tests(matches, logger),
         ("device",            Some(matches))  => device_tests(matches, logger),
         ("sentry",            Some(matches))  => super::kernel::tests(matches, logger),
         ("search-pattern",    Some(matches))  => test_search_pattern(matches, logger),

@@ -33,7 +33,7 @@ describe! ioctl_from_create_partition {
 
 describe! ioctl_into_create_partition {
     before_each {
-        let ioctl = IoCtl::new(0xB080, 0x0A00, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+        let ioctl = IoCtl::new(0xB080, 0x0A00, None, None);
     }
 
     it "io code is 0xB080E800" {
@@ -43,7 +43,7 @@ describe! ioctl_into_create_partition {
 
 describe! ioctl_into_free_memory {
     before_each {
-        let ioctl = IoCtl::new(0xB080, 0x0A51, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+        let ioctl = IoCtl::new(0xB080, 0x0A51, None, None);
     }
 
     it "from io code is 0xb080e944" {
@@ -61,7 +61,7 @@ describe! ioctl_into_free_memory {
 
 describe! ioctl_into_write_memory {
     before_each {
-        let ioctl = IoCtl::new(0xB080, 0x0A59, winioctl::METHOD_BUFFERED, winioctl::FILE_READ_ACCESS | winioctl::FILE_WRITE_ACCESS);
+        let ioctl = IoCtl::new(0xB080, 0x0A59, None, None);
     }
 
     it "from io code is 0xb080e944" {
