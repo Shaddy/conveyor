@@ -167,21 +167,22 @@ impl Range {
     }
 }
 
-#[derive(Debug)]
-pub enum Sentinel<'p> {
-    Region {
-        id: u64,
-        partition: &'p Partition,
-        range: Range,
-        access: Access,
-        action: Action
-    },
-    Tracepoint(Range),
-    Patches
+pub trait Sentinel {
+    fn remove(&self, guard: &Guard) -> Result<(), Error>;
+    fn register(&self, guard: &Guard) -> Result<(), Error>;
 }
 
-impl<'p> Sentinel<'p> {
-    pub fn region(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Result<Sentinel<'p>, Error> {
+#[derive(Debug)]
+pub struct Region<'p> {
+    id: u64,
+    partition: &'p Partition,
+    range: Range,
+    access: Access,
+    action: Action
+}
+
+impl<'p> Region<'p> {
+    pub fn new(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Result<Region<'p>, Error> {
         let range = Range::new(base, limit);
 
         let action = action.unwrap_or(Action::INSPECT | Action::NOTIFY);
@@ -189,7 +190,7 @@ impl<'p> Sentinel<'p> {
         let id = io::create_region(&partition.device, partition.id, &range, action, access, Some(0x100))?;
 
         Ok(
-            Sentinel::Region{
+            Region {
                 id: id,
                 partition: partition,
                 range: range,
@@ -197,101 +198,24 @@ impl<'p> Sentinel<'p> {
                 action: action
         })
     }
-
-    pub fn patch() -> Sentinel<'p> {
-        Sentinel::Patches
-    }
-
-    pub fn tracepoint(base: u64, limit: u64) -> Sentinel<'p> {
-        Sentinel::Tracepoint(Range { base: base, limit: limit})
-    }
-
-    pub fn remove(&self, guard: &Guard) -> Result<(), Error> {
-        match *self {
-            Sentinel::Region{id: region_id, .. } => {
-                io::remove_region(&guard.partition.device, guard.id, region_id)?;
-            },
-            Sentinel::Tracepoint(_) | Sentinel::Patches => {
-                // io::remove_sentinel(guard.id, trace_id)
-                println!("not implemented");
-            },
-        }
-
-        Ok(())
-    }
-
-    pub fn register(&self, guard: &Guard) -> Result<(), Error> {
-        match *self {
-            Sentinel::Region{
-                id: region_id,
-                ..
-            } => {
-                io::add_region(&guard.partition.device, guard.id, region_id)?;
-            },
-            Sentinel::Tracepoint(_) | Sentinel::Patches =>  {
-                // io::add_sentinel(&self.partition.device, guard.id, trace_id)
-                println!("not implemented");
-            }
-        }
-
-        Ok(())
-    }
 }
 
-// DEBUG IMPL for Sentinels
-// Derived is enough, but in future we should expand this
-//
-// impl<'p> fmt::Debug for Sentinel<'p> {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match *self {
-//             Sentinel::Region{
-//                 id: region_id,
-//                 partition: _, 
-//                 ref range,
-//                 access: _,
-//                 action: _
-//             } => {
-//                 write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})", region_id, range.base, range.limit)
-//             },
-//             Sentinel::Tracepoint(_) =>  {
-//                 write!(f, "Tracepoint")
-//             },
-//             Sentinel::Patches => {
-//                 write!(f, "Patch")
-//             },
-//         }
-
-//     }
-// }
-
-impl<'p> fmt::Display for Sentinel<'p> {
+impl<'p> fmt::Display for Region<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Sentinel::Region{
-                id,
-                ref range,
-                ..
-            } => {
-                write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})", id, range.base, range.limit)
-            },
-            Sentinel::Tracepoint(_) =>  {
-                write!(f, "Tracepoint")
-            },
-            Sentinel::Patches => {
-                write!(f, "Patch")
-            },
-        }
-
+        write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})", 
+                        self.id, 
+                        self.range.base, 
+                        self.range.limit)
     }
 }
 
-impl<'p> Drop for Sentinel<'p> {
-    fn drop(&mut self) {
-        match *self {
-            Sentinel::Region { id, partition, ..} => io::delete_region(&partition.device, id).unwrap(),
-            Sentinel::Tracepoint { .. } => (),
-            _ => {}
-        };
+impl<'p> Sentinel for Region<'p> {
+    fn remove(&self, guard: &Guard) -> Result<(), Error> {
+        io::remove_region(&self.partition.device, guard.id, self.id)
+    }
+
+    fn register(&self, guard: &Guard) -> Result<(), Error> {
+        io::add_region(&self.partition.device, guard.id, self.id)
     }
 }
 
@@ -334,15 +258,16 @@ impl<'a> Filter<'a> {
     pub fn process(device: &'a Device, name: &str, cmp: MatchType) -> Option<Filter<'a>> {
         let mut filter = Filter::new(device);
 
-        let current = misc::WalkProcess::iter().find(|p| p.name().contains(name))
-                                        .expect("process not found");
-
-        filter.add(&Condition::new(FieldKey::PROCESS_ID, 
-                                  cmp,
-                                  ValueType::UINT64,
-                                  current.id()));
+        if let Some(current) = misc::WalkProcess::iter().find(|p| p.name().contains(name)) {
+            filter.add(&Condition::new(FieldKey::PROCESS_ID, 
+                                    cmp,
+                                    ValueType::UINT64,
+                                    current.id()));
         
-        Some(filter)
+            return Some(filter)
+        }
+
+        None                                        
     }
 
     pub fn current_process(device: &'a Device, cmp: MatchType) -> Option<Filter<'a>> {
@@ -373,21 +298,8 @@ impl Condition {
 pub struct Guard<'p> {
     id: u64,
     partition: &'p Partition,
-    sentinels: Vec<Sentinel<'p>>,
+    // sentinels: Vec<Sentinel>,
 }
-
-// a generic intention of having a commmon partition creator attached
-// to contained objects
-//
-// trait Partitioned {
-//     fn root_partition() -> Rc<Partition> {
-//         Rc::new(Partition::from(PARTITION_ROOT_ID)
-//               .unwrap_or(Partition::new()))
-//     }
-// }
-
-// impl Partitioned for Guard<'p> {}
-// impl<'p> Partitioned for Sentinel<'p> {}
 
 impl<'p> Guard<'p> {
     pub fn new(partition: &'p Partition, filter: Option<Filter<'p>>) -> Guard<'p> {
@@ -399,7 +311,7 @@ impl<'p> Guard<'p> {
         Guard {
             id: id,
             partition: partition,
-            sentinels: Vec::new()
+            // sentinels: Vec::new()
         }
     }
 
@@ -416,23 +328,19 @@ impl<'p> Guard<'p> {
         self
     }
 
-    #[allow(dead_code, unused_variables)]
-    pub fn remove(&mut self, sentinel: &Sentinel) {
-        unimplemented!()
-        // sentinel.unregister().expect(format!("Unable to register {:?}", sentinel));
-        // self.sentinels.remove(sentinel)
-
+    pub fn remove<T>(&mut self, sentinel: T) where T: 
+        Sentinel + fmt::Display {
+        sentinel.remove(self).expect(format!("Unable to register {}", sentinel).as_ref());
     }
 
     pub fn set_callback(&self, callback: SyncCallback) {
         self.partition.register_callback(self, callback)
     }
 
-    pub fn add(&mut self, sentinel: Sentinel<'p>) {
+    pub fn add<T>(&mut self, sentinel: T) where T: 
+        Sentinel + fmt::Display {
         sentinel.register(self).expect(format!("Unable to register {}", sentinel).as_ref());
-        self.sentinels.push(sentinel)
     }
-
 }
 
 

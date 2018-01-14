@@ -10,7 +10,7 @@ use std::time::Duration;
 use super::failure::Error;
 use super::common;
 use super::sentry::{memory};
-use super::sentry::memguard::{Interception, Partition, Sentinel, Guard, Access, Action, Filter, MatchType};
+use super::sentry::memguard::{Interception, Partition, Region, Guard, Access, Action, Filter, MatchType};
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("interceptions")
@@ -41,13 +41,13 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
+    let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
     // let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ZwCreateKey");
-    // let region = Sentinel::region(&partition, addr, 
+    // let region = Region::new(&partition, addr, 
     //                               1, 
     //                               Some(Action::NOTIFY | Action::INSPECT), 
     //                               Access::EXECUTE);
@@ -98,7 +98,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(
     let output = common::dump_vector(&v);
     debug!(logger, "dumping buffer 0x{:016x} \n{}", addr, output);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE).unwrap();
+    let region = Region::new(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -155,7 +155,7 @@ fn test_interception_callback(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
+    let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -188,7 +188,7 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: &Logger) -> Resul
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
+    let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
 
@@ -213,7 +213,7 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: &Logger) -> Resul
 
 //     let partition: Partition = Partition::root();
 //     let mut guard = Guard::new(&partition, None);
-//     let region = Sentinel::region(&partition, v.as_ptr() as u64, 10, None, Access::READ);
+//     let region = Region::new(&partition, v.as_ptr() as u64, 10, None, Access::READ);
 //     debug!(logger, "adding {} to {}", region, guard);
 //     guard.add(region);
 //     debug!(logger, "starting guard, and sleeping 5 seconds");

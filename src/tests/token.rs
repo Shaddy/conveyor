@@ -9,7 +9,7 @@ use std::time::Duration;
 use super::failure::Error;
 
 
-use super::sentry::memguard::{Partition, Sentinel, Guard, Access, Action};
+use super::sentry::memguard::{Partition, Region, Guard, Access, Action};
 use super::sentry::{misc, io, token};
 use super::iochannel::{Device};
 
@@ -87,9 +87,9 @@ fn protect_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 
     // TODO: Do it in a stable way.
     // pointer to token (duplicateway)
-    // let region = Sentinel::region(&partition, token, 8, None, Access::WRITE);
+    // let region = Region::new(&partition, token, 8, None, Access::WRITE);
 
-    let region = Sentinel::region(&partition, process.object() + u64::from(token_offset), 8, None, Access::WRITE).unwrap();
+    let region = Region::new(&partition, process.object() + u64::from(token_offset), 8, None, Access::WRITE).unwrap();
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {

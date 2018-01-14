@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use super::failure::Error;
 use super::common;
-use super::sentry::memguard::{ Partition, Sentinel, Guard, Access, Action, Filter, MatchType};
+use super::sentry::memguard::{ Partition, Region, Guard, Access, Action, Filter, MatchType};
 use super::sentry::{search, io, memory};
 use super::iochannel::{Device};
 
@@ -42,12 +42,9 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("delete")))
             .subcommand(SubCommand::with_name("regions")
                 .subcommand(SubCommand::with_name("create"))
-                .subcommand(SubCommand::with_name("intercept"))
-                .subcommand(SubCommand::with_name("create-multiple"))
-                .subcommand(SubCommand::with_name("regions-inside-guard"))
-                .subcommand(SubCommand::with_name("delete"))
                 .subcommand(SubCommand::with_name("enumerate"))
-                .subcommand(SubCommand::with_name("info")))
+                .subcommand(SubCommand::with_name("create-multiple"))
+                .subcommand(SubCommand::with_name("regions-inside-guard")))
             .subcommand(SubCommand::with_name("guards")
                 .subcommand(SubCommand::with_name("filter"))
                 .subcommand(SubCommand::with_name("create-10"))
@@ -178,7 +175,8 @@ fn guard_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 
 fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition = Partition::root();
-    let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL).unwrap();
+    let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL)
+                                .expect("can't find \"notepad\" process");
 
     debug!(logger, "alloc: {:?}", filter.alloc);
 
@@ -195,7 +193,7 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Erro
 
     debug!(logger, "addr: 0x{:016x}", addr);
 
-    let region = Sentinel::region(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
+    let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
@@ -290,8 +288,8 @@ fn test_enumerate_region(_matches: &ArgMatches, _logger: &Logger) -> Result<(), 
 
 fn test_create_multiple_regions(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
-    let _regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
+    let _regions: Vec<Region> = (0..10).map(|_| {
+            let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
             debug!(logger, "{}", region);
             region
         }).collect();
@@ -305,8 +303,10 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: &Logger) -> Result<(
 
     let mut guard: Guard = Guard::new(&partition, None);
 
-    let regions: Vec<Sentinel> = (0..10).map(|_| {
-            let region = Sentinel::region(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
+    let regions: Vec<Region> = (0..10).map(|_| {
+            // let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
+
+            let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
             println!("{}", region);
             region
         }).collect();
@@ -322,7 +322,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: &Logger) -> Result<(
 
 fn test_create_region(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let partition: Partition = Partition::root();
-    let region = Sentinel::region(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
+    let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
     debug!(logger, "{}", region);
 
     Ok(())
