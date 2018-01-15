@@ -7,9 +7,8 @@ use std::{thread};
 use std::time::Duration;
 
 use super::failure::Error;
-use super::common;
 use super::sentry::memguard::{ Partition, Region, Guard, Access, Action, Filter, MatchType};
-use super::sentry::{search, io, memory};
+use super::sentry::{search, io, misc};
 use super::iochannel::{Device};
 
 /////////////////////////////////////////////////////////////////////////
@@ -180,28 +179,24 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Erro
     let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL)
                                 .expect("can't find \"notepad\" process");
 
-    debug!(logger, "alloc: {:?}", filter.alloc);
-
-    let before: Vec<u8> = filter.alloc.as_slice().to_vec();
-
-    debug!(logger, "{}", common::dump_vector(&before));
+    // // this is totally a non recommended way
+    // let pid = filter.filter.Conditions[0].Value.Value;
 
     let mut guard = Guard::new(&partition, Some(filter));
 
-    const POOL_SIZE: usize = 0x100;
+    let addr = misc::kernel_export_address(&partition.device, misc::get_kernel_base(), "ZwCreateKey")
+                            .expect("can't find ZwCreateKey");
 
-    debug!(logger, "allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
-
-    debug!(logger, "addr: 0x{:016x}", addr);
-
-    let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
+    let region = Region::new(&partition, addr, 
+                            1, 
+                            Some(Action::NOTIFY | Action::INSPECT), 
+                            Access::EXECUTE).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
-        let message = format!("reading 0x{:016x}", interception.address);
+        let message = format!("executing 0x{:016x}", interception.address);
         println!("{}", message);
         Action::CONTINUE
     }));
@@ -209,12 +204,8 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Erro
     debug!(logger, "starting guard");
     guard.start();
 
-    debug!(logger, "allocating pool");
-    let _ = memory::read_virtual_memory(&partition.device, addr, 10).unwrap();
-    let _ = memory::read_virtual_memory(&partition.device, addr, 5).unwrap();
-    let _ = memory::read_virtual_memory(&partition.device, addr, 4).unwrap();
-    let _ = memory::read_virtual_memory(&partition.device, addr, 1).unwrap();
-    let duration = Duration::from_secs(60);
+    let duration = Duration::from_secs(10);
+
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);
 
