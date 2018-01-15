@@ -70,10 +70,36 @@ struct MessageHeader {
 // }
 
 #[repr(C)]
+pub struct FrameContext {
+    r15: u64,
+    r14: u64,
+    r13: u64,
+    r12: u64,
+    r11: u64,
+    r10: u64,
+    r9: u64,
+    r8: u64,
+    rdi: u64,
+    rsi: u64,
+    rbp: u64,
+    rsp: u64,
+    rbx: u64,
+    rdx: u64,
+    rcx: u64,
+    rax: u64,
+    rip: u64,
+    rflags: u64
+} 
+
+const MAX_INST_LENGHT: usize = 16;
+
+#[repr(C)]
 pub struct Interception {
     header: MessageHeader,
     pub guard_id: u64,
     pub region_id: u64,
+    pub cpu: FrameContext,
+    pub instruction: [u8; MAX_INST_LENGHT],
     pub processor: u8,
     pub process: u64,
     pub address: u64,
