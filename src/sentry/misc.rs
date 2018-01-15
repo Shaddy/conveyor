@@ -2,26 +2,26 @@ use std::fmt;
 use std::sync::Arc;
 
 use super::ffi::traits::EncodeUtf16;
+use super::ffi::{NtQuerySystemInformation, SystemInformationClass};
 
-use super::winapi::um::{psapi, libloaderapi, processthreadsapi};
+use super::winapi::um::{libloaderapi, processthreadsapi};
 use super::{io, memory, symbols, misc};
 
-use std::mem;
+use std::{ptr, slice};
 
 use super::error::MiscError;
 use super::failure::Error;
 
 use std::io::Error as BaseError;
 
-use super::winapi::shared::minwindef::{ DWORD, 
-                                        LPVOID, 
+use super::winapi::shared::minwindef::{ LPVOID, 
                                         HMODULE };
 use super::iochannel::{Device, IoCtl};
 use super::io::{IOCTL_SENTRY_TYPE};
 
 use super::symbols::parser::Error as PdbError;
 
-use super::structs::{SE_GET_EXPORT_ADDRESS, RawStruct};
+use super::structs::{RTL_PROCESS_MODULE_INFORMATION, SE_GET_EXPORT_ADDRESS, RawStruct};
 
 pub fn get_offset(target: &str) -> u16 {
     match symbols::parser::find_offset("ntoskrnl.pdb", target) {
@@ -221,7 +221,8 @@ impl fmt::Display for Process {
 
 pub struct Driver {
     pub name: String,
-    pub base: u64
+    pub base: u64,
+    pub size: usize
 }
 
 impl Driver {
@@ -237,7 +238,7 @@ impl fmt::Display for Driver {
 }
 
 pub struct Drivers {
-    drivers: Vec<u64>,
+    drivers: Vec<RTL_PROCESS_MODULE_INFORMATION>,
     curr: usize,
     limit: usize
 }
@@ -248,28 +249,29 @@ impl Drivers {
     }
 
     pub fn iter() -> Drivers {
-        let mut needed: DWORD = 0;
-        let mut drivers: Vec<u64> = vec![0; 1024];
 
-        let result = unsafe {
-            psapi::EnumDeviceDrivers(drivers.as_mut_ptr() as *mut LPVOID, 
-                    drivers.len() as u32, 
-                    &mut needed)
+        // get total size of allocation
+        let size = query_system_information_size(SystemInformationClass::SystemModuleInformationEx);
 
+        let mut buffer: Vec<u8> = vec![0; size];
+
+        // fill module information
+        let _ = query_system_information(SystemInformationClass::SystemModuleInformationEx, 
+                                buffer.as_mut_ptr(),
+                                buffer.len());
+
+        let (count, modules) = unsafe { 
+            
+            let count = *{ buffer.as_ptr() as *const u32 } as usize;
+            let modules = slice::from_raw_parts(buffer.as_ptr().offset(8) as *const RTL_PROCESS_MODULE_INFORMATION, count);
+
+            (count, modules)
         };
 
-        if result == 0 {
-            panic!(BaseError::last_os_error().to_string())
-        }
-
-        if needed > (drivers.len() * mem::size_of::<usize>()) as u32 {
-            panic!(format!("buffer is less than {}", needed))
-        }
-
         Drivers {
-            drivers: drivers,
+            drivers: modules.to_vec(),
             curr: 0,
-            limit: (needed / mem::size_of::<usize>() as u32) as usize
+            limit: count
         }
     }
 }
@@ -278,23 +280,43 @@ impl Iterator for Drivers {
     type Item = Driver;
     
     fn next(&mut self) -> Option<Driver> {
-        let mut content: Vec<u16> = vec![0; 1024];
-        let base = self.drivers[self.curr];
 
-        if base == 0 { return None } else { self.curr += 1 };
+        if self.curr >= self.limit {
+            return None
+        }
 
-        if self.curr > self.limit { return None };
+        let module = self.drivers[self.curr];
 
-        let length = unsafe { psapi::GetDeviceDriverBaseNameW(base as LPVOID, content.as_mut_ptr(), 1024 / 2) };
-
-        if length == 0 { return None } 
+        self.curr += 1;
 
         Some(Driver {
-                name: String::from_utf16(&content[..length as usize])
-                            .expect("failed to parse driver name"),
-                base: base
+                name: module.FullPathName.iter()
+                                         .map(|&c| char::from(c))
+                                         .take_while(|&c| c != char::from(0))
+                                         .collect::<String>(),
+                base: module.ImageBase as u64,
+                size: module.ImageSize as usize
         })
     }
+}
+
+pub fn query_system_information_size(class: SystemInformationClass) -> usize {
+    query_system_information::<u8>(class, ptr::null_mut(), 0)
+}
+
+pub fn query_system_information<T>(class: SystemInformationClass, buffer: *mut T, size: usize) -> usize {
+    let mut bytes: u32 = 0;
+
+    let _ = unsafe {
+            NtQuerySystemInformation(
+                class,
+                buffer as LPVOID,
+                size as u32,
+                &mut bytes
+            ) == 0
+    };
+
+    bytes as usize
 }
 
 pub fn list_kernel_drivers() {
