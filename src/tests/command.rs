@@ -123,7 +123,7 @@ fn test_search_pattern(_matches: &ArgMatches, logger: &Logger) -> Result<(), Err
     if let Some(offset) = search::pattern(&device, 
                                           "ntos", 
                                           &switch_context_pattern, 
-                                          "KeSynchronizeExecution") {
+                                          Some("KeSynchronizeExecution")) {
         debug!(logger, "switch-context: 0x{:016x}", offset);
     }
 

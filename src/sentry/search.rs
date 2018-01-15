@@ -9,12 +9,19 @@ use std::str;
 // use super::symbols::parser::Error;
 const MAX_SEARCH_SIZE: usize = 0x1_0000;
 
-pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: &str) -> Option<u64> {
+pub fn pattern(device: &Device, name: &str, pattern: &[u8], neighbour: Option<&str>) -> Option<u64> {
     if let Some(driver) = misc::Drivers::contains(name) {
 
-        let address = misc::kernel_export_address(device, driver.base(), neighbour)
-                            .expect("unable to find neighbour");
-        let map = memory::Map::new(device, address, MAX_SEARCH_SIZE, None);
+        let mut address = driver.base();
+        let mut limit = MAX_SEARCH_SIZE;
+
+        match neighbour {
+            Some(name) => address = misc::kernel_export_address(device, driver.base(), name)
+                                .expect("unable to find neighbour"),
+            None => limit = driver.size()
+        }
+
+        let map = memory::Map::new(device, address, limit, None);
 
         //
         // this code looks with side-effects but its verified, there is an algorithm from str

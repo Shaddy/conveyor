@@ -82,7 +82,7 @@ impl fmt::Display for IoCtl {
 
 impl fmt::Debug for IoCtl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "IoCtl{{ device: 0x{:X}, function: 0x{:03X} }}", self.device_type, self.function)
+        write!(f, "IoCtl{{ name: {}, device: 0x{:X}, function: 0x{:03X} }}", self.name, self.device_type, self.function)
     }
 }
 

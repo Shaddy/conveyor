@@ -226,6 +226,10 @@ pub struct Driver {
 }
 
 impl Driver {
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
     pub fn base(&self) -> u64 {
         self.base
     }
