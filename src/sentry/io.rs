@@ -335,7 +335,6 @@ pub fn enumerate_region(device: &Device, partition_id: u64, guard_id: u64) -> Re
 }
 
 
-#[allow(dead_code)]
 pub fn create_patch(device: &Device, partition_id: u64, base_address: u64, patch_range: &Range) -> Result<u64, Error> {
     let control = IoCtl::new(None, IOCTL_SENTRY_TYPE, 0x0A40, None, None);
     let mut input = vec![];
@@ -365,7 +364,6 @@ pub fn delete_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(), Error> {
     let control = IoCtl::new(None, IOCTL_SENTRY_TYPE, 0x0A42, None, None);
 
@@ -379,7 +377,6 @@ pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(), Er
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn remove_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(), Error> {
     let control = IoCtl::new(None, IOCTL_SENTRY_TYPE, 0x0A43, None, None);
 
