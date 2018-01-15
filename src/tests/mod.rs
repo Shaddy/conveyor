@@ -19,5 +19,6 @@ mod mem;
 mod common;
 mod interceptions;
 mod structs;
+mod patches;
 
 pub mod command;

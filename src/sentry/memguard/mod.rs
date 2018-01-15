@@ -220,6 +220,53 @@ impl<'p> Sentinel for Region<'p> {
 }
 
 #[derive(Debug)]
+pub struct Patch<'p> {
+    id: u64,
+    partition: &'p Partition,
+    base: u64,
+    patch: u64,
+    limit: u64
+}
+
+impl<'p> Patch<'p> {
+    pub fn new(partition: &'p Partition, base: u64, patch: u64, limit: u64) -> Result<Patch<'p>, Error> {
+        let patch_range = Range::new(patch, limit);
+
+        let id = io::create_patch(&partition.device, partition.id, base, &patch_range)?;
+
+        Ok(
+            Patch {
+                id: id,
+                partition: partition,
+                base: base,
+                patch: patch,
+                limit: limit
+        })
+
+    }
+}
+
+impl<'p> fmt::Display for Patch<'p> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Patch(id: 0x{:08X}, base: 0x{:08X} patch: 0x{:08X} limit: 0x{:X} )",
+                        self.id,
+                        self.base,
+                        self.patch,
+                        self.limit)
+    }
+}
+
+impl<'p> Sentinel for Patch<'p> {
+    fn remove(&self, guard: &Guard) -> Result<(), Error> {
+        io::remove_patch(&self.partition.device, guard.id, self.id)
+    }
+
+    fn register(&self, guard: &Guard) -> Result<(), Error> {
+        io::add_patch(&self.partition.device, guard.id, self.id)
+    }
+}
+
+#[derive(Debug)]
 pub struct Filter<'a> {
     pub alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
     pub filter: &'a mut MG_GUARD_FILTER
