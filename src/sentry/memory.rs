@@ -85,6 +85,7 @@ impl<'a, T> KernelAlloc<'a, T> {
 
 impl<'a, T> Drop for KernelAlloc<'a, T> {
     fn drop(&mut self) {
+        self.map.unmap();
         free_virtual_memory(self.device, self.map.kernel_ptr()).expect("free error");
     }
 }
@@ -94,7 +95,8 @@ pub struct Map<'a> {
     device: &'a Device,
     address: u64,
     size: usize,
-    raw: structs::SE_MAP_VIRTUAL_MEMORY
+    raw: structs::SE_MAP_VIRTUAL_MEMORY,
+    unmaped: bool
 }
 
 impl<'a> Map<'a> {
@@ -106,7 +108,8 @@ impl<'a> Map<'a> {
             device: device,
             address: address,
             size: size,
-            raw: raw
+            raw: raw,
+            unmaped: false
         }
     }
 
@@ -127,12 +130,21 @@ impl<'a> Map<'a> {
     pub fn as_slice(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.raw.MappedMemory as *const u8, self.size) }
     }
+
+    pub fn unmap(&mut self) {
+        unmap_memory(self.device, self.raw)
+                    .expect("unmap error");
+        self.unmaped = true;
+    }
 }
 
 impl<'a> Drop for Map<'a> {
     fn drop(&mut self) {
-        unmap_memory(self.device, self.raw)
+        if !self.unmaped {
+            unmap_memory(self.device, self.raw)
                     .expect("unmap error");
+            self.unmaped = true;
+        }
     }
 }
 

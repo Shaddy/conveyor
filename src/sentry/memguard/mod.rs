@@ -303,9 +303,8 @@ impl<'a> Filter<'a> {
     }
 
     pub fn process(device: &'a Device, name: &str, cmp: MatchType) -> Option<Filter<'a>> {
-        let mut filter = Filter::new(device);
-
         if let Some(current) = misc::WalkProcess::iter().find(|p| p.name().contains(name)) {
+            let mut filter = Filter::new(device);
             filter.add(&Condition::new(FieldKey::PROCESS_ID, 
                                     cmp,
                                     ValueType::UINT64,
