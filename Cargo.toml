@@ -19,6 +19,7 @@ failure = "*"
 failure_derive = "*"
 goblin = "0.0.13"
 reqwest = "0.8"
+rand = "0.4"
 enum_primitive = "0.1"
 
 [dependencies.winapi]

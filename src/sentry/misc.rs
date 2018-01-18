@@ -23,18 +23,17 @@ use super::symbols::parser::Error as PdbError;
 
 use super::structs::{RTL_PROCESS_MODULE_INFORMATION, SE_GET_EXPORT_ADDRESS, RawStruct};
 
-pub fn get_offset(target: &str) -> u16 {
+pub fn get_offset(target: &str) -> Result<u16, Error> {
     match symbols::parser::find_offset("ntoskrnl.pdb", target) {
         Err(PdbError::IoError(_)) => {
-            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()
-                                            .expect("Error downloading PDB");
+            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()?;
 
-            symbols::parser::find_offset("ntoskrnl.pdb", target).expect("can't retrieve offset")
+            Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)
         },
         Err(err) => {
             panic!("error parsing PDB {}", err);
         }
-        Ok(offset) => offset
+        Ok(offset) => Ok(offset)
     }
 }
 
@@ -116,23 +115,22 @@ impl Process {
         misc::WalkProcess::iter().find(|p| p.id() == u64::from(pid))
                                     .expect("can't find own EPROCESS")
     }
-    pub fn system() -> Process {
-        let device = Device::new(io::SE_NT_DEVICE_NAME).expect("can't open sentry");
-        let system_pointer = system_process_pointer(&device)
-                                    .expect("can't retrieve system process");
-        let addr = memory::read_u64(&device, system_pointer).unwrap();
-
-        Process::new(Arc::new(device), addr)
+    pub fn system() -> Result<Process, Error> {
+        let device = Device::new(io::SE_NT_DEVICE_NAME)?;
+        let system_pointer = system_process_pointer(&device)?;
+        let addr = memory::read_u64(&device, system_pointer)?;
+        Ok(Process::new(Arc::new(device), addr)?)
     }
 
-    pub fn new(device: Arc<Device>, object: u64) -> Process {
-        let offset = get_offset("_EPROCESS.ActiveProcessLinks");
+    pub fn new(device: Arc<Device>, object: u64) -> Result<Process, Error> {
+        let target = "_EPROCESS.ActiveProcessLinks";
+        let offset = get_offset(target)?;
 
-        Process {
+        Ok(Process {
             device: Arc::clone(&device),
             object: object,
             list: LinkedList::new(Arc::clone(&device), object, offset)
-        }
+        })
     }
 
     #[allow(dead_code)]
@@ -161,17 +159,20 @@ impl Process {
     }
 
     pub fn token(&self) -> u64 {
-        let offset = get_offset("_EPROCESS.Token");
+        let target = "_EPROCESS.Token";
+        let offset = get_offset(target).expect(target);
         memory::read_u64(&self.device, self.object + u64::from(offset)).unwrap()
     }
 
     pub fn id(&self) -> u64 {
-        let offset = get_offset("_EPROCESS.UniqueProcessId");
+        let target = "_EPROCESS.UniqueProcessId";
+        let offset = get_offset(target).expect(target);
         memory::read_u64(&self.device, self.object + u64::from(offset)).unwrap()
     }
 
     pub fn name(&self) -> String {
-        let offset = get_offset("_EPROCESS.ImageFileName");
+        let target = "_EPROCESS.ImageFileName";
+        let offset = get_offset(target).expect(target);
         let name = memory::read_virtual_memory(&self.device, self.object + u64::from(offset), 15).unwrap();
         String::from_utf8(name).expect("can't build process name")
                         .split(|c| c as u8 == 0x00).nth(0).unwrap().to_string()
@@ -191,7 +192,7 @@ pub struct WalkProcess {
 
 impl WalkProcess {
     pub fn iter() -> WalkProcess {
-        let head = Process::system();
+        let head = Process::system().expect("can't get system process");
         WalkProcess {
             head: head.clone(),
             curr: head.forward() 

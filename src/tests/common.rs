@@ -1,3 +1,18 @@
+use super::clap::{ArgMatches};
+use super::slog::Logger;
+
+use super::failure::Error;/////////////////////////////////////////////////////////////////////////
+// 
+// DUMMY UNUSED COMMANDS
+//
+pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
+    unimplemented!()
+}
+
+pub fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
+    unimplemented!()
+}
+
 pub fn dummy_vector(size: usize) -> Vec<u8> {
     let mut v: Vec<u8> = Vec::new();
 

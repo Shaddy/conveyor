@@ -77,7 +77,7 @@ fn protect_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
            .expect("can't find client pid");
 
     let token = process.token() & !0xF;
-    let token_offset = misc::get_offset("_EPROCESS.Token");
+    let token_offset = misc::get_offset("_EPROCESS.Token").expect("Token offset");
 
     debug!(logger, "protecting target pid {} with token 0x{:016x}", 
                         pid, token);

@@ -7,12 +7,14 @@ use std::{fmt};
 use super::common;
 use super::sentry::{io, memory};
 use super::iochannel::{Device};
+use super::sentry::memguard::Filter;
 use super::sentry::memory::{Map, MapMode};
 use super::failure::Error;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("memory")
                 .subcommand(SubCommand::with_name("read"))
+                .subcommand(SubCommand::with_name("fuzz-kernel-map-1"))
                 .subcommand(SubCommand::with_name("virtual"))
                 .subcommand(SubCommand::with_name("write"))
                 .subcommand(SubCommand::with_name("kernel-map"))
@@ -21,12 +23,21 @@ pub fn bind() -> App<'static, 'static> {
 
 pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
-        ("virtual",      Some(matches))  => test_virtual_memory(matches, logger),
-        ("write",        Some(matches))  => test_memory_write(matches, logger),
-        ("map",          Some(matches))  => test_memory_map(matches, logger),
-        ("kernel-map",   Some(matches))  => test_kernel_map(matches, logger),
+        ("fuzz-kernel-map-1",      Some(matches))  => test_fuzz_memory(matches, logger),
+        ("virtual",                Some(matches))  => test_virtual_memory(matches, logger),
+        ("write",                  Some(matches))  => test_memory_write(matches, logger),
+        ("map",                    Some(matches))  => test_memory_map(matches, logger),
+        ("kernel-map",             Some(matches))  => test_kernel_map(matches, logger),
         _                                => Ok(println!("{}", matches.usage()))
     }
+}
+
+#[allow(unused_variables)]
+fn test_fuzz_memory(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
+    let _filters: Vec<Filter> = (0..1000).map(|_| Filter::new(&device)).collect();
+
+    Ok(())
 }
 
 fn test_kernel_map(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {

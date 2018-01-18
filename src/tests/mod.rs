@@ -1,5 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
+extern crate rand;
 extern crate failure;
 extern crate clap;
 extern crate slog;
@@ -11,6 +12,7 @@ use super::{iochannel, cli, sentry};
 
 
 mod token;
+mod memguard;
 mod errors;
 mod process;
 mod kernel;

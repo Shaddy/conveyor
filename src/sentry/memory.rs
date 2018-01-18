@@ -11,8 +11,7 @@ use super::byteorder::{LittleEndian, ReadBytesExt};
 use std::marker::PhantomData;
 use std::io::Cursor;
 
-use std::slice;
-use std::mem;
+use std::{slice, mem};
 
 use super::failure::Error;
 use super::io::IOCTL_SENTRY_TYPE;
@@ -39,7 +38,7 @@ use super::structs::{RawStruct,
 #[derive(Debug)]
 pub struct KernelAlloc<'a, T> {
     device: &'a Device,
-    map: Map<'a>,
+    map: mem::ManuallyDrop<Map<'a>>,
     phantom: PhantomData<T>
 }
 
@@ -56,7 +55,9 @@ impl<'a, T> KernelAlloc<'a, T> {
 
         KernelAlloc {
             device: device,
-            map: Map::new(device, ptr, size, Some(MapMode::UserMode)),
+            map: mem::ManuallyDrop::new(
+                            Map::new(device, ptr, size, Some(MapMode::UserMode))
+                      ),
             phantom: PhantomData
         }
     }
@@ -85,7 +86,7 @@ impl<'a, T> KernelAlloc<'a, T> {
 
 impl<'a, T> Drop for KernelAlloc<'a, T> {
     fn drop(&mut self) {
-        self.map.unmap();
+        unsafe { mem::ManuallyDrop::drop(&mut self.map) }
         free_virtual_memory(self.device, self.map.kernel_ptr()).expect("free error");
     }
 }
@@ -95,8 +96,7 @@ pub struct Map<'a> {
     device: &'a Device,
     address: u64,
     size: usize,
-    raw: structs::SE_MAP_VIRTUAL_MEMORY,
-    unmaped: bool
+    raw: structs::SE_MAP_VIRTUAL_MEMORY
 }
 
 impl<'a> Map<'a> {
@@ -109,7 +109,6 @@ impl<'a> Map<'a> {
             address: address,
             size: size,
             raw: raw,
-            unmaped: false
         }
     }
 
@@ -130,21 +129,12 @@ impl<'a> Map<'a> {
     pub fn as_slice(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.raw.MappedMemory as *const u8, self.size) }
     }
-
-    pub fn unmap(&mut self) {
-        unmap_memory(self.device, self.raw)
-                    .expect("unmap error");
-        self.unmaped = true;
-    }
 }
 
 impl<'a> Drop for Map<'a> {
     fn drop(&mut self) {
-        if !self.unmaped {
-            unmap_memory(self.device, self.raw)
-                    .expect("unmap error");
-            self.unmaped = true;
-        }
+        unmap_memory(self.device, self.raw)
+                .expect("unmap error");
     }
 }
 

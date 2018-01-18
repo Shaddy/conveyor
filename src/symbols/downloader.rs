@@ -4,6 +4,8 @@ use std::path::Path;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::ffi::CStr;
+use super::error::PdbError;
+use failure::Error;
 
 pub struct PdbDownloader {
     filename: String
@@ -16,15 +18,25 @@ impl PdbDownloader {
         }
     }
 
-    pub fn download(&self) -> Result<(), String> {
-        let url = self.url();
-        let mut resp = reqwest::get(&url).expect("can't fetch url");        
+    fn download_pdb(&self) -> Result<reqwest::Response, PdbError> {
+        let url = self.generate_url();
+        let resp = match reqwest::get(&url) {
+            Err(err) => return Err(PdbError::DownloadFailed(err.to_string())),
+            Ok(resp) => resp
+        };
 
         if !resp.status().is_success() {
-            return Err(format!("error requesting url: {}", resp.status()))
+            return Err(PdbError::StatusError(format!("{}", resp.status())))
         }
 
-        let filename = Path::new(&self.filename).file_stem().expect("can't parse filename");
+        Ok(resp)
+    }
+
+    pub fn download(&self) -> Result<(), Error> {
+
+        let mut response = self.download_pdb()?;
+
+        let filename = Path::new(&self.filename).file_stem().unwrap();
 
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
@@ -32,20 +44,18 @@ impl PdbDownloader {
 
         let path = Path::new(&pdb_filename);
 
-        let mut fd = File::create(path)
-                                    .expect("Can't open file for writting");
-
+        let mut fd = File::create(path)?;
 
         let mut buf: Vec<u8> = vec![];
-        resp.copy_to(&mut buf).expect("unable to copy downloaded file");
+        response.copy_to(&mut buf)?;
 
-        fd.write_all(&buf).expect("Can't write .pdb");
+        fd.write_all(&buf)?;
 
         Ok(())
 
     }
 
-    fn url(&self) -> String {
+    fn generate_url(&self) -> String {
         let mut fd = File::open(Path::new(&self.filename)).expect("Can't open file");
         let buffer = { let mut v = Vec::new(); fd.read_to_end(&mut v).unwrap(); v};
         let res = goblin::Object::parse(&buffer).expect("Can't parse PE");

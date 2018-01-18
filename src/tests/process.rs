@@ -39,7 +39,7 @@ fn test_kernel_base(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error>
 }
 
 fn test_system_process(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
-    let system = misc::Process::system();
+    let system = misc::Process::system().expect("system process");
     debug!(logger, "system: 0x{:016x}", system.object());
     Ok(())
 }
