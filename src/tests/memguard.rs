@@ -10,7 +10,8 @@ use super::sentry::{io, misc};
 use super::iochannel::{Device};
 use super::rand::Rng;
 
-use super::sentry::memguard::{Partition,
+use super::sentry::memguard::{Response,
+                              Partition,
                               Region,
                               Guard,
                               Access,
@@ -49,7 +50,7 @@ pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 }
 
 /////////////////////////////////////////////////////////////////////////
-// 
+//
 // FUZZ TESTS
 //
 pub fn fuzz_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
@@ -83,15 +84,15 @@ fn test_fuzz_partition_process(logger: &Logger) -> Result<(), Error> {
 
 
 /////////////////////////////////////////////////////////////////////////
-// 
+//
 // PARTITION TESTS
 //
 pub fn partition_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
         ("create",          Some(_))           => create_partition(logger),
         ("create-multiple", Some(_))           => create_multiple_partitions(logger),
-        ("delete",          Some(_)) | 
-        ("getinfo",         Some(_)) | 
+        ("delete",          Some(_)) |
+        ("getinfo",         Some(_)) |
         ("setinfo",         Some(_))           => super::common::_not_implemented_command(logger),
         _                                      => Ok(println!("{}", matches.usage()))
     }
@@ -119,7 +120,7 @@ fn create_partition(logger: &Logger) -> Result<(), Error> {
 }
 
 /////////////////////////////////////////////////////////////////////////
-// 
+//
 // GUARD TESTS
 //
 fn guard_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
@@ -144,9 +145,9 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Erro
     let addr = misc::kernel_export_address(&partition.device, misc::get_kernel_base(), "ZwCreateKey")
                             .expect("can't find ZwCreateKey");
 
-    let region = Region::new(&partition, addr, 
-                            1, 
-                            Some(Action::NOTIFY | Action::INSPECT), 
+    let region = Region::new(&partition, addr,
+                            1,
+                            Some(Action::NOTIFY | Action::INSPECT),
                             Access::EXECUTE).unwrap();
 
     debug!(logger, "adding {} to {}", region, guard);
@@ -154,8 +155,7 @@ fn test_guard_filters(_matches: &ArgMatches, logger: &Logger) -> Result<(), Erro
 
     guard.set_callback(Box::new(|interception| {
         let message = format!("executing 0x{:016x}", interception.address);
-        println!("{}", message);
-        Action::CONTINUE
+        Response::new(Some(message), Action::CONTINUE)
     }));
 
     debug!(logger, "starting guard");
@@ -216,7 +216,7 @@ fn create_multiple_guards(_matches: &ArgMatches, logger: &Logger) -> Result<(), 
 }
 
 /////////////////////////////////////////////////////////////////////////
-// 
+//
 // REGION TESTS
 //
 fn region_tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {

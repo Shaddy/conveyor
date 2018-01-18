@@ -10,16 +10,16 @@ use std::thread::{JoinHandle};
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
-pub use self::bucket::Interception;
+pub use self::bucket::{Interception, Response};
 
 pub use super::structs::MatchType;
 
 use super::failure::Error;
 
-use super::structs::{FieldKey, 
-                    ValueType, 
-                    MG_GUARD_CONDITION, 
-                    MG_GUARD_FILTER, 
+use super::structs::{FieldKey,
+                    ValueType,
+                    MG_GUARD_CONDITION,
+                    MG_GUARD_FILTER,
                     MG_FIELD_VALUE};
 
 const _PARTITION_ROOT_ID: u64 = 4;
@@ -85,14 +85,14 @@ impl fmt::Debug for Partition {
     }
 }
 
-pub type SyncCallback = Box<Fn(bucket::Interception) -> Action + Send + Sync>;
+pub type SyncCallback = Box<Fn(bucket::Interception) -> Response + Send + Sync>;
 pub type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 
 impl Partition
  {
-    fn default_callback(interception: bucket::Interception) -> Action {
-        println!("{:?}", interception);
-        Action::CONTINUE
+    #[allow(unused_variables)]
+    fn default_callback(interception: bucket::Interception) -> Response {
+        Response::new(Some(String::from("default-callback()")), Action::CONTINUE)
     }
 
     pub fn register_callback(&self, guard: &Guard, callback: SyncCallback) {
@@ -100,9 +100,9 @@ impl Partition
         map.insert(guard.id, callback);
     }
 
-    fn create_workers(&self, buckets: Vec<Vec<u8>>, 
+    fn create_workers(&self, buckets: Vec<Vec<u8>>,
                              callbacks: &CallbackMap) -> Vec<JoinHandle<()>> {
-        buckets.into_iter().map(|bucket| 
+        buckets.into_iter().map(|bucket|
         {
             let callbacks = Arc::clone(callbacks);
             thread::spawn(move|| bucket::Bucket::handler(bucket, Box::new(Partition::default_callback), callbacks))
@@ -121,7 +121,7 @@ impl Partition
             device: device,
             workers: Vec::new()
         };
-        
+
         let workers = partition.create_workers(
             bucket::Bucket::slice_buckets(channel.address, channel.size as usize),
             &callbacks
@@ -130,7 +130,7 @@ impl Partition
         partition.workers.extend(workers.into_iter());
 
         Ok(partition)
-    
+
     }
 
     pub fn root() -> Partition {
@@ -202,9 +202,9 @@ impl<'p> Region<'p> {
 
 impl<'p> fmt::Display for Region<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})", 
-                        self.id, 
-                        self.range.base, 
+        write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})",
+                        self.id,
+                        self.range.base,
                         self.range.limit)
     }
 }
@@ -305,15 +305,15 @@ impl<'a> Filter<'a> {
     pub fn process(device: &'a Device, name: &str, cmp: MatchType) -> Option<Filter<'a>> {
         if let Some(current) = misc::WalkProcess::iter().find(|p| p.name().contains(name)) {
             let mut filter = Filter::new(device);
-            filter.add(&Condition::new(FieldKey::PROCESS_ID, 
+            filter.add(&Condition::new(FieldKey::PROCESS_ID,
                                     cmp,
                                     ValueType::UINT64,
                                     current.id()));
-        
+
             return Some(filter)
         }
 
-        None                                        
+        None
     }
 
     pub fn current_process(device: &'a Device, cmp: MatchType) -> Option<Filter<'a>> {
@@ -374,7 +374,7 @@ impl<'p> Guard<'p> {
         self
     }
 
-    pub fn remove<T>(&mut self, sentinel: T) where T: 
+    pub fn remove<T>(&mut self, sentinel: T) where T:
         Sentinel + fmt::Display {
         sentinel.remove(self).expect(format!("Unable to register {}", sentinel).as_ref());
     }
@@ -383,7 +383,7 @@ impl<'p> Guard<'p> {
         self.partition.register_callback(self, callback)
     }
 
-    pub fn add<T>(&mut self, sentinel: T) where T: 
+    pub fn add<T>(&mut self, sentinel: T) where T:
         Sentinel + fmt::Display {
         sentinel.register(self).expect(format!("Unable to register {}", sentinel).as_ref());
     }

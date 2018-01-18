@@ -2,14 +2,13 @@
 
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
-use super::cli::colorize;
 
 use std::{thread};
 use std::time::Duration;
 use super::failure::Error;
 
 
-use super::sentry::memguard::{Partition, Region, Guard, Access, Action};
+use super::sentry::memguard::{Response, Partition, Region, Guard, Access, Action};
 use super::sentry::{misc, io, token};
 use super::iochannel::{Device};
 
@@ -42,7 +41,7 @@ fn duplicate_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
                      .expect("can't extract PID from arguments")
                      .parse()
                      .expect("error parsing pid");
-    
+
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     debug!(logger, "elevating privilege of pid {}", pid);
@@ -57,7 +56,7 @@ fn hijack_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
                      .expect("can't extract PID from arguments")
                      .parse()
                      .expect("error parsing pid");
-    
+
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     debug!(logger, "elevating privilege of pid {}", pid);
@@ -79,7 +78,7 @@ fn protect_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let token = process.token() & !0xF;
     let token_offset = misc::get_offset("_EPROCESS.Token").expect("Token offset");
 
-    debug!(logger, "protecting target pid {} with token 0x{:016x}", 
+    debug!(logger, "protecting target pid {} with token 0x{:016x}",
                         pid, token);
 
     let partition: Partition = Partition::root();
@@ -94,8 +93,8 @@ fn protect_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 
     guard.set_callback(Box::new(|interception| {
         let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
-        colorize::info(&message);
-        Action::STEALTH
+        // colorize::info(&message);
+        Response::new(Some(message), Action::STEALTH)
     }));
 
     let duration = Duration::from_secs(20);

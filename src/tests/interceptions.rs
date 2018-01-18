@@ -11,7 +11,15 @@ use super::failure::Error;
 use super::common;
 use super::iochannel::Device;
 use super::sentry::{memory, search, io};
-use super::sentry::memguard::{Interception, Partition, Region, Guard, Access, Action, Filter, MatchType};
+use super::sentry::memguard::{Response,
+                              Interception,
+                              Partition,
+                              Region,
+                              Guard,
+                              Access,
+                              Action,
+                              Filter,
+                              MatchType};
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("interceptions")
@@ -82,8 +90,7 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     guard.set_callback(Box::new(move |interception| {
         let message = format!("index: 0x{:x}", interception.address.wrapping_sub(address));
-        println!("{}", message);
-        Action::CONTINUE
+        Response::new(Some(message), Action::CONTINUE)
     }));
 
     debug!(logger, "starting guard");
@@ -125,8 +132,9 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(
 
     guard.set_callback(Box::new(|interception| {
         let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
-        colorize::info(&message);
-        Action::STEALTH
+        // TODO: set optional color for response
+        // colorize::info(&message);
+        Response::new(Some(message), Action::STEALTH)
     }));
 
     debug!(logger, "starting guard");
@@ -182,10 +190,10 @@ fn test_interception_callback(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     // guard.set_callback(Box::new(callback_test));
     guard.set_callback(Box::new(|interception| {
-        println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
+        let message = format!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
                                         interception.access);
 
-        Action::CONTINUE
+        Response::new(Some(message), Action::CONTINUE)
     }));
     debug!(logger, "starting guard");
     guard.start();

@@ -8,7 +8,7 @@ use std::mem;
 use std::fmt::Debug;
 use std::fmt;
 use super::{Action, Access, CallbackMap};
-    
+
 const BUCKET_SIZE: usize = (240 + 16);
 
 bitflags! {
@@ -89,7 +89,7 @@ pub struct FrameContext {
     rax: u64,
     rip: u64,
     rflags: u64
-} 
+}
 
 const MAX_INST_LENGHT: usize = 16;
 
@@ -117,11 +117,49 @@ impl Interception {
 
 impl Debug for Interception {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Region(0x{:016X}) => 0x{:016x} - ({:?}) - ({:?})", 
+        write!(f, "Region(0x{:016X}) => 0x{:016x} - ({:?}) - ({:?})",
                 self.region_id,
-                self.address, 
-                self.access, 
+                self.address,
+                self.access,
                 self.action)
+    }
+}
+
+#[derive(Debug)]
+pub struct Response {
+    message: Option<String>,
+    action: Action
+}
+
+impl Response {
+    pub fn action(&self) -> Action {
+        self.action
+    }
+
+    pub fn message(&self) -> String {
+        if let Some(ref msg) = self.message {
+            return msg.clone()
+        }
+
+        String::from("")
+    }
+
+    pub fn empty() -> Response {
+        Response {
+            message: None,
+            action: Action::CONTINUE
+        }
+    }
+
+    pub fn has_message(&self) -> bool {
+        self.message.is_some()
+    }
+
+    pub fn new(message: Option<String>, action: Action) -> Response {
+        Response {
+            message: message,
+            action: action
+        }
     }
 }
 
@@ -135,11 +173,11 @@ impl Bucket {
 
         unsafe {
             let mut buffers: Vec<Vec<u8>> = Vec::new();
-            
+
             for current in (0..capacity).step_by(BUCKET_SIZE) {
                 buffers.push(Vec::from_raw_parts(ptr.offset(current as isize), size, size));
             };
-            
+
             buffers
         }
     }
@@ -153,7 +191,7 @@ impl Bucket {
         }
     }
 
-    pub fn handler(mut buffer: Vec<u8>, default: Box<Fn(Interception) -> Action>, callbacks: CallbackMap) {
+    pub fn handler(mut buffer: Vec<u8>, default: Box<Fn(Interception) -> Response>, callbacks: CallbackMap) {
         let sync = unsafe{ Syncronizers::from_raw(buffer.as_ptr()) } ;
         // println!("#{:?} - {:?}", thread::current().id(), sync);
 
@@ -170,7 +208,7 @@ impl Bucket {
 
             // println!("#{:?} - parsed bucket", thread::current().id());
 
-            match bucket.header.kind {
+            let response = match bucket.header.kind {
                 MessageType::Terminate => {
                     // println!("#{:?} - terminate message.", thread::current().id());
                     sync.user.signal();
@@ -183,21 +221,27 @@ impl Bucket {
 
                     let map = callbacks.read().expect("Unable to unlock callbacks for reading");
 
-                    if let Some(callback) = map.get(&interception.guard_id) {
-                        bucket.set_action(&mut buffer, callback(interception));
-                    } else {
-                        bucket.set_action(&mut buffer, default(interception));
-                    }
+                    let response = match map.get(&interception.guard_id) {
+                        Some(callback) => callback(interception),
+                        None => default(interception)
+                    };
 
+                    bucket.set_action(&mut buffer, response.action());
+
+                    response
                 },
-                _ => {}
-            }
+                _ => { Response::empty() }
+            };
 
             // println!("#{:?} message-ready, notifying back.", thread::current().id());
 
             // TODO: Convert this check into something more fancy.
             if (bucket.header.control & ControlFlags::SE_MESSAGE_ASYNCHRONOUS) != ControlFlags::SE_MESSAGE_ASYNCHRONOUS {
                 sync.user.signal();
+            }
+
+            if response.has_message() {
+                println!("interception-message: {:?}", response.message());
             }
         }
 
@@ -212,7 +256,7 @@ impl Bucket {
 }
 
 // DEPRECATED DUE TO mem::transmute, just keeping it until all tests are guaranteed.
-// 
+//
 //
 // impl Into<Vec<u8>> for Bucket {
 //     fn into(self) -> Vec<u8> {
@@ -220,7 +264,7 @@ impl Bucket {
 //         let _ = v.write_u64::<LittleEndian>(self.user.into()).unwrap();
 //         let _ = v.write_u64::<LittleEndian>(self.kernel.into()).unwrap();
 //         let _ = v.write(&self.data).unwrap();
-        
+
 //         v
 //     }
 // }
@@ -233,9 +277,9 @@ impl Bucket {
 //             kernel: Event::from(cursor.read_u64::<LittleEndian>().unwrap()),
 //             data: [0; 240]
 //         };
-        
+
 //         cursor.read(&mut bucket.data).unwrap();
-        
+
 //         bucket
 //     }
 // }
@@ -247,9 +291,9 @@ impl Bucket {
 //             kernel: Event::from(cursor.read_u64::<LittleEndian>().unwrap()),
 //             data: [0; 240]
 //         };
-        
+
 //         cursor.read(&mut bucket.data).unwrap();
-        
+
 //         bucket
 //     }
 // }
