@@ -40,6 +40,7 @@ pub fn bind() -> App<'static, 'static> {
                                 .value_name("STRESS")
                                 .help("interception stress affinity"))
                         .subcommand(SubCommand::with_name("basic"))
+                        .subcommand(SubCommand::with_name("setevent"))
                         .subcommand(SubCommand::with_name("delay"))
                         .subcommand(SubCommand::with_name("timer"))
                         .subcommand(SubCommand::with_name("priority"))
@@ -71,6 +72,7 @@ fn parse_intercept(matches: &ArgMatches, _logger: &Logger) -> SentryTest {
     match matches.subcommand() {
         ("basic",      Some(_))  => SentryTest::new(TestType::BasicIntercept, None),
         ("delay",      Some(_))  => SentryTest::new(TestType::DelayIntercept, None),
+        ("setevent",   Some(_))  => SentryTest::new(TestType::SetEvent, None),
         ("pagefault",  Some(_))  => SentryTest::new(TestType::PageFaultIntercept, None),
         ("priority",   Some(_))  => SentryTest::new(TestType::PriorityIntercept, None),
         ("timer",      Some(_))  => SentryTest::new(TestType::TimerIntercept, None),

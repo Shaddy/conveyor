@@ -34,6 +34,7 @@ pub enum TestType {
     BasicTracePoint,
     BasicIntercept,
     DelayIntercept,
+    SetEvent,
     PageFaultIntercept,
     PriorityIntercept,
     TimerIntercept
