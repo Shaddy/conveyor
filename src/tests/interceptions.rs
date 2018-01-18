@@ -9,7 +9,8 @@ use std::time::Duration;
 
 use super::failure::Error;
 use super::common;
-use super::sentry::{memory};
+use super::iochannel::Device;
+use super::sentry::{memory, search, io};
 use super::sentry::memguard::{Interception, Partition, Region, Guard, Access, Action, Filter, MatchType};
 
 pub fn bind() -> App<'static, 'static> {
@@ -18,6 +19,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("stealth"))
                 .subcommand(SubCommand::with_name("analysis"))
                 .subcommand(SubCommand::with_name("callback"))
+                .subcommand(SubCommand::with_name("ssdt"))
 }
 
 pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
@@ -26,37 +28,60 @@ pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
         ("stealth",     Some(matches))  => test_stealth_interception(matches, logger),
         ("analysis",    Some(matches))  => test_analysis_interception(matches, logger),
         ("callback",    Some(matches))  => test_interception_callback(matches, logger),
+        ("ssdt",        Some(matches))  => test_ssdt_address(matches, logger),
         _                                 => Ok(println!("{}", matches.usage()))
     }
 }
 
+fn test_ssdt_address(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+    debug!(logger, "0x{:016x}", find_ssdt_address());
+    Ok(())
+}
+
+fn find_ssdt_address() -> u64 {
+    let device = Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device");
+    let pattern = vec![0x48, 0x89, 0xA3, 0xD8,
+                        0x01, 0x00, 0x00, 0x8B,
+                        0xF8, 0xC1, 0xEF, 0x07,
+                        0x83, 0xE7, 0x20, 0x25];
+
+    let address = search::pattern(&device,
+                                  "ntoskrnl",
+                                  &pattern,
+                                  Some("ZwCreateResourceManager"))
+                                  .expect("unable to find SSDT pattern");
+
+    let instruction = pattern.len() as u64 + 7;
+
+    let rva = memory::read_u32(&device, address + instruction).unwrap() as i32;
+
+    let ssdt_reference = address.wrapping_add(rva as u64) + instruction + 4;
+
+    memory::read_u64(&device, ssdt_reference).unwrap()
+}
+
 fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+
+    debug!(logger, "discovering SSDT");
+    let address = find_ssdt_address();
+
+    debug!(logger, "found at 0x{:16x}", address);
+
     let partition = Partition::root();
 
-    let mut guard = Guard::new(&partition, Filter::current_process(&partition.device, MatchType::NOT_EQUAL));
-    const POOL_SIZE: usize = 0x100;
+    let mut guard = Guard::new(&partition, Filter::process(&partition.device, "notepad", MatchType::EQUAL));
 
-    debug!(logger, "allocating pool");
-    let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
-
-    debug!(logger, "addr: 0x{:016x}", addr);
-
-    let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
+    let region = Region::new(&partition, address,
+                              0x1000,
+                              Some(Action::NOTIFY | Action::INSPECT),
+                              Access::READ)
+                            .expect("can't create region");
 
     debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
-    // let addr = misc::fixed_procedure_address(misc::get_kernel_base(), "ntoskrnl.exe", "ZwCreateKey");
-    // let region = Region::new(&partition, addr, 
-    //                               1, 
-    //                               Some(Action::NOTIFY | Action::INSPECT), 
-    //                               Access::EXECUTE);
-
-    // debug!(logger, "adding {} to {}", region, guard);
-    // guard.add(region);
-
-    guard.set_callback(Box::new(|interception| {
-        let message = format!("reading 0x{:016x}", interception.address);
+    guard.set_callback(Box::new(move |interception| {
+        let message = format!("index: 0x{:x}", interception.address.wrapping_sub(address));
         println!("{}", message);
         Action::CONTINUE
     }));
@@ -64,11 +89,6 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<
     debug!(logger, "starting guard");
     guard.start();
 
-    debug!(logger, "allocating pool");
-    let _ = memory::read_virtual_memory(&partition.device, addr, 10).unwrap();
-    let _ = memory::read_virtual_memory(&partition.device, addr, 5).unwrap();
-    let _ = memory::read_virtual_memory(&partition.device, addr, 4).unwrap();
-    let _ = memory::read_virtual_memory(&partition.device, addr, 1).unwrap();
     let duration = Duration::from_secs(60);
     debug!(logger, "waiting {:?}", duration);
     thread::sleep(duration);
@@ -138,7 +158,7 @@ fn test_stealth_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(
 // example of declared function as callback
 #[allow(dead_code)]
 fn callback_test(interception: Interception) -> Action {
-    println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
+    println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
                                     interception.access);
 
     Action::CONTINUE
@@ -162,7 +182,7 @@ fn test_interception_callback(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     // guard.set_callback(Box::new(callback_test));
     guard.set_callback(Box::new(|interception| {
-        println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address, 
+        println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
                                         interception.access);
 
         Action::CONTINUE
@@ -234,4 +254,3 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, logger: &Logger) -> Resul
 //     debug!(logger, "stoping guard");
 //     guard.stop();
 // }
-
