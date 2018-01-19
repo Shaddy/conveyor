@@ -77,7 +77,7 @@ impl Access {
 pub struct Partition {
     pub id: u64,
     pub device: Device,
-    workers: Vec<JoinHandle<()>>,
+    workers: Vec<Handler>,
     messenger: mpsc::Sender<String>,
     callbacks: CallbackMap
 }
@@ -90,6 +90,12 @@ impl fmt::Debug for Partition {
 
 pub type SyncCallback = Box<Fn(bucket::Interception) -> Response + Send + Sync>;
 pub type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
+
+#[derive(Debug)]
+pub enum Handler {
+    Interceptor(JoinHandle<()>),
+    Messenger(JoinHandle<()>)
+}
 
 impl Partition
  {
@@ -107,32 +113,35 @@ impl Partition
                              tx: mpsc::Sender<String>,
                              rx: mpsc::Receiver<String>,
                              buckets: Vec<Vec<u8>>,
-                             callbacks: &CallbackMap) -> Vec<JoinHandle<()>> {
+                             callbacks: &CallbackMap) -> Vec<Handler> {
 
         let mut handlers = buckets.into_iter().map(|bucket|
         {
             let callbacks = Arc::clone(callbacks);
             let sender = tx.clone();
-            thread::spawn(move||
+            Handler::Interceptor(
+                thread::spawn(move|| bucket::Bucket::handler(sender,
+                                        bucket,
+                                        Box::new(Partition::default_callback),
+                                        callbacks)
+                 )
+            )
 
-            bucket::Bucket::handler(sender,
-                                    bucket,
-                                    Box::new(Partition::default_callback),
-                                    callbacks))
+        }).collect::<Vec<Handler>>();
 
-        }).collect::<Vec<JoinHandle<()>>>();
-
-        handlers.push(thread::spawn(move|| {
+        handlers.push(Handler::Interceptor(thread::spawn(move|| {
             loop {
                 let message = rx.recv().unwrap();
                 if message.contains(MESSENGER_FINISH_MSG) {
                     break;
                 }
                 println!("{}", message);
-                let duration = time::Duration::from_millis(10);
-                thread::sleep(duration);
+
+                thread::sleep(
+                    time::Duration::from_millis(1)
+                );
             }
-        }));
+        })));
 
         handlers
     }
@@ -169,6 +178,28 @@ impl Partition
         Partition::new().unwrap()
     }
 
+    fn close_workers(&mut self) {
+        let mut handler: Option<JoinHandle<()>> = None;
+
+        while let Some(handle) = self.workers.pop() {
+             match handle {
+                 Handler::Messenger(messenger) => {
+                     handler = Some(messenger);
+                 },
+                 Handler::Interceptor(interceptor) => {
+                 interceptor.join()
+                            .expect("wait error for interceptor");
+                 }
+             }
+        }
+
+        self.messenger.send(MESSENGER_FINISH_MSG.to_string())
+                    .expect("error finishing displayer thread");
+
+        if let Some(handle) = handler {
+            handle.join().expect("wait error for messenger");
+        }
+    }
 }
 
 impl Drop for Partition {
@@ -177,17 +208,7 @@ impl Drop for Partition {
             println!("io::delete_partition() {}", err);
         }
 
-        let messenger = self.workers.pop().unwrap();
-
-        while let Some(handle) = self.workers.pop() {
-             handle.join().expect("failed to wait for thread");
-        }
-
-        // send termination MSG to displayer thread
-        self.messenger.send(MESSENGER_FINISH_MSG.to_string())
-                    .expect("error finishing displayer thread");
-
-        messenger.join().expect("failed to wait for messenger");
+        self.close_workers();
     }
 }
 

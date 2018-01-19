@@ -251,8 +251,10 @@ impl Bucket {
             }
         }
 
+        // println!("#{:?} forgetting memory", thread::current().id());
         // just a (leak) hack to avoid unstable free
         mem::forget(mapping);
+        // println!("#{:?} exiting", thread::current().id());
     }
 
     pub unsafe fn from_raw(ptr: *const u8) -> Bucket {

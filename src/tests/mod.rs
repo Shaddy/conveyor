@@ -11,6 +11,7 @@ extern crate num;
 use super::{iochannel, cli, sentry};
 
 
+mod ssdt;
 mod token;
 mod memguard;
 mod errors;

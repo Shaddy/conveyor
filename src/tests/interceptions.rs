@@ -4,7 +4,7 @@ use super::clap::{App, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::cli::colorize;
 
-use std::{thread};
+use std::{thread, mem, fmt};
 use std::time::Duration;
 
 use super::failure::Error;
@@ -20,6 +20,8 @@ use super::sentry::memguard::{Response,
                               Action,
                               Filter,
                               MatchType};
+
+use super::ssdt::SSDT_FUNCTIONS;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("interceptions")
@@ -44,11 +46,33 @@ pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 }
 
 fn test_ssdt_address(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
-    debug!(logger, "0x{:016x}", find_ssdt_address());
+    debug!(logger, "{:?}", find_ssdt_address());
     Ok(())
 }
 
-fn find_ssdt_address() -> u64 {
+#[repr(C)]
+struct ServiceTable {
+    pub address: u64,
+    pub tables: u64,
+    pub count: u32,
+    pub arguments: u64
+}
+
+impl fmt::Debug for ServiceTable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ServiceTable {{
+                    address:   0x{:016x},
+                    tables:    0x{:016x},
+                    count:            {},
+                    arguments: 0x{:016x},
+        }}", self.address,
+             self.tables,
+             self.count,
+             self.arguments)
+    }
+}
+
+fn find_ssdt_address() -> ServiceTable {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device");
     let pattern = vec![0x48, 0x89, 0xA3, 0xD8,
                        0x01, 0x00, 0x00, 0x8B,
@@ -67,7 +91,13 @@ fn find_ssdt_address() -> u64 {
 
     let ssdt_reference = address.wrapping_add(rva as u64) + instruction + 4;
 
-    memory::read_u64(&device, ssdt_reference).unwrap()
+    println!("ref: 0x{:016x}", ssdt_reference);
+    let data = memory::read_virtual_memory(&device, ssdt_reference, mem::size_of::<ServiceTable>())
+                    .expect("error reading ServiceTable");
+
+    let ssdt: ServiceTable = unsafe { mem::transmute_copy(&*data.as_ptr()) };
+
+    ssdt
 }
 
 enum Print {
@@ -83,10 +113,15 @@ fn test_analysis_normal(_matches: &ArgMatches, logger: &Logger) -> Result<(), Er
     test_analysis_interception_messaged(Print::Show, &logger)
 }
 
+
 fn test_analysis_interception_messaged(show: Print, logger: &Logger) -> Result<(), Error> {
 
     debug!(logger, "discovering SSDT");
-    let address = find_ssdt_address();
+    let ssdt = find_ssdt_address();
+
+    debug!(logger, "{:?}", ssdt);
+
+    let address = ssdt.address;
 
     debug!(logger, "found at 0x{:16x}", address);
 
@@ -98,7 +133,7 @@ fn test_analysis_interception_messaged(show: Print, logger: &Logger) -> Result<(
     let mut guard = Guard::new(&partition, Some(filter));
 
     let region = Region::new(&partition, address,
-                              0x1000,
+                              ssdt.count as u64 * 4,
                               Some(Action::NOTIFY | Action::INSPECT),
                               Access::READ)
                             .expect("can't create region");
@@ -107,7 +142,10 @@ fn test_analysis_interception_messaged(show: Print, logger: &Logger) -> Result<(
     guard.add(region);
 
     guard.set_callback(Box::new(move |interception| {
-        let message = format!("index: 0x{:x}", interception.address.wrapping_sub(address));
+        let index = interception.address.wrapping_sub(address) / 4;
+        let name = SSDT_FUNCTIONS.get(index as usize).unwrap_or(&"<invalid-index>");
+
+        let message = format!("{}", name);
         match show {
             Print::Show => Response::new(Some(message), Action::CONTINUE),
             Print::Hide => Response::new(None, Action::CONTINUE),
