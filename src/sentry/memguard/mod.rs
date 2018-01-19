@@ -4,10 +4,10 @@ mod sync;
 
 use super::{io, memory, misc};
 
-use std::{fmt, thread};
+use std::{fmt, thread, time};
 use std::thread::{JoinHandle};
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 use std::collections::HashMap;
 
 pub use self::bucket::{Interception, Response};
@@ -23,6 +23,8 @@ use super::structs::{FieldKey,
                     MG_FIELD_VALUE};
 
 const _PARTITION_ROOT_ID: u64 = 4;
+pub const MESSENGER_FINISH_MSG: &str = "END-LOOP-MSG";
+
 
 pub enum ControlGuard {
     Start = 1,
@@ -76,6 +78,7 @@ pub struct Partition {
     pub id: u64,
     pub device: Device,
     workers: Vec<JoinHandle<()>>,
+    messenger: mpsc::Sender<String>,
     callbacks: CallbackMap
 }
 
@@ -100,14 +103,38 @@ impl Partition
         map.insert(guard.id, callback);
     }
 
-    fn create_workers(&self, buckets: Vec<Vec<u8>>,
+    fn create_workers(&self,
+                             tx: mpsc::Sender<String>,
+                             rx: mpsc::Receiver<String>,
+                             buckets: Vec<Vec<u8>>,
                              callbacks: &CallbackMap) -> Vec<JoinHandle<()>> {
-        buckets.into_iter().map(|bucket|
+
+        let mut handlers = buckets.into_iter().map(|bucket|
         {
             let callbacks = Arc::clone(callbacks);
-            thread::spawn(move|| bucket::Bucket::handler(bucket, Box::new(Partition::default_callback), callbacks))
+            let sender = tx.clone();
+            thread::spawn(move||
 
-        }).collect()
+            bucket::Bucket::handler(sender,
+                                    bucket,
+                                    Box::new(Partition::default_callback),
+                                    callbacks))
+
+        }).collect::<Vec<JoinHandle<()>>>();
+
+        handlers.push(thread::spawn(move|| {
+            loop {
+                let message = rx.recv().unwrap();
+                if message.contains(MESSENGER_FINISH_MSG) {
+                    break;
+                }
+                println!("{}", message);
+                let duration = time::Duration::from_millis(10);
+                thread::sleep(duration);
+            }
+        }));
+
+        handlers
     }
 
     pub fn new() -> Result<Partition, Error> {
@@ -115,14 +142,19 @@ impl Partition
         let channel = io::create_partition(&device)?;
         let callbacks = Arc::new(RwLock::new(HashMap::new()));
 
+        let (tx, rx) = mpsc::channel();
+
         let mut partition = Partition {
             id: channel.id,
             callbacks: Arc::clone(&callbacks),
             device: device,
+            messenger: tx.clone(),
             workers: Vec::new()
         };
 
         let workers = partition.create_workers(
+            tx,
+            rx,
             bucket::Bucket::slice_buckets(channel.address, channel.size as usize),
             &callbacks
         );
@@ -145,9 +177,17 @@ impl Drop for Partition {
             println!("io::delete_partition() {}", err);
         }
 
+        let messenger = self.workers.pop().unwrap();
+
         while let Some(handle) = self.workers.pop() {
              handle.join().expect("failed to wait for thread");
         }
+
+        // send termination MSG to displayer thread
+        self.messenger.send(MESSENGER_FINISH_MSG.to_string())
+                    .expect("error finishing displayer thread");
+
+        messenger.join().expect("failed to wait for messenger");
     }
 }
 

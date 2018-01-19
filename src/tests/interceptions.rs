@@ -25,18 +25,20 @@ pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("interceptions")
                 .subcommand(SubCommand::with_name("kernel"))
                 .subcommand(SubCommand::with_name("stealth"))
-                .subcommand(SubCommand::with_name("analysis"))
+                .subcommand(SubCommand::with_name("analysis-normal"))
+                .subcommand(SubCommand::with_name("analysis-no-message"))
                 .subcommand(SubCommand::with_name("callback"))
                 .subcommand(SubCommand::with_name("ssdt"))
 }
 
 pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     match matches.subcommand() {
-        ("kernel",      Some(matches))  => test_intercept_kernel_region(matches, logger),
-        ("stealth",     Some(matches))  => test_stealth_interception(matches, logger),
-        ("analysis",    Some(matches))  => test_analysis_interception(matches, logger),
-        ("callback",    Some(matches))  => test_interception_callback(matches, logger),
-        ("ssdt",        Some(matches))  => test_ssdt_address(matches, logger),
+        ("kernel",               Some(matches))  => test_intercept_kernel_region(matches, logger),
+        ("stealth",              Some(matches))  => test_stealth_interception(matches, logger),
+        ("analysis-normal",      Some(matches))  => test_analysis_normal(matches, logger),
+        ("analysis-no-message",  Some(matches))  => test_analysis_no_message(matches, logger),
+        ("callback",             Some(matches))  => test_interception_callback(matches, logger),
+        ("ssdt",                 Some(matches))  => test_ssdt_address(matches, logger),
         _                                 => Ok(println!("{}", matches.usage()))
     }
 }
@@ -49,9 +51,9 @@ fn test_ssdt_address(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error
 fn find_ssdt_address() -> u64 {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device");
     let pattern = vec![0x48, 0x89, 0xA3, 0xD8,
-                        0x01, 0x00, 0x00, 0x8B,
-                        0xF8, 0xC1, 0xEF, 0x07,
-                        0x83, 0xE7, 0x20, 0x25];
+                       0x01, 0x00, 0x00, 0x8B,
+                       0xF8, 0xC1, 0xEF, 0x07,
+                       0x83, 0xE7, 0x20, 0x25];
 
     let address = search::pattern(&device,
                                   "ntoskrnl",
@@ -68,7 +70,20 @@ fn find_ssdt_address() -> u64 {
     memory::read_u64(&device, ssdt_reference).unwrap()
 }
 
-fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+enum Print {
+    Show,
+    Hide
+}
+
+fn test_analysis_no_message(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+    test_analysis_interception_messaged(Print::Hide, &logger)
+}
+
+fn test_analysis_normal(_matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+    test_analysis_interception_messaged(Print::Show, &logger)
+}
+
+fn test_analysis_interception_messaged(show: Print, logger: &Logger) -> Result<(), Error> {
 
     debug!(logger, "discovering SSDT");
     let address = find_ssdt_address();
@@ -77,7 +92,10 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     let partition = Partition::root();
 
-    let mut guard = Guard::new(&partition, Filter::process(&partition.device, "notepad", MatchType::EQUAL));
+    let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL)
+                            .expect("can't find notepad process");
+
+    let mut guard = Guard::new(&partition, Some(filter));
 
     let region = Region::new(&partition, address,
                               0x1000,
@@ -90,7 +108,10 @@ fn test_analysis_interception(_matches: &ArgMatches, logger: &Logger) -> Result<
 
     guard.set_callback(Box::new(move |interception| {
         let message = format!("index: 0x{:x}", interception.address.wrapping_sub(address));
-        Response::new(Some(message), Action::CONTINUE)
+        match show {
+            Print::Show => Response::new(Some(message), Action::CONTINUE),
+            Print::Hide => Response::new(None, Action::CONTINUE),
+        }
     }));
 
     debug!(logger, "starting guard");

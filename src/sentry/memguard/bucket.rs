@@ -1,12 +1,12 @@
 extern crate byteorder;
 extern crate winapi;
 
-use super::sync::Event;
+use std::sync::mpsc;
+use super::sync::{Event};
 
-use std::mem;
+use std::{mem, fmt, thread};
 
 use std::fmt::Debug;
-use std::fmt;
 use super::{Action, Access, CallbackMap};
 
 const BUCKET_SIZE: usize = (240 + 16);
@@ -36,7 +36,6 @@ impl Syncronizers {
         mem::transmute_copy(&*ptr)
     }
 }
-
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -182,18 +181,20 @@ impl Bucket {
         }
     }
 
-    fn set_action(&self, buffer: &mut Vec<u8>, action: Action) {
+    fn set_action(&self, mapping: &mut Vec<u8>, action: Action) {
         unsafe {
-            // let intercept: &mut Interception = &mut buffer.as_mut_ptr().offset(mem::size_of::<Syncronizers>() as isize) as *mut Interception;
-            let intercept: &mut Interception = mem::transmute::<*mut u8, &mut Interception>(buffer.as_mut_ptr()
+            // let intercept: &mut Interception = &mut mapping.as_mut_ptr().offset(mem::size_of::<Syncronizers>() as isize) as *mut Interception;
+            let intercept: &mut Interception = mem::transmute::<*mut u8, &mut Interception>(mapping.as_mut_ptr()
                                                 .offset(mem::size_of::<Syncronizers>() as isize));
             intercept.action = action;
         }
     }
 
-    pub fn handler(mut buffer: Vec<u8>, default: Box<Fn(Interception) -> Response>, callbacks: CallbackMap) {
-        let sync = unsafe{ Syncronizers::from_raw(buffer.as_ptr()) } ;
+    pub fn handler(messenger: mpsc::Sender<String>, mut mapping: Vec<u8>, default: Box<Fn(Interception) -> Response>, callbacks: CallbackMap) {
+        let sync = unsafe{ Syncronizers::from_raw(mapping.as_ptr()) } ;
         // println!("#{:?} - {:?}", thread::current().id(), sync);
+
+        let id = thread::current().id();
 
         loop {
             // println!("#{:?} - waiting for new messsage.", thread::current().id());
@@ -202,7 +203,7 @@ impl Bucket {
 
             // println!("#{:?} - got bucket", thread::current().id());
 
-            let bucket = unsafe{ Bucket::from_raw(buffer.as_mut_ptr()
+            let bucket = unsafe{ Bucket::from_raw(mapping.as_mut_ptr()
                                             // skip events
                                             .offset(mem::size_of::<Syncronizers>() as isize)) } ;
 
@@ -216,7 +217,7 @@ impl Bucket {
                 },
                 MessageType::Intercept => {
                     // println!("#{:?} - redirecting interception", thread::current().id());
-                    let interception = unsafe { Interception::from_raw(buffer.as_mut_ptr()
+                    let interception = unsafe { Interception::from_raw(mapping.as_mut_ptr()
                                     .offset(mem::size_of::<Syncronizers>() as isize)) };
 
                     let map = callbacks.read().expect("Unable to unlock callbacks for reading");
@@ -226,7 +227,7 @@ impl Bucket {
                         None => default(interception)
                     };
 
-                    bucket.set_action(&mut buffer, response.action());
+                    bucket.set_action(&mut mapping, response.action());
 
                     response
                 },
@@ -241,12 +242,17 @@ impl Bucket {
             }
 
             if response.has_message() {
-                println!("interception-message: {:?}", response.message());
+                let message = format!("{:?}: {:?}", id, response.message());
+
+                if let Err(err) = messenger.send(message) {
+                    mem::forget(mapping);
+                    panic!("error sending to messenger: {}", err.to_string());
+                }
             }
         }
 
         // just a (leak) hack to avoid unstable free
-        mem::forget(buffer);
+        mem::forget(mapping);
     }
 
     pub unsafe fn from_raw(ptr: *const u8) -> Bucket {
