@@ -86,14 +86,13 @@ fn protect_token(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 
     // TODO: Do it in a stable way.
     // pointer to token (duplicateway)
-    // let region = Region::new(&partition, token, 8, None, Access::WRITE);
-
-    let region = Region::new(&partition, process.object() + u64::from(token_offset), 8, None, Access::WRITE).unwrap();
-    guard.add(region);
+    let token_region = Region::new(&partition, token, 8, None, Access::WRITE).unwrap();
+    guard.add(token_region);
+    let pointer_region = Region::new(&partition, process.object() + u64::from(token_offset), 8, None, Access::WRITE).unwrap();
+    guard.add(pointer_region);
 
     guard.set_callback(Box::new(|interception| {
-        let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
-        // colorize::info(&message);
+        let message = format!("0x{:016X} - IGNORING", interception.address);
         Response::new(Some(message), Action::STEALTH)
     }));
 

@@ -129,7 +129,7 @@ impl Partition
 
         }).collect::<Vec<Handler>>();
 
-        handlers.push(Handler::Interceptor(thread::spawn(move|| {
+        handlers.push(Handler::Messenger(thread::spawn(move|| {
             loop {
                 let message = rx.recv().unwrap();
                 if message.contains(MESSENGER_FINISH_MSG) {
