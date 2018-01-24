@@ -52,6 +52,33 @@ impl Channel {
     }
 }
 
+pub fn start_monitor(device: &Device, id: u64) -> Result<(), Error> {
+    let control = IoCtl::new(Some("SE_START_MONITOR"), IOCTL_SENTRY_TYPE, 0x0A72, None, None);
+
+    let mut input = vec![];
+    let output: Vec<u8> = Vec::with_capacity(1000);
+
+    input.write_u64::<LittleEndian>(id)?;
+
+    let _ = device.call(control, Some(input), Some(output))?;
+
+    Ok(())
+}
+
+pub fn stop_monitor(device: &Device, id: u64) -> Result<(), Error> {
+    let control = IoCtl::new(Some("SE_STOP_MONITOR"), IOCTL_SENTRY_TYPE, 0x0A73, None, None);
+
+    let mut input = vec![];
+    let output: Vec<u8> = Vec::with_capacity(1000);
+
+    input.write_u64::<LittleEndian>(id)?;
+
+    let _ = device.call(control, Some(input), Some(output))?;
+
+    Ok(())
+}
+
+
 pub fn create_monitor(device: &Device) -> Result<Channel, Error> {
     let control = IoCtl::new(Some("SE_CREATE_MONITOR"), IOCTL_SENTRY_TYPE, 0x0A70, None, None);
 

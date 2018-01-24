@@ -1,6 +1,8 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 extern crate rand;
+extern crate indicatif;
+extern crate console;
 extern crate failure;
 extern crate clap;
 extern crate slog;

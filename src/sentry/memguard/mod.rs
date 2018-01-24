@@ -212,6 +212,14 @@ impl ObjectFilter {
             }
         )
     }
+
+    pub fn start(&self) -> Result<(), Error> {
+        Ok(io::start_monitor(&self.device, self.id)?)
+    }
+
+    pub fn stop(&self) -> Result<(), Error> {
+        Ok(io::stop_monitor(&self.device, self.id)?)
+    }
 }
 
 

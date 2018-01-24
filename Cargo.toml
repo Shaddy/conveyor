@@ -21,10 +21,12 @@ goblin = "0.0.13"
 reqwest = "0.8"
 rand = "0.4"
 enum_primitive = "0.1"
+indicatif = "*"
+console = "*"
 
 [dependencies.winapi]
 version = "0.3"
-features = ["winsvc", 
+features = ["winsvc",
             "ioapiset",
             "synchapi",
             "handleapi",
