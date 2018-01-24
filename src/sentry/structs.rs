@@ -190,78 +190,6 @@ STRUCT!{
 
 impl RawStruct<SE_STEAL_TOKEN> for SE_STEAL_TOKEN { }
 
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub enum FieldKey {
-    PROCESS_ID,
-    SID
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub enum MatchType { 
-    EQUAL,
-    GREATER,
-    LESS,
-    GREATER_OR_EQUAL,
-    LESS_OR_EQUAL,
-    NOT_EQUAL
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub enum ValueType { 
-    EMPTY,
-    UINT8,
-    UINT16,
-    UINT32,
-    UINT64,
-    SID_TYPE,
-    UNICODE_STRING_TYPE
-}
-
-STRUCT!{
-    #[derive(Debug)]
-    struct MG_FIELD_VALUE   {
-        Kind: ValueType,
-        Value: u64,
-    }
-}
-
-STRUCT!{
-    #[derive(Debug)]
-    struct MG_GUARD_CONDITION   {
-        Field: FieldKey,
-        Match: MatchType,
-        Value: MG_FIELD_VALUE,
-    }
-}
-
-impl RawStruct<MG_GUARD_CONDITION> for MG_GUARD_CONDITION { }
-
-
-
-pub type LPMG_GUARD_CONDITION = *mut MG_GUARD_CONDITION;
-
-STRUCT!{
-    #[derive(Debug)]
-    struct MG_GUARD_FILTER {
-        NumberOfConditions: USHORT,
-        Conditions: [MG_GUARD_CONDITION; 16],
-    }
-}
-
-
-// impl MG_GUARD_FILTER {
-//     pub unsafe fn from_raw(ptr: *const u8) -> MG_GUARD_FILTER {
-//         mem::transmute(&*ptr)
-//     }
-// }
-
-impl RawStruct<MG_GUARD_FILTER> for MG_GUARD_FILTER { }
-
-
-
 STRUCT!{
     struct SE_GET_EXPORT_ADDRESS {
         ModuleBase: ULONG64,
@@ -280,7 +208,7 @@ impl fmt::Debug for SE_GET_EXPORT_ADDRESS {
 
         write!(f, "SE_GET_EXPORT_ADDRESS {{ base: {:016x},
                                          name: {:?},
-                                         addr: 0x{:016x} }}", 
+                                         addr: 0x{:016x} }}",
         self.ModuleBase,
         name,
         self.Address)

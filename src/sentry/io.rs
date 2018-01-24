@@ -30,8 +30,6 @@ enum_from_primitive! {
     }
 }
 
-
-
 #[repr(C)]
 pub struct Channel {
     pub id: u64,
@@ -41,7 +39,7 @@ pub struct Channel {
 
 impl fmt::Debug for Channel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Channel(id: 0x{:016X}, address: 0x{:016x}, size: 0x{:016x}", 
+        write!(f, "Channel(id: 0x{:016X}, address: 0x{:016x}, size: 0x{:016x}",
                         self.id,
                         self.address,
                         self.size)
@@ -54,26 +52,52 @@ impl Channel {
     }
 }
 
-pub fn create_partition(device: &Device) -> Result<Channel, Error> {
-    let control = IoCtl::new(None, IOCTL_SENTRY_TYPE, 0x0A00, None, None);
+pub fn create_monitor(device: &Device) -> Result<Channel, Error> {
+    let control = IoCtl::new(Some("SE_CREATE_MONITOR"), IOCTL_SENTRY_TYPE, 0x0A70, None, None);
 
 
     let input = Vec::with_capacity(1000);
     let output: Vec<u8> = Vec::with_capacity(1000);
 
-    
+
     let cursor = device.call(control, Some(input), Some(output))?;
 
     Ok(unsafe { Channel::from_raw(cursor.into_inner().as_ptr()) })
 }
 
-pub fn delete_partition(device: &Device, id: u64) -> Result<(), Error> {
-    let control = IoCtl::new(None, IOCTL_SENTRY_TYPE, 0x0A01, None, None);
+pub fn destroy_monitor(device: &Device, id: u64) -> Result<(), Error> {
+    let control = IoCtl::new(Some("SE_DESTROY_MONITOR"), IOCTL_SENTRY_TYPE, 0x0A71, None, None);
 
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id)?;
-    
+
+    device.call(control, Some(input), Some(vec![0; 1024]))?;
+
+    Ok(())
+}
+
+pub fn create_partition(device: &Device) -> Result<Channel, Error> {
+    let control = IoCtl::new(Some("SE_IOCTL_CREATE_PARTITION"), IOCTL_SENTRY_TYPE, 0x0A00, None, None);
+
+
+    let input = Vec::with_capacity(1000);
+    let output: Vec<u8> = Vec::with_capacity(1000);
+
+
+    let cursor = device.call(control, Some(input), Some(output))?;
+
+    Ok(unsafe { Channel::from_raw(cursor.into_inner().as_ptr()) })
+}
+
+
+pub fn delete_partition(device: &Device, id: u64) -> Result<(), Error> {
+    let control = IoCtl::new(Some("SE_IOCTL_DELETE_PARTITION"), IOCTL_SENTRY_TYPE, 0x0A01, None, None);
+
+    let mut input = vec![];
+
+    input.write_u64::<LittleEndian>(id)?;
+
     device.call(control, Some(input), Some(vec![0; 1024]))?;
 
     Ok(())
@@ -87,11 +111,11 @@ fn partition_result(id: u64, result: Result<Cursor<Vec<u8>>, DeviceError>) -> Re
                     return Err(PartitionError::NotExists(id))
                 } else {
                     return Err(PartitionError::UnknownError(DeviceError::IoCall(n, s, io_err)));
-                } 
+                }
             }  else {
                 return Err(PartitionError::UnknownError(err));
             }
-                    
+
         },
         Ok(cursor) => Ok(cursor)
     }
@@ -124,7 +148,7 @@ pub fn set_partition_option(device: &Device, id: u64, option: u64, value: u64) -
     input.write_u64::<LittleEndian>(id)?;
     input.write_u64::<LittleEndian>(option)?;
     input.write_u64::<LittleEndian>(value)?;
-    
+
     let _ = device.call(control, Some(input), Some(output))?;
 
     Ok(())
@@ -148,7 +172,7 @@ pub fn register_guard_extended(device: &Device, id: u64, process: Option<Process
     input.write_u64::<LittleEndian>(ptr)?;
     input.write_u64::<LittleEndian>(u64::from(flags.bits()))?;
     input.write_u64::<LittleEndian>(priority)?;
-    
+
     let mut cursor = device.call(control, Some(input), Some(output))?;
 
     Ok(cursor.read_u64::<LittleEndian>()?)
@@ -166,7 +190,7 @@ pub fn unregister_guard(device: &Device, id: u64) -> Result<(), Error> {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -187,7 +211,7 @@ fn control_guard(device: &Device, id: u64, action: ControlGuard) -> Result<(), E
 
     input.write_u64::<LittleEndian>(id)?;
     input.write_u64::<LittleEndian>(action as u64)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
 
     Ok(())
@@ -231,7 +255,7 @@ pub fn delete_region(device: &Device, region_id: u64) -> Result<(), Error> {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(region_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -244,7 +268,7 @@ pub fn add_region(device: &Device, guard_id: u64, region_id: u64) -> Result<(), 
 
     input.write_u64::<LittleEndian>(guard_id)?;
     input.write_u64::<LittleEndian>(region_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -258,7 +282,7 @@ pub fn remove_region(device: &Device, guard_id: u64, region_id: u64) -> Result<(
 
     input.write_u64::<LittleEndian>(guard_id)?;
     input.write_u64::<LittleEndian>(region_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -272,7 +296,7 @@ pub fn set_state_region(device: &Device, region_id: u64, state: RegionStatus) ->
 
     input.write_u64::<LittleEndian>(region_id)?;
     input.write_u64::<LittleEndian>(state as u64)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -325,7 +349,7 @@ pub fn enumerate_region(device: &Device, partition_id: u64, guard_id: u64) -> Re
     input.write_u64::<LittleEndian>(guard_id)?;
 
     let output: Vec<u8> = Vec::with_capacity(8 * 1000); // by default it supports 1000 regions
-    
+
     let mut cursor = device.call(control, Some(input), Some(output))?;
 
     let _region_id = cursor.read_u64::<LittleEndian>()?;
@@ -359,7 +383,7 @@ pub fn delete_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(patch_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -372,7 +396,7 @@ pub fn add_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(), Er
 
     input.write_u64::<LittleEndian>(guard_id)?;
     input.write_u64::<LittleEndian>(patch_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -385,7 +409,7 @@ pub fn remove_patch(device: &Device, guard_id: u64, patch_id: u64) -> Result<(),
 
     input.write_u64::<LittleEndian>(guard_id)?;
     input.write_u64::<LittleEndian>(patch_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -398,7 +422,7 @@ pub fn enable_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(patch_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -411,7 +435,7 @@ pub fn disable_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(patch_id)?;
-    
+
     let _ = device.call(control, Some(input), None)?;
     Ok(())
 }
@@ -425,7 +449,7 @@ pub fn get_info_patch(device: &Device, patch_id: u64) -> Result<(), Error> {
     let mut input = vec![];
 
     input.write_u64::<LittleEndian>(patch_id)?;
-    
+
     let mut cursor = device.call(control, Some(input), None)?;
 
     let patch_id          = cursor.read_u64::<LittleEndian>()?;
@@ -455,7 +479,7 @@ pub fn enumerate_patch(device: &Device, partition_id: u64, guard_id: u64) -> Res
     input.write_u64::<LittleEndian>(guard_id)?;
 
     let output: Vec<u8> = Vec::with_capacity(8 * 1000);
-    
+
     let mut cursor = device.call(control, Some(input), Some(output))?;
 
     let _patch_id = cursor.read_u64::<LittleEndian>()?;

@@ -1,7 +1,9 @@
 // Copyright © ByteHeed.  All rights reserved.
 #![allow(non_camel_case_types, non_snake_case, dead_code)]
 
-use super::winapi::shared::minwindef::{LPVOID, ULONG, LPHANDLE, USHORT};
+use super::winapi::shared::minwindef::{LPVOID, ULONG, USHORT, PULONG};
+use super::winapi::shared::ntdef::{BOOLEAN, HANDLE};
+
 use std::mem;
 
 type ULONG64 = u64;
@@ -35,7 +37,7 @@ pub enum FieldKey {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-pub enum MatchType { 
+pub enum MatchType {
     EQUAL,
     GREATER,
     LESS,
@@ -46,7 +48,7 @@ pub enum MatchType {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-pub enum ValueType { 
+pub enum ValueType {
     EMPTY,
     UINT8,
     UINT16,
@@ -95,3 +97,117 @@ STRUCT!{
 // }
 
 impl RawStruct<MG_GUARD_FILTER> for MG_GUARD_FILTER { }
+
+
+
+pub enum ObjectType {
+    OpenMessage,
+    CloseMessage,
+    DeleteMessage,
+    ParseMessage,
+    SecurityMessage,
+    QueryNameMessage,
+    OkayToCloseMessage
+}
+
+type ULONG_PTR = usize;
+type PVOID = LPVOID;
+type OB_OPEN_REASON = u32;
+type ACCESS_MASK = u32;
+type KPROCESSOR_MODE = u32;
+type SECURITY_OPERATION_CODE = u32;
+type POOL_TYPE = u32;
+type PGENERIC_MAPPING = PVOID;
+type PEPROCESS = PVOID;
+type PSECURITY_QUALITY_OF_SERVICE = PVOID;
+type POBJECT_NAME_INFORMATION = PVOID;
+type PACCESS_STATE = PVOID;
+type PUNICODE_STRING = PVOID;
+type PSECURITY_INFORMATION = PVOID;
+type PSECURITY_DESCRIPTOR = PVOID;
+
+STRUCT!{
+    struct OPEN_MESSAGE {
+        OpenReason: OB_OPEN_REASON,
+        Process: PEPROCESS,
+        Object: PVOID,
+        GrantedAccess: ACCESS_MASK,
+        HandleCount: ULONG,
+    }
+}
+impl RawStruct<OPEN_MESSAGE> for OPEN_MESSAGE { }
+
+STRUCT!{
+    struct CLOSE_MESSAGE {
+        Process: PEPROCESS,
+        Object: PVOID,
+        GrantedAccess: ACCESS_MASK,
+        ProcessHandleCount: ULONG_PTR,
+        SystemHandleCount: ULONG_PTR,
+    }
+}
+
+impl RawStruct<CLOSE_MESSAGE> for CLOSE_MESSAGE { }
+
+STRUCT!{
+    struct DELETE_MESSAGE {
+        Object: PVOID,
+    }
+}
+
+impl RawStruct<DELETE_MESSAGE> for DELETE_MESSAGE { }
+
+STRUCT!{
+    struct PARSE_MESSAGE {
+        ParseObject: PVOID,
+        ObjectType: PVOID,
+        AccessState: PACCESS_STATE,
+        AccessMode: KPROCESSOR_MODE,
+        Attributes: ULONG,
+        CompleteName: PUNICODE_STRING,
+        RemainingName: PUNICODE_STRING,
+        Context: PVOID,
+        SecurityQos: PSECURITY_QUALITY_OF_SERVICE,
+        Object: PVOID,
+    }
+}
+impl RawStruct<PARSE_MESSAGE> for PARSE_MESSAGE { }
+
+STRUCT!{
+    struct SECURITY_MESSAGE {
+        Object: PVOID,
+        OperationCode: SECURITY_OPERATION_CODE,
+        SecurityInformation: PSECURITY_INFORMATION,
+        SecurityDescriptor: PSECURITY_DESCRIPTOR,
+        CapturedLength: PULONG,
+        ObjectsSecurityDescriptor: PSECURITY_DESCRIPTOR,
+        PoolType: POOL_TYPE,
+        GenericMapping: PGENERIC_MAPPING,
+        PreviousMode: KPROCESSOR_MODE,
+    }
+}
+
+impl RawStruct<SECURITY_MESSAGE> for SECURITY_MESSAGE { }
+
+STRUCT!{
+    struct QUERYNAME_MESSAGE {
+        Object: PVOID,
+        HasObjectName: BOOLEAN,
+        ObjectNameInfo: POBJECT_NAME_INFORMATION,
+        Length: ULONG,
+        ReturnLength: PULONG,
+        PreviousMode: KPROCESSOR_MODE,
+    }
+}
+
+impl RawStruct<QUERYNAME_MESSAGE> for QUERYNAME_MESSAGE { }
+
+STRUCT!{
+    struct OKAYTOCLOSE_MESSAGE {
+        Process: PEPROCESS,
+        Object: PVOID,
+        Handle: HANDLE,
+        PreviousMode: KPROCESSOR_MODE,
+    }
+}
+impl RawStruct<OKAYTOCLOSE_MESSAGE> for OKAYTOCLOSE_MESSAGE { }

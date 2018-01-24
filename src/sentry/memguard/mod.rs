@@ -1,10 +1,15 @@
+extern crate winapi;
+
 use super::iochannel::{Device};
+
 mod bucket;
 mod sync;
+mod structs;
 
 use super::{io, memory, misc};
+use std::rc::{Rc, Weak};
 
-use std::{fmt, thread, time};
+use std::{fmt, thread};
 use std::thread::{JoinHandle};
 
 use std::sync::{Arc, RwLock, mpsc};
@@ -12,11 +17,11 @@ use std::collections::HashMap;
 
 pub use self::bucket::{Interception, Response};
 
-pub use super::structs::MatchType;
+pub use self::structs::MatchType;
 
 use super::failure::Error;
 
-use super::structs::{FieldKey,
+use self::structs::{FieldKey,
                     ValueType,
                     MG_GUARD_CONDITION,
                     MG_GUARD_FILTER,
@@ -74,20 +79,6 @@ impl Access {
     }
 }
 
-pub struct Partition {
-    pub id: u64,
-    pub device: Device,
-    workers: Vec<Handler>,
-    messenger: mpsc::Sender<String>,
-    callbacks: CallbackMap
-}
-
-impl fmt::Debug for Partition {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Partition(0x{:016x})", self.id)
-    }
-}
-
 pub type SyncCallback = Box<Fn(bucket::Interception) -> Response + Send + Sync>;
 pub type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 
@@ -97,10 +88,14 @@ pub enum Handler {
     Messenger(JoinHandle<()>)
 }
 
-impl Partition
- {
-    #[allow(unused_variables)]
-    fn default_callback(interception: bucket::Interception) -> Response {
+struct Tunnel {
+    workers: Vec<Handler>,
+    messenger: mpsc::Sender<String>,
+    callbacks: CallbackMap
+}
+
+impl Tunnel {
+    fn default_callback(_interception: bucket::Interception) -> Response {
         Response::new(Some(String::from("default-callback()")), Action::CONTINUE)
     }
 
@@ -110,10 +105,10 @@ impl Partition
     }
 
     fn create_workers(&self,
-                             tx: mpsc::Sender<String>,
-                             rx: mpsc::Receiver<String>,
-                             buckets: Vec<Vec<u8>>,
-                             callbacks: &CallbackMap) -> Vec<Handler> {
+                      tx: mpsc::Sender<String>,
+                      rx: mpsc::Receiver<String>,
+                      buckets: Vec<Vec<u8>>,
+                      callbacks: &CallbackMap) -> Vec<Handler> {
 
         let mut handlers = buckets.into_iter().map(|bucket|
         {
@@ -122,7 +117,7 @@ impl Partition
             Handler::Interceptor(
                 thread::spawn(move|| bucket::Bucket::handler(sender,
                                         bucket,
-                                        Box::new(Partition::default_callback),
+                                        Box::new(Tunnel::default_callback),
                                         callbacks)
                  )
             )
@@ -136,46 +131,34 @@ impl Partition
                     break;
                 }
                 println!("{}", message);
-
-                thread::sleep(
-                    time::Duration::from_millis(1)
-                );
             }
         })));
 
         handlers
     }
 
-    pub fn new() -> Result<Partition, Error> {
-        let device = Device::new(io::SE_NT_DEVICE_NAME)?;
-        let channel = io::create_partition(&device)?;
+    pub fn new(channel: &io::Channel) -> Result<Tunnel, Error> {
         let callbacks = Arc::new(RwLock::new(HashMap::new()));
 
         let (tx, rx) = mpsc::channel();
 
-        let mut partition = Partition {
-            id: channel.id,
+        let mut tunnel = Tunnel {
             callbacks: Arc::clone(&callbacks),
-            device: device,
             messenger: tx.clone(),
             workers: Vec::new()
         };
 
-        let workers = partition.create_workers(
+        let workers = tunnel.create_workers(
             tx,
             rx,
             bucket::Bucket::slice_buckets(channel.address, channel.size as usize),
             &callbacks
         );
 
-        partition.workers.extend(workers.into_iter());
+        tunnel.workers.extend(workers.into_iter());
 
-        Ok(partition)
+        Ok(tunnel)
 
-    }
-
-    pub fn root() -> Partition {
-        Partition::new().unwrap()
     }
 
     fn close_workers(&mut self) {
@@ -200,6 +183,85 @@ impl Partition
             handle.join().expect("wait error for messenger");
         }
     }
+
+}
+
+impl Drop for Tunnel {
+    fn drop(&mut self) {
+        self.close_workers();
+    }
+}
+
+pub struct ObjectFilter {
+    pub id: u64,
+    _tunnel: Tunnel,
+    pub device: Rc<Device>,
+}
+
+impl ObjectFilter {
+    pub fn new() -> Result<ObjectFilter, Error> {
+        let device = Rc::new(Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device"));
+        let channel = io::create_monitor(&device)?;
+        let tunnel = Tunnel::new(&channel)?;
+
+        Ok(
+            ObjectFilter {
+                id: channel.id,
+                device: Rc::clone(&device),
+                _tunnel: tunnel
+            }
+        )
+    }
+}
+
+
+impl Drop for ObjectFilter {
+    fn drop(&mut self) {
+        if let Err(err) = io::destroy_monitor(&self.device, self.id) {
+            println!("io::destroy_monitor() {}", err);
+        }
+    }
+}
+
+impl fmt::Debug for ObjectFilter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ObjectFilter(0x{:016x})", self.id)
+    }
+}
+
+pub struct Partition {
+    pub id: u64,
+    pub device: Rc<Device>,
+    tunnel: Tunnel,
+}
+
+impl Partition
+{
+    pub fn new() -> Result<Partition, Error> {
+        let device = Rc::new(Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device"));
+        let channel = io::create_partition(&device)?;
+        let tunnel = Tunnel::new(&channel)?;
+
+        Ok(
+            Partition {
+                id: channel.id,
+                device: Rc::clone(&device),
+                tunnel: tunnel
+            }
+        )
+    }
+
+    pub fn register_callback(&self, guard: &Guard, callback: SyncCallback) {
+        self.tunnel.register_callback(guard, callback)
+    }
+
+    pub fn device(&self) -> Weak<Device> {
+        Rc::downgrade(&self.device)
+    }
+
+    pub fn root() -> Partition {
+        Partition::new().unwrap()
+    }
 }
 
 impl Drop for Partition {
@@ -207,11 +269,14 @@ impl Drop for Partition {
         if let Err(err) = io::delete_partition(&self.device, self.id) {
             println!("io::delete_partition() {}", err);
         }
-
-        self.close_workers();
     }
 }
 
+impl fmt::Debug for Partition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Partition(0x{:016x})", self.id)
+    }
+}
 
 #[derive(Debug)]
 pub struct Range {

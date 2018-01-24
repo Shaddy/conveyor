@@ -3,8 +3,16 @@ extern crate winapi;
 
 use std::sync::mpsc;
 use super::sync::{Event};
+use super::structs::{ ObjectType,
+                      OPEN_MESSAGE,
+                      CLOSE_MESSAGE,
+                      DELETE_MESSAGE,
+                      PARSE_MESSAGE,
+                      SECURITY_MESSAGE,
+                      QUERYNAME_MESSAGE,
+                      OKAYTOCLOSE_MESSAGE };
 
-use std::{mem, fmt, thread};
+use std::{mem, fmt, thread, slice};
 
 use std::fmt::Debug;
 use super::{Action, Access, CallbackMap};
@@ -42,6 +50,7 @@ impl Syncronizers {
 enum MessageType {
     Unknown = 0x0000_0000_0000_0000,
     Intercept,
+    Monitor,
     Terminate,
     Error,
 }
@@ -91,6 +100,25 @@ pub struct FrameContext {
 }
 
 const MAX_INST_LENGHT: usize = 16;
+
+#[repr(C)]
+pub struct Monitor {
+    header: MessageHeader,
+    pub kind: ObjectType,
+}
+
+impl Monitor {
+    pub unsafe fn from_raw(ptr: *const u8) -> Monitor {
+        mem::transmute_copy(&*ptr)
+    }
+
+    unsafe fn get_message<T>(ptr: *const u8) -> String {
+        let m =  mem::transmute_copy::<T, *const T> (&*(ptr as *const T));
+        format!("{:?}", m)
+    }
+}
+
+
 
 #[repr(C)]
 pub struct Interception {
@@ -181,18 +209,26 @@ impl Bucket {
         }
     }
 
-    fn set_action(&self, mapping: &mut Vec<u8>, action: Action) {
+    fn set_action(&self, ptr: *const u8, action: Action) {
         unsafe {
             // let intercept: &mut Interception = &mut mapping.as_mut_ptr().offset(mem::size_of::<Syncronizers>() as isize) as *mut Interception;
-            let intercept: &mut Interception = mem::transmute::<*mut u8, &mut Interception>(mapping.as_mut_ptr()
+            let intercept: &mut Interception = mem::transmute::<*const u8, &mut Interception>(ptr
                                                 .offset(mem::size_of::<Syncronizers>() as isize));
             intercept.action = action;
         }
     }
 
-    pub fn handler(messenger: mpsc::Sender<String>, mut mapping: Vec<u8>, default: Box<Fn(Interception) -> Response>, callbacks: CallbackMap) {
+    pub fn handler(messenger: mpsc::Sender<String>, mapping: Vec<u8>, default: Box<Fn(Interception) -> Response>, callbacks: CallbackMap) {
         let sync = unsafe{ Syncronizers::from_raw(mapping.as_ptr()) } ;
         // println!("#{:?} - {:?}", thread::current().id(), sync);
+
+        // in order to prevent heapfree over false Vec reference
+        // we create a reference to a slice
+        let mapping = unsafe {
+            let (ptr, len) = (mapping.as_ptr(), mapping.len());
+            mem::forget(mapping);
+            slice::from_raw_parts(ptr, len)
+        };
 
         let id = thread::current().id();
 
@@ -203,7 +239,7 @@ impl Bucket {
 
             // println!("#{:?} - got bucket", thread::current().id());
 
-            let bucket = unsafe{ Bucket::from_raw(mapping.as_mut_ptr()
+            let bucket = unsafe{ Bucket::from_raw(mapping.as_ptr()
                                             // skip events
                                             .offset(mem::size_of::<Syncronizers>() as isize)) } ;
 
@@ -217,7 +253,7 @@ impl Bucket {
                 },
                 MessageType::Intercept => {
                     // println!("#{:?} - redirecting interception", thread::current().id());
-                    let interception = unsafe { Interception::from_raw(mapping.as_mut_ptr()
+                    let interception = unsafe { Interception::from_raw(mapping.as_ptr()
                                     .offset(mem::size_of::<Syncronizers>() as isize)) };
 
                     let map = callbacks.read().expect("Unable to unlock callbacks for reading");
@@ -227,10 +263,65 @@ impl Bucket {
                         None => default(interception)
                     };
 
-                    bucket.set_action(&mut mapping, response.action());
+                    bucket.set_action(mapping.as_ptr(), response.action());
 
                     response
                 },
+                MessageType::Monitor => {
+                    let monitor = unsafe { Monitor::from_raw(mapping.as_ptr()
+                                    .offset(mem::size_of::<Syncronizers>() as isize)) };
+
+                    let offset = mem::size_of::<Syncronizers>() as isize +
+                                 mem::size_of::<Monitor>() as isize;
+
+                    let message = match monitor.kind {
+                            ObjectType::OpenMessage => {
+                                unsafe {
+                                    Monitor::get_message::<OPEN_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            },
+                            ObjectType::CloseMessage => {
+                                unsafe {
+                                    Monitor::get_message::<CLOSE_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            },
+                            ObjectType::DeleteMessage => {
+                                unsafe {
+                                    Monitor::get_message::<DELETE_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            },
+                            ObjectType::ParseMessage => {
+                                unsafe {
+                                    Monitor::get_message::<PARSE_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            },
+                            ObjectType::SecurityMessage => {
+                                unsafe {
+                                    Monitor::get_message::<SECURITY_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            },
+                            ObjectType::QueryNameMessage => {
+                                unsafe {
+                                    Monitor::get_message::<QUERYNAME_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            },
+                            ObjectType::OkayToCloseMessage => {
+                                unsafe {
+                                    Monitor::get_message::<OKAYTOCLOSE_MESSAGE>
+                                            (mapping.as_ptr().offset(offset))
+                                }
+                            }
+                    };
+
+                    Response::new(Some(message), Action::CONTINUE)
+
+                }
                 _ => { Response::empty() }
             };
 
@@ -245,16 +336,10 @@ impl Bucket {
                 let message = format!("{:?}: {:?}", id, response.message());
 
                 if let Err(err) = messenger.send(message) {
-                    mem::forget(mapping);
                     panic!("error sending to messenger: {}", err.to_string());
                 }
             }
         }
-
-        // println!("#{:?} forgetting memory", thread::current().id());
-        // just a (leak) hack to avoid unstable free
-        mem::forget(mapping);
-        // println!("#{:?} exiting", thread::current().id());
     }
 
     pub unsafe fn from_raw(ptr: *const u8) -> Bucket {
