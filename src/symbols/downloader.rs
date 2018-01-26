@@ -6,6 +6,7 @@ use std::io::{Read, Write};
 use std::ffi::CStr;
 use super::error::PdbError;
 use failure::Error;
+use super::indicatif::ProgressBar;
 
 pub struct PdbDownloader {
     filename: String
@@ -34,21 +35,30 @@ impl PdbDownloader {
 
     pub fn download(&self) -> Result<(), Error> {
 
+        let progress = ProgressBar::new_spinner();
+        progress.set_message(&"Downloading data..");
         let mut response = self.download_pdb()?;
 
+        progress.set_message(&"Downloading data....");
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
+        progress.set_message(&"Building data..");
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
+        progress.set_message(&"Building data...");
         pdb_filename.push_str(".pdb");
 
+        progress.set_message(&"Building data....");
         let path = Path::new(&pdb_filename);
 
+        progress.set_message(&"Writing data..");
         let mut fd = File::create(path)?;
 
+        progress.set_message(&"Writing data...");
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
+        progress.set_message(&"Writing data.....");
         fd.write_all(&buf)?;
 
         Ok(())
@@ -89,7 +99,7 @@ mod tests {
     #[test]
     fn test_nt_pdb_is_correct() {
         let pdb = PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string());
-        assert_eq!(pdb.url(), 
+        assert_eq!(pdb.url(),
        "https://msdl.microsoft.com/download/symbols/ntkrnlmp.pdb/31C51B7D1C2545A88F69E13FC73E68941/ntkrnlmp.pdb")
     }
 
