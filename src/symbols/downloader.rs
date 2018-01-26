@@ -42,25 +42,26 @@ impl PdbDownloader {
         progress.set_message(&"Downloading data....");
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
-        progress.set_message(&"Building data..");
+        progress.set_message(&"Downloading data......");
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
-        progress.set_message(&"Building data...");
+        progress.set_message(&"Downloading data........");
         pdb_filename.push_str(".pdb");
 
-        progress.set_message(&"Building data....");
+        progress.set_message(&"Downloading data..........");
         let path = Path::new(&pdb_filename);
 
-        progress.set_message(&"Writing data..");
+        progress.set_message(&"Downloading data............");
         let mut fd = File::create(path)?;
 
-        progress.set_message(&"Writing data...");
+        progress.set_message(&"Downloading data..............");
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
-        progress.set_message(&"Writing data.....");
+        progress.set_message(&"Download complete !");
         fd.write_all(&buf)?;
 
+        println!("");
         Ok(())
 
     }
@@ -99,7 +100,7 @@ mod tests {
     #[test]
     fn test_nt_pdb_is_correct() {
         let pdb = PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string());
-        assert_eq!(pdb.url(),
+        assert_eq!(pdb.generate_url(),
        "https://msdl.microsoft.com/download/symbols/ntkrnlmp.pdb/31C51B7D1C2545A88F69E13FC73E68941/ntkrnlmp.pdb")
     }
 
