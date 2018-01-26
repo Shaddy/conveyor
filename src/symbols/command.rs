@@ -76,12 +76,9 @@ fn parse_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 fn download_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
 
-    debug!(logger, "downloading PDB for {}", target);
-
     let pdb = PdbDownloader::new(target.to_string());
 
     pdb.download().expect("Unable to download PDB");
 
-    debug!(logger, "download success");
     Ok(())
 }

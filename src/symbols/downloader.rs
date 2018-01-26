@@ -58,7 +58,7 @@ impl PdbDownloader {
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
-        progress.set_message(&"Download complete !");
+        println!("Download complete !");
         fd.write_all(&buf)?;
 
         println!("");
