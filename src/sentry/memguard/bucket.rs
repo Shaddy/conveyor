@@ -112,8 +112,8 @@ impl Monitor {
         mem::transmute_copy(&*ptr)
     }
 
-    unsafe fn get_message<T>(ptr: *const u8) -> String {
-        let m =  mem::transmute_copy::<T, *const T> (&*(ptr as *const T));
+    unsafe fn get_message<T: Debug>(ptr: *const u8) -> String {
+        let m =  mem::transmute_copy::<T, T> (&*(ptr as *const T));
         format!("{:?}", m)
     }
 }

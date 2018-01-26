@@ -127,6 +127,7 @@ type PSECURITY_INFORMATION = PVOID;
 type PSECURITY_DESCRIPTOR = PVOID;
 
 STRUCT!{
+    #[derive(Debug)]
     struct OPEN_MESSAGE {
         OpenReason: OB_OPEN_REASON,
         Process: PEPROCESS,
@@ -138,6 +139,7 @@ STRUCT!{
 impl RawStruct<OPEN_MESSAGE> for OPEN_MESSAGE { }
 
 STRUCT!{
+    #[derive(Debug)]
     struct CLOSE_MESSAGE {
         Process: PEPROCESS,
         Object: PVOID,
@@ -150,6 +152,7 @@ STRUCT!{
 impl RawStruct<CLOSE_MESSAGE> for CLOSE_MESSAGE { }
 
 STRUCT!{
+    #[derive(Debug)]
     struct DELETE_MESSAGE {
         Object: PVOID,
     }
@@ -158,6 +161,7 @@ STRUCT!{
 impl RawStruct<DELETE_MESSAGE> for DELETE_MESSAGE { }
 
 STRUCT!{
+    #[derive(Debug)]
     struct PARSE_MESSAGE {
         ParseObject: PVOID,
         ObjectType: PVOID,
@@ -174,6 +178,7 @@ STRUCT!{
 impl RawStruct<PARSE_MESSAGE> for PARSE_MESSAGE { }
 
 STRUCT!{
+    #[derive(Debug)]
     struct SECURITY_MESSAGE {
         Object: PVOID,
         OperationCode: SECURITY_OPERATION_CODE,
@@ -190,6 +195,7 @@ STRUCT!{
 impl RawStruct<SECURITY_MESSAGE> for SECURITY_MESSAGE { }
 
 STRUCT!{
+    #[derive(Debug)]
     struct QUERYNAME_MESSAGE {
         Object: PVOID,
         HasObjectName: BOOLEAN,
@@ -203,6 +209,7 @@ STRUCT!{
 impl RawStruct<QUERYNAME_MESSAGE> for QUERYNAME_MESSAGE { }
 
 STRUCT!{
+    #[derive(Debug)]
     struct OKAYTOCLOSE_MESSAGE {
         Process: PEPROCESS,
         Object: PVOID,
