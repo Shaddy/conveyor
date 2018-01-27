@@ -7,6 +7,8 @@ use std::io::Write;
 use std::collections::BTreeSet;
 use std::io;
 use std::fs;
+use std::sync::mpsc::{Sender, channel};
+use super::cli::output::{MessageType, ShellMessage};
 
 pub use super::pdb::Error;
 
@@ -502,7 +504,7 @@ impl<'p> Data<'p> {
     }
 }
 
-fn write_class(filename: &str, class_name: &str) -> pdb::Result<()> {
+fn write_class(filename: &str, class_name: &str, tx: &Sender<ShellMessage>) -> pdb::Result<()> {
     let file = fs::File::open(filename)?;
     let mut pdb = pdb::PDB::open(file)?;
 
@@ -545,8 +547,10 @@ fn write_class(filename: &str, class_name: &str) -> pdb::Result<()> {
     }
 
     if data.classes.len() == 0 {
-        writeln!(&mut io::stderr(), "sorry, class {} was not found", class_name)
-            .expect("stderr write");
+        ShellMessage::send(&tx, format!("Sorry, class {} was not found", class_name),MessageType::close,2);
+
+        // writeln!(&mut io::stderr(), "sorry, class {} was not found", class_name)
+        //     .expect("stderr write");
     } else {
         println!("{}", data);
     }
@@ -667,12 +671,13 @@ fn find_struct_offset(filename: &str, struct_name: &str, field_name: &str) -> pd
     Err(pdb::Error::StreamNotFound(0))
 }
 
-pub fn pdb_to_c_struct(filename: &str, name: &str) {
-    match write_class(filename, name) {
+pub fn pdb_to_c_struct(filename: &str, name: &str, tx: &Sender<ShellMessage>) {
+    match write_class(filename, name, &tx) {
         Ok(_) => {}
         Err(e) => {
-            writeln!(&mut io::stderr(), "error dumping PDB: {}", e)
-                .expect("stderr write");
+            ShellMessage::send(&tx, format!("error dumping pdb {}", e),MessageType::spinner,2);
+            // writeln!(&mut io::stderr(), "error dumping PDB: {}", e)
+            //     .expect("stderr write");
         }
     }
 }

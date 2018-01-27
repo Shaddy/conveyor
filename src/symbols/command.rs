@@ -50,28 +50,30 @@ pub fn bind() -> App<'static, 'static> {
 pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
         ("download", Some(matches))  => download_pdb(matches, logger, &tx),
-        ("parse", Some(matches))     => parse_pdb(matches, logger),
-        ("offset", Some(matches))    => find_offset(matches, logger),
+        ("parse", Some(matches))     => parse_pdb(matches, &tx),
+        ("offset", Some(matches))    => find_offset(matches, &tx),
         ("analyze", Some(_))         => _not_implemented_command(logger),
         _                            => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn find_offset(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+fn find_offset(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
 
-    debug!(logger, "parsing {} to find {} offset", target, name);
+    ShellMessage::send(&tx, format!("parsing {} to find {} offset", target, name), MessageType::spinner, 0);
+    // debug!(logger, "parsing {} to find {} offset", target, name);
     let _ = parser::find_offset(target, name);
     Ok(())
 }
 
-fn parse_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+fn parse_pdb(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
+    ShellMessage::send(&tx, format!("parsing {} searching {}", target, name),MessageType::spinner,0);
 
-    debug!(logger, "parsing {} searching {}", target, name);
-    parser::pdb_to_c_struct(target, name);
+    // debug!(logger, "parsing {} searching {}", target, name);
+    parser::pdb_to_c_struct(target, name, &tx);
     Ok(())
 }
 

@@ -92,10 +92,18 @@ ___________________________________________________________________________\n\n"
         );
 
         multi_progress.join();
-        printer_thread.join().expect("Something fails...");
+        printer_thread.join();
         process::exit(1);
     } else {
+        ShellMessage::send(
+            &tx,
+            "".to_owned(),
+            MessageType::exit,
+            0,
+        );
+
         multi_progress.join();
         printer_thread.join().expect("Something fails.");
+        // process::exit(0);
     }
 }
