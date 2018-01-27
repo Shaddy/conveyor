@@ -51,7 +51,7 @@ pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -
     match matches.subcommand() {
         ("memguard",          Some(matches))  => super::memguard::tests(matches, logger, &tx),
         ("sentry",            Some(matches))  => super::kernel::tests(matches, logger),
-        ("process",           Some(matches))  => super::process::tests(matches, logger),
+        ("process",           Some(matches))  => super::process::tests(matches, logger, &tx),
         ("memory",            Some(matches))  => super::mem::tests(matches, logger),
         ("patches",           Some(matches))  => super::patches::tests(matches, logger),
         ("token",             Some(matches))  => super::token::tests(matches, logger),
