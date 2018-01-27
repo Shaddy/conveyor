@@ -61,7 +61,7 @@ fn find_offset(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Er
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
 
-    ShellMessage::send(&tx, format!("parsing {} to find {} offset", target, name), MessageType::spinner, 0);
+    ShellMessage::send(&tx, format!("parsing {} to find {} offset", target, name), MessageType::close, 0);
     // debug!(logger, "parsing {} to find {} offset", target, name);
     let _ = parser::find_offset(target, name);
     Ok(())
@@ -70,7 +70,7 @@ fn find_offset(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Er
 fn parse_pdb(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
-    ShellMessage::send(&tx, format!("parsing {} searching {}", target, name),MessageType::spinner,0);
+    ShellMessage::send(&tx, format!("parsing {} searching {}", target, name),MessageType::close,0);
 
     // debug!(logger, "parsing {} searching {}", target, name);
     parser::pdb_to_c_struct(target, name, &tx);
