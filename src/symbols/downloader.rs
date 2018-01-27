@@ -59,9 +59,9 @@ impl PdbDownloader {
         response.copy_to(&mut buf)?;
 
         fd.write_all(&buf)?;
-        ShellMessage::send(&tx, format!("Download complete {}", &self.filename), MessageType::exit, 0);
+        ShellMessage::send(&tx, format!("File saved on: {}", &pdb_filename), MessageType::exit, 0);
 
-        println!("");
+        println!("Download complete!\n");
         Ok(())
 
     }
