@@ -1,20 +1,22 @@
 // Copyright © ByteHeed.  All rights reserved.
-use conveyor::{service, iochannel, sentry, tests, symbols};
+use conveyor::{iochannel, sentry, service, symbols, tests};
 
-extern crate failure;
-extern crate conveyor;
 extern crate clap;
-extern crate termcolor;
+extern crate conveyor;
+extern crate failure;
 #[macro_use]
 extern crate slog;
 extern crate slog_term;
+extern crate termcolor;
 
 use failure::Error;
-use slog::{Logger, Drain};
+use slog::{Drain, Logger};
 // mod service;
 
 use std::process;
 use clap::{App, Arg, ArgMatches};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use conveyor::cli::output::{thread_printer, MessageType, ShellMessage};
 
 fn get_logger(matches: &ArgMatches) -> Logger {
     let _level = match matches.occurrences_of("verbose") {
@@ -25,28 +27,25 @@ fn get_logger(matches: &ArgMatches) -> Logger {
 
     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
 
-    Logger::root(
-        slog_term::FullFormat::new(plain)
-        .build().fuse(), o!()
-    )
+    Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!())
 }
 
-fn run(app: &ArgMatches) -> Result<(), Error> {
+fn run(app: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let logger = get_logger(app);
 
     match app.subcommand() {
-        ("device",   Some(matches)) => iochannel::command::parse(matches, &logger),
-        ("pdb",      Some(matches)) => symbols::command::parse(matches, &logger),
+        ("device", Some(matches)) => iochannel::command::parse(matches, &logger),
+        ("pdb", Some(matches)) => symbols::command::parse(matches, &logger, &tx),
         ("services", Some(matches)) => service::command::parse(matches, &logger),
-        ("tests",    Some(matches)) => tests::command::parse(matches, &logger),
-        ("sentry",   Some(matches)) => sentry::command::parse(matches, &logger),
-        _                           => Ok(println!("{}", app.usage()))
+        ("tests", Some(matches)) => tests::command::parse(matches, &logger),
+        ("sentry", Some(matches)) => sentry::command::parse(matches, &logger),
+        _ => Ok(println!("{}", app.usage())),
     }
 }
 
 fn main() {
-
-    print!("\n      .;:
+    print!(
+        "\n      .;:
      ::::
      ; ;:
        ;:
@@ -63,9 +62,8 @@ fn main() {
 
 Sherab G. <sherab.giovannini@byteheed.com>
 A gate between humans and dragons.
-___________________________________________________________________________\n\n");
-
-
+___________________________________________________________________________\n\n"
+    );
 
     // print!("{:?}", &head_message);
 
@@ -81,8 +79,23 @@ ___________________________________________________________________________\n\n"
         .subcommand(conveyor::symbols::command::bind())
         .get_matches();
 
-    if let Err(e) = run(&matches) {
-        println!("Application error: {}", e);
+    let (tx, rx) = channel();
+    let (printer_thread, multi_progress) = thread_printer(rx);
+
+    if let Err(e) = run(&matches, &tx) {
+        // println!("Application error: {}", e);
+        ShellMessage::send(
+            &tx,
+            format!("Application Error: {}", e),
+            MessageType::exit,
+            0,
+        );
+
+        multi_progress.join();
+        printer_thread.join().expect("Something fails...");
         process::exit(1);
+    } else {
+        multi_progress.join();
+        printer_thread.join().expect("Something fails.");
     }
 }
