@@ -3,36 +3,38 @@ use super::clap::{App, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::process;
 
+use std::sync::mpsc::Sender;
+use super::cli::output::{ShellMessage, MessageType};
 
 fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
     unimplemented!()
 }
 
-pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let mut services: Vec<&str> = "lynxv memguard sentry".split(' ').collect();
 
-    let action: &Fn(&str, &Logger) = match matches.subcommand_name() {
+    let action: &Fn(&str, &Sender<ShellMessage>) = match matches.subcommand_name() {
         Some("install") => { &super::functions::install },
         Some("remove")  => { &super::functions::remove },
         Some("update")  => { &super::functions::update },
         Some("start")   => { &super::functions::start },
-        Some("run")     => { 
+        Some("run")     => {
             services.iter().rev().for_each(|service| {
-                super::functions::reinstall(service, logger);
+                super::functions::reinstall(service, &tx);
             });
 
             services.iter().for_each(|service| {
-                super::functions::update(service, logger);
-                super::functions::start(service, logger);
+                super::functions::update(service, &tx);
+                super::functions::start(service, &tx);
             });
 
             return Ok(());
 
         },
-        Some("stop")    => { 
+        Some("stop")    => {
             // if an action is a stop, just reverse the order to proper unload services
             services = services.into_iter().rev().collect();
-            &super::functions::stop 
+            &super::functions::stop
         },
         Some("query")   => { &super::functions::query },
         _               => {
@@ -43,9 +45,9 @@ pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     };
 
     services.iter().for_each(|service| {
-        action(service, logger);
+        action(service, &tx);
     });
-    
+
     Ok(())
 }
 

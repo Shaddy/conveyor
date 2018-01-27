@@ -5,7 +5,7 @@ extern crate slog;
 extern crate winapi;
 extern crate failure;
 
-
+use super::cli;
 use super::ffi;
 use std::process;
 

@@ -36,7 +36,7 @@ fn run(app: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     match app.subcommand() {
         ("device", Some(matches)) => iochannel::command::parse(matches, &logger, &tx),
         ("pdb", Some(matches)) => symbols::command::parse(matches, &logger, &tx),
-        ("services", Some(matches)) => service::command::parse(matches, &logger),
+        ("services", Some(matches)) => service::command::parse(matches, &logger, &tx),
         ("tests", Some(matches)) => tests::command::parse(matches, &logger),
         ("sentry", Some(matches)) => sentry::command::parse(matches, &logger),
         _ => Ok(println!("{}", app.usage())),

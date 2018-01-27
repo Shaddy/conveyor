@@ -93,7 +93,7 @@ impl WindowsService {
 
     pub fn remove(&mut self) -> &Self {
         self.delete().expect("Can't remove service");
-        println!("Service {:?} has been successfully removed", self.name);
+        // println!("Service {:?} has been successfully removed", self.name);
 
         self
     }
@@ -120,9 +120,10 @@ impl WindowsService {
                 }
                 _ => println!("Failed to install {:?}: unknown error {:?}", self.name, err),
             }
-        } else {
-            println!("Service {:?} has been successfully installed", self.name);
         }
+        // else {
+        //     println!("Service {:?} has been successfully installed", self.name);
+        // }
 
         self.retries = Duration::from_secs(60);
 
@@ -132,16 +133,16 @@ impl WindowsService {
     pub fn name(&self) -> String {
         self.name.clone()
     }
-    
+
     pub fn stop(&self) -> &Self {
         let service = self.open().expect("Unable to open service");
 
         let mut status: winsvc::SERVICE_STATUS = unsafe {zeroed()};
 
         let success = unsafe {
-            winsvc::ControlService( 
-            service, 
-            winsvc::SERVICE_CONTROL_STOP, 
+            winsvc::ControlService(
+            service,
+            winsvc::SERVICE_CONTROL_STOP,
             &mut status) == 0
         };
 
