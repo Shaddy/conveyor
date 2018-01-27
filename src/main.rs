@@ -34,7 +34,7 @@ fn run(app: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let logger = get_logger(app);
 
     match app.subcommand() {
-        ("device", Some(matches)) => iochannel::command::parse(matches, &logger),
+        ("device", Some(matches)) => iochannel::command::parse(matches, &logger, &tx),
         ("pdb", Some(matches)) => symbols::command::parse(matches, &logger, &tx),
         ("services", Some(matches)) => service::command::parse(matches, &logger),
         ("tests", Some(matches)) => tests::command::parse(matches, &logger),

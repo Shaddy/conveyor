@@ -24,6 +24,8 @@ use self::winapi::shared::minwindef::LPVOID;
 use self::winapi::um::minwinbase::{OVERLAPPED};
 use self::winapi::um::winnt;
 
+use super::cli;
+
 use ffi::traits::EncodeUtf16;
 
 #[derive(Clone)]
@@ -138,7 +140,7 @@ impl Device {
                 &mut overlapped) != 0
         };
 
-        if !success { return Err(DeviceError::IoCall(control, 
+        if !success { return Err(DeviceError::IoCall(control,
                                                      Error::last_os_error().to_string(),
                                                      Error::last_os_error()))};
 
@@ -157,7 +159,7 @@ impl Device {
             Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.len() as u32, buffer),
             None => (null_mut(), 0u32, vec![])
         };
-                
+
         // I don't like this at all, but this is what I've went on so far.
         let (output_ptr, output_size, mut output) = match output {
             Some(mut buffer) => (buffer.as_mut_ptr() as LPVOID, buffer.capacity() as u32, buffer),
@@ -177,10 +179,10 @@ impl Device {
         };
 
 
-        if !success { return Err(DeviceError::IoCall(control, 
+        if !success { return Err(DeviceError::IoCall(control,
                                                      Error::last_os_error().to_string(),
                                                      Error::last_os_error()))};
-        
+
         unsafe { output.set_len(bytes as usize) };
         output.shrink_to_fit();
 
