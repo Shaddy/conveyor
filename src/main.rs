@@ -80,7 +80,7 @@ ___________________________________________________________________________\n\n"
         .get_matches();
 
     let (tx, rx) = channel();
-    let (printer_thread, multi_progress) = thread_printer(rx);
+    let (printer_thread, multi_progress) = thread_printer(rx, 20);
 
     if let Err(e) = run(&matches, &tx) {
         // println!("Application error: {}", e);

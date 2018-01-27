@@ -44,7 +44,7 @@ pub fn start(name: &str, tx: &Sender<ShellMessage>) {
 }
 
 pub fn install(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("installing {:?}", name), MessageType::close, 0);
+    ShellMessage::send(&tx, format!("installing {:?}", name), MessageType::spinner, 0);
     WindowsService::new(name, &full_driver_path(name)).install();
     ShellMessage::send(
         &tx,
