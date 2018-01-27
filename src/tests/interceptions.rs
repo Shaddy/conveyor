@@ -36,7 +36,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("ssdt"))
 }
 
-pub fn tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches,  tx: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
         ("kernel",               Some(matches))  => test_intercept_kernel_region(matches, &tx),
         ("stealth",              Some(matches))  => test_stealth_interception(matches, &tx),

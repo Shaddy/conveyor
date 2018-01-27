@@ -55,13 +55,13 @@ pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -
         ("memory",            Some(matches))  => super::mem::tests(matches, logger),
         ("patches",           Some(matches))  => super::patches::tests(matches, logger),
         ("token",             Some(matches))  => super::token::tests(matches, logger),
-        ("errors",            Some(matches))  => super::errors::tests(matches, logger),
+        ("errors",            Some(matches))  => super::errors::tests(matches, &tx),
         ("device",            Some(matches))  => device_tests(matches, &tx),
         ("monitor",           Some(matches))  => monitor_tests(matches, &tx),
         ("bars",              Some(matches))  => bar_tests(matches, &tx),
         ("search-pattern",    Some(matches))  => test_search_pattern(matches, &tx),
         ("misc",              Some(matches))  => super::miscellaneous::tests(matches, logger),
-        ("interceptions",     Some(matches))  => super::interceptions::tests(matches, logger, &tx),
+        ("interceptions",     Some(matches))  => super::interceptions::tests(matches,  &tx),
         _                                     => Ok(println!("{}", matches.usage()))
     }
 }
