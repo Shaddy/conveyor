@@ -13,6 +13,9 @@ use super::sentry::{io, search};
 use super::iochannel::{Device};
 use super::sentry::memguard::{ Partition, ObjectFilter };
 
+use std::sync::mpsc::Sender;
+use super::cli::output::{ShellMessage, MessageType};
+
 
 /////////////////////////////////////////////////////////////////////////
 //
@@ -44,9 +47,9 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(super::memguard::bind())
 }
 
-pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("memguard",          Some(matches))  => super::memguard::tests(matches, logger),
+        ("memguard",          Some(matches))  => super::memguard::tests(matches, logger, &tx),
         ("sentry",            Some(matches))  => super::kernel::tests(matches, logger),
         ("process",           Some(matches))  => super::process::tests(matches, logger),
         ("memory",            Some(matches))  => super::mem::tests(matches, logger),
