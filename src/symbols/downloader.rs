@@ -7,6 +7,8 @@ use std::ffi::CStr;
 use super::error::PdbError;
 use failure::Error;
 use super::indicatif::ProgressBar;
+use std::sync::mpsc::Sender;
+use super::cli::output::{MessageType, ShellMessage};
 
 pub struct PdbDownloader {
     filename: String
@@ -33,33 +35,31 @@ impl PdbDownloader {
         Ok(resp)
     }
 
-    pub fn download(&self) -> Result<(), Error> {
+    pub fn download(&self, tx: &Sender<ShellMessage>) -> Result<(), Error> {
 
-        let progress = ProgressBar::new_spinner();
-        progress.set_message(&"Downloading data..");
+        ShellMessage::send(&tx, "Getting symbols...".to_string(), MessageType::spinner, 0);
         let mut response = self.download_pdb()?;
 
-        progress.set_message(&"Downloading data....");
+        // ShellMessage::send(&tx, "Opening path...".to_string(), MessageType::spinner, 0);
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
-        progress.set_message(&"Downloading data......");
+        // ShellMessage::send(&tx, "Downloading data....".to_string(), MessageType::spinner, 0);
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
-        progress.set_message(&"Downloading data........");
         pdb_filename.push_str(".pdb");
+        ShellMessage::send(&tx, format!("Opening file {}",pdb_filename), MessageType::spinner, 0);
 
-        progress.set_message(&"Downloading data..........");
+        ShellMessage::send(&tx, "Writing file...".to_string(), MessageType::spinner, 0);
         let path = Path::new(&pdb_filename);
 
-        progress.set_message(&"Downloading data............");
         let mut fd = File::create(path)?;
 
-        progress.set_message(&"Downloading data..............");
+        ShellMessage::send(&tx, "Closing handles...".to_string(), MessageType::spinner, 0);
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
-        println!("Download complete !");
         fd.write_all(&buf)?;
+        ShellMessage::send(&tx, format!("Download complete {}", &self.filename), MessageType::exit, 0);
 
         println!("");
         Ok(())

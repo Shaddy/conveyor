@@ -3,6 +3,8 @@ use super::clap::{App, Arg, ArgMatches, SubCommand};
 use super::slog::Logger;
 use super::failure::Error;
 use super::downloader::PdbDownloader;
+use std::sync::mpsc::{Sender, channel};
+use super::cli::output::{MessageType, ShellMessage};
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
     unimplemented!()
@@ -45,9 +47,9 @@ pub fn bind() -> App<'static, 'static> {
         .subcommand(SubCommand::with_name("dump").about("dumps pdb information into console"))
 }
 
-pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("download", Some(matches))  => download_pdb(matches, logger),
+        ("download", Some(matches))  => download_pdb(matches, logger, &tx),
         ("parse", Some(matches))     => parse_pdb(matches, logger),
         ("offset", Some(matches))    => find_offset(matches, logger),
         ("analyze", Some(_))         => _not_implemented_command(logger),
@@ -73,12 +75,12 @@ fn parse_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     Ok(())
 }
 
-fn download_pdb(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+fn download_pdb(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
 
     let pdb = PdbDownloader::new(target.to_string());
 
-    pdb.download().expect("Unable to download PDB");
+    pdb.download(&tx).expect("Unable to download PDB");
 
     Ok(())
 }
