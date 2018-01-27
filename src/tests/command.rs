@@ -54,7 +54,7 @@ pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -
         ("process",           Some(matches))  => super::process::tests(matches, logger, &tx),
         ("memory",            Some(matches))  => super::mem::tests(matches, logger),
         ("patches",           Some(matches))  => super::patches::tests(matches, logger),
-        ("token",             Some(matches))  => super::token::tests(matches, logger),
+        ("token",             Some(matches))  => super::token::tests(matches,  &tx),
         ("errors",            Some(matches))  => super::errors::tests(matches, &tx),
         ("device",            Some(matches))  => device_tests(matches, &tx),
         ("monitor",           Some(matches))  => monitor_tests(matches, &tx),
