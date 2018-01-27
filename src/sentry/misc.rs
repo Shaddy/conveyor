@@ -14,19 +14,21 @@ use super::failure::Error;
 
 use std::io::Error as BaseError;
 
-use super::winapi::shared::minwindef::{ LPVOID, 
+use super::winapi::shared::minwindef::{ LPVOID,
                                         HMODULE };
 use super::iochannel::{Device, IoCtl};
 use super::io::{IOCTL_SENTRY_TYPE};
 
 use super::symbols::parser::Error as PdbError;
-
+use std::sync::mpsc::channel;
 use super::structs::{RTL_PROCESS_MODULE_INFORMATION, SE_GET_EXPORT_ADDRESS, RawStruct};
 
 pub fn get_offset(target: &str) -> Result<u16, Error> {
     match symbols::parser::find_offset("ntoskrnl.pdb", target) {
         Err(PdbError::IoError(_)) => {
-            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download()?;
+            // TODO:REVIEW: Temporlal addition of channel to support printed
+            let (tx, rx) = channel();
+            symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download(&tx)?;
 
             Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)
         },
@@ -195,7 +197,7 @@ impl WalkProcess {
         let head = Process::system().expect("can't get system process");
         WalkProcess {
             head: head.clone(),
-            curr: head.forward() 
+            curr: head.forward()
         }
     }
 }
@@ -261,12 +263,12 @@ impl Drivers {
         let mut buffer: Vec<u8> = vec![0; size];
 
         // fill module information
-        let _ = query_system_information(SystemInformationClass::SystemModuleInformationEx, 
+        let _ = query_system_information(SystemInformationClass::SystemModuleInformationEx,
                                 buffer.as_mut_ptr(),
                                 buffer.len());
 
-        let (count, modules) = unsafe { 
-            
+        let (count, modules) = unsafe {
+
             let count = *{ buffer.as_ptr() as *const u32 } as usize;
             let modules = slice::from_raw_parts(buffer.as_ptr().offset(8) as *const RTL_PROCESS_MODULE_INFORMATION, count);
 
@@ -283,7 +285,7 @@ impl Drivers {
 
 impl Iterator for Drivers {
     type Item = Driver;
-    
+
     fn next(&mut self) -> Option<Driver> {
 
         if self.curr >= self.limit {
@@ -342,7 +344,7 @@ pub fn load_library(name: &str) -> Result<u64, MiscError> {
         } else {
             Err(MiscError::LoadLibrary(BaseError::last_os_error().to_string()))
         }
-    } 
+    }
 }
 
 pub fn kernel_export_address(device: &Device, base: u64, name: &str) -> Result<u64, Error> {
