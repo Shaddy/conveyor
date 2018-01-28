@@ -187,6 +187,7 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
                 MessageType::Spinner => {
                     // let sp = &container[0];
                     container[message_id].set_message(&message.content);
+                    thread::sleep(time::Duration::from_millis(400));
                 }
             }
             // thread::sleep(time::Duration::from_secs(2))
