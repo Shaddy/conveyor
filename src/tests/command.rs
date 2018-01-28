@@ -135,27 +135,29 @@ fn monitor_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
     let term = Term::stdout();
 
     // println!("[*] creating {}.", style("ObjectMonitor").cyan());
-        ShellMessage::send(messenger, format!("[*] creating {}.", style("ObjectMonitor").cyan()), MessageType::Spinner,0);
+    ShellMessage::send(messenger, format!("[*] creating {}.", style("ObjectMonitor").cyan()), MessageType::Spinner,0);
 
-    let bar = ProgressBar::new(30);
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,30);
+    // let bar = ProgressBar::new(30);
 
     for _ in 0..30 {
         thread::sleep(Duration::from_millis(50));
-        bar.inc(1);
+        bar.inc(messenger, 1);
     }
-    bar.finish();
+    bar.complete(messenger);
     // println!("[?] are you {}?", style("ready").red());
-        ShellMessage::send(messenger, format!("[?] are you {}?", style("ready").red()), MessageType::Spinner,0);
-    let bar = ProgressBar::new(5);
-    bar.set_style(ProgressStyle::default_bar()
-        .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-        .progress_chars("##-"));
+    ShellMessage::send(messenger, format!("[?] are you {}?", style("ready").red()), MessageType::Spinner,0);
 
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,5);
+    // bar.set_style(ProgressStyle::default_bar()
+    //     .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+    //     .progress_chars("##-"));
+    //
     for _ in 0..5 {
         thread::sleep(Duration::from_secs(1));
-        bar.inc(1);
+        bar.inc(messenger, 1);
     }
-    bar.finish();
+    bar.complete(messenger);
 
     (0..5).for_each(|n| {
         let mut msg = String::new();
@@ -170,13 +172,14 @@ fn monitor_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
         ShellMessage::send(messenger, format!("[!] {}", style(&msg).red()), MessageType::Spinner,0);
     });
 
-    let bar = ProgressBar::new(5);
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,5);
+    // let bar = ProgressBar::new(5);
 
     for _ in 0..5 {
         thread::sleep(Duration::from_secs(1));
-        bar.inc(1);
+        bar.inc(messenger,1);
     }
-    bar.finish();
+    bar.complete(messenger);
     let filter = ObjectFilter::new()
                 .expect("can't create object filter");
 
@@ -185,17 +188,18 @@ fn monitor_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
     filter.start().expect("unable to start filter");
 
 
-    let bar = ProgressBar::new(30);
-    bar.set_style(ProgressStyle::default_bar()
-        .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-        .progress_chars("##-"));
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,30);
+    // let bar = ProgressBar::new(30);
+    // bar.set_style(ProgressStyle::default_bar()
+    //     .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+    //     .progress_chars("##-"));
 
     for _ in 0..30 {
         thread::sleep(Duration::from_secs(1));
-        bar.inc(1);
+        bar.inc(messenger,1);
         // ...
     }
-    bar.finish();
+    bar.complete(messenger);
 
     // println!("[!] {}.", style("stopping").magenta());
         ShellMessage::send(messenger, format!("[!] {}.", style("stopping").magenta()), MessageType::Close,0);

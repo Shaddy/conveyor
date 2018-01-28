@@ -104,7 +104,7 @@ impl WindowsService {
         if let Err(err) = self.create() {
             match err {
                 ServiceError::ServiceAlreadyExists => {
-                    println!("Failed to install {:?}: Service already exists.", self.name);
+                    // println!("Failed to install {:?}: Service already exists.", self.name);
                 },
                 ServiceError::DeletePending => {
                     let service_name = self.name.clone();
@@ -146,9 +146,9 @@ impl WindowsService {
             &mut status) == 0
         };
 
-        if success {
-            println!("Can't stop service ({}): {:?}", self.name, WindowsService::service_error())
-        }
+        // if success {
+        //     println!("Can't stop service ({}): {:?}", self.name, WindowsService::service_error())
+        // }
 
         self.close(service)
     }
@@ -164,9 +164,9 @@ impl WindowsService {
             ) == 0
         };
 
-        if success {
-            println!("Can't start service ({}): {:?}", self.name, WindowsService::service_error())
-        }
+        // if success {
+        //     println!("Can't start service ({}): {:?}", self.name, WindowsService::service_error())
+        // }
 
         self.close(service)
     }
