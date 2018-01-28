@@ -159,8 +159,14 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
                     if container.contains_key(&message_id){
                     container[&message_id].finish_with_message(&message.content);
                     container.remove(&message_id);
-                    }
+                    }else{
 
+                        let mut bar = ProgressBar::new_spinner();
+                        bar.set_style(ProgressStyle::default_spinner()
+                                .tick_chars(".·: ")
+                                .template("{spinner:.dim.bold} {wide_msg}"));
+                        bar.finish_with_message(&message.content);
+                    }
 
                 }
                 MessageType::CreateProgress => {

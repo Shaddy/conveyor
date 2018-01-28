@@ -14,6 +14,7 @@ use super::iochannel::{Device};
 
 use std::sync::mpsc::Sender;
 use super::cli::output::{ShellMessage, MessageType};
+use super::console::style;
 
 pub fn bind() -> App<'static, 'static> {
     let target = Arg::with_name("pid").short("p")
@@ -48,7 +49,7 @@ fn duplicate_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Re
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     // debug!(logger, "elevating privilege of pid {}", pid);
-        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", pid), MessageType::Spinner,0);
+        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", style(pid).on_blue()), MessageType::Close,0);
     token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
     // debug!(logger, "success");
         ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);
@@ -65,7 +66,7 @@ fn hijack_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resul
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     // debug!(logger, "elevating privilege of pid {}", pid);
-        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", pid), MessageType::Close,0);
+        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", style(pid).on_blue()), MessageType::Close,0);
     token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     // debug!(logger, "success");
         ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);
@@ -87,8 +88,8 @@ fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
 
     // debug!(logger, "protecting target pid {} with token 0x{:016x}",
     //                     pid, token);
-    ShellMessage::send(messenger, format!("Protecting target pid {} with token 0x{:016x}",
-                        pid, token), MessageType::Spinner,0);
+    ShellMessage::send(messenger, format!("Protecting target pid {} with token {}",
+                        style(pid).blue(), style(format!("0x{:016x}",token)).cyan()), MessageType::Spinner,0);
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
@@ -115,6 +116,6 @@ fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
     }
     bar.complete(messenger);
     // thread::sleep(duration);
-    ShellMessage::send(messenger, "Done!".to_string(), MessageType::Close,0);
+    ShellMessage::send(messenger, format!("{}",style("Done!").green()), MessageType::Close,0);
     Ok(())
 }
