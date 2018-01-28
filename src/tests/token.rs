@@ -65,7 +65,7 @@ fn hijack_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resul
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     // debug!(logger, "elevating privilege of pid {}", pid);
-        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", pid), MessageType::Spinner,0);
+        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", pid), MessageType::Close,0);
     token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     // debug!(logger, "success");
         ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);

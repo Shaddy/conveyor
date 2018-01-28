@@ -6,6 +6,7 @@ use super::structs::ServiceStatus;
 
 use std::sync::mpsc::Sender;
 use super::cli::output::{MessageType, ShellMessage};
+use super::console::style;
 
 
 fn full_driver_path(name: &str) -> String {
@@ -31,15 +32,15 @@ pub fn query(name: &str, messenger: &Sender<ShellMessage>) {
 }
 
 pub fn stop(name: &str, messenger: &Sender<ShellMessage>) {
-    ShellMessage::send(messenger, format!("Service {} Stopping ", name), MessageType::Spinner, 0);
+    ShellMessage::send(messenger, format!("Service {} Stopping ", style(name).yellow()), MessageType::Spinner, 0);
     WindowsService::new(name, &full_driver_path(name)).stop();
-    ShellMessage::send(messenger, format!("Service {} stopped", name), MessageType::Close, 0);
+    ShellMessage::send(messenger, format!("Service {} stopped", style(name).green()), MessageType::Close, 0);
 }
 
 pub fn start(name: &str, messenger: &Sender<ShellMessage>) {
-    ShellMessage::send(messenger, format!("Service {} starting", name), MessageType::Spinner, 0);
+    ShellMessage::send(messenger, format!("Service {} starting", style(name).yellow()), MessageType::Spinner, 0);
     WindowsService::new(name, &full_driver_path(name)).start();
-    ShellMessage::send(messenger, format!("Service {} started", name), MessageType::Close, 0);
+    ShellMessage::send(messenger, format!("Service {} started", style(name).green()), MessageType::Close, 0);
 }
 
 pub fn install(name: &str, messenger: &Sender<ShellMessage>) {
@@ -47,9 +48,10 @@ pub fn install(name: &str, messenger: &Sender<ShellMessage>) {
     WindowsService::new(name, &full_driver_path(name)).install();
     ShellMessage::send(
         messenger,
-        format!("Service {} has been successfully installed", name),
+        format!("Service {} has been successfully {}", style(name).yellow(), style("installed").green()),
         MessageType::Close,
         0,
+        //style("ObjectMonitor").cyan()
     );
 }
 
@@ -59,7 +61,7 @@ pub fn remove(name: &str, messenger: &Sender<ShellMessage>) {
     WindowsService::new(name, &full_driver_path(name)).remove();
     ShellMessage::send(
         messenger,
-        format!("Service {} has been successfully removed", name),
+        format!("Service {} has been successfully removed", style(name).green()),
         MessageType::Close,
         0,
     );
@@ -76,7 +78,7 @@ pub fn update(name: &str, messenger: &Sender<ShellMessage>) {
         service.remove();
         ShellMessage::send(
             messenger,
-            format!("Service {} has been successfully removed", name),
+            format!("Service {} has been successfully removed", style(name).green()),
             MessageType::Spinner,
             0,
         );
@@ -84,7 +86,7 @@ pub fn update(name: &str, messenger: &Sender<ShellMessage>) {
     service.install();
     ShellMessage::send(
         messenger,
-        format!("Service {} has been successfully updated", name),
+        format!("Service {} has been successfully updated", style(name).green()),
         MessageType::Close,
         0,
     );
@@ -94,7 +96,7 @@ pub fn update(name: &str, messenger: &Sender<ShellMessage>) {
 pub fn reinstall(name: &str, messenger: &Sender<ShellMessage>) {
     ShellMessage::send(
         messenger,
-        format!("Service {} reinstalling ", name),
+        format!("Service {} reinstalling ", style(name).yellow()),
         MessageType::Spinner,
         0,
     );
@@ -118,7 +120,7 @@ pub fn reinstall(name: &str, messenger: &Sender<ShellMessage>) {
                 messenger,
                 format!(
                     "Service {} stop is pending, waiting {} seconds.",
-                    service.name(),
+                    style(service.name()).yellow(),
                     timeout.as_secs()
                 ),
                 MessageType::Spinner,
@@ -143,14 +145,14 @@ pub fn reinstall(name: &str, messenger: &Sender<ShellMessage>) {
         service.remove();
         ShellMessage::send(
             messenger,
-            format!("Service {} removed succesfully", name),
+            format!("Service {} removed succesfully", style(name).green()),
             MessageType::Spinner,
             0,
         );
     }
-    ShellMessage::send(messenger, format!("Installing {} service...", name), MessageType::Spinner, 1);
+    ShellMessage::send(messenger, format!("Installing {} service...", style(name).yellow()), MessageType::Spinner, 1);
 
     service.install();
 
-    ShellMessage::send(messenger, format!("Service {} succesfully reinstalled!",name), MessageType::Close, 1);
+    ShellMessage::send(messenger, format!("Service {} succesfully reinstalled!",style(name).green()), MessageType::Close, 1);
 }
