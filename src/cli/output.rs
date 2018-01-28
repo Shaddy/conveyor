@@ -96,7 +96,7 @@ impl ShellMessage {
         tx.send(message).unwrap();
     }
 
-    pub fn Exit(tx: &Sender<ShellMessage>, content: String) -> () {
+    pub fn exit(tx: &Sender<ShellMessage>, content: String) -> () {
         ShellMessage::update_bar(
             &tx,
             ShellMessage {
@@ -109,10 +109,8 @@ impl ShellMessage {
     }
 }
 
-pub fn thread_printer(
-    rx: Receiver<ShellMessage>,
-    rows: usize,
-) -> (thread::JoinHandle<()>, MultiProgress) {
+pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
+            (thread::JoinHandle<()>, MultiProgress) {
     let multi_progress = MultiProgress::new();
     let mut container: Vec<ProgressBar> = Vec::new();
     let mut progresses: Vec<ProgressBar> = Vec::new();
@@ -190,7 +188,6 @@ pub fn thread_printer(
                     // let sp = &container[0];
                     container[message_id].set_message(&message.content);
                 }
-                _ => (),
             }
             // thread::sleep(time::Duration::from_secs(2))
             // m.join_and_clear().unwrap();

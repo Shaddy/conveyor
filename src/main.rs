@@ -13,19 +13,7 @@ use std::process;
 use clap::{App, Arg, ArgMatches};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender};
-use conveyor::cli::output::{thread_printer, MessageType, ShellMessage};
-
-// fn get_logger(matches: &ArgMatches) -> Logger {
-//     let _level = match matches.occurrences_of("verbose") {
-//         0 => slog::Level::Info,
-//         1 => slog::Level::Debug,
-//         2 | _ => slog::Level::Trace,
-//     };
-//
-//     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
-//
-//     Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!())
-// }
+use conveyor::cli::output::{create_messenger, MessageType, ShellMessage};
 
 fn run(app: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match app.subcommand() {
@@ -39,6 +27,7 @@ fn run(app: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> 
 }
 
 fn main() {
+/*
     print!(
         "\n      .;:
      ::::
@@ -51,7 +40,9 @@ fn main() {
    ::  ;:     ::  :#   #   ##     ##   ##     ;,   #  #     #     ;.   #
    ::         ::  :#   #   ##     ##   ##     ;,   #  #     #     ;.   #
    ::         ::  :#####   ##     ##   #####  ;,   #  ##### ##### ;####
-   ::;;;;;;;;;::                        :::::::::::::::::::::::::::::::::::
+   ::;;;;;;;;;::
+
+                                        :::::::::::::::::::::::::::::::::::
                                         :: www.byteheed.com/memoryguard  ::
                                         :::::::::::::::::::::::::::::::::::
 
@@ -59,8 +50,7 @@ Sherab G. <sherab.giovannini@byteheed.com>
 A gate between humans and dragons.
 ___________________________________________________________________________\n\n"
     );
-
-    // print!("{:?}", &head_message);
+*/
 
     let matches = App::new("conveyor")
         .about("A gate between humans and dragons.")
@@ -74,29 +64,20 @@ ___________________________________________________________________________\n\n"
         .subcommand(conveyor::symbols::command::bind())
         .get_matches();
 
-    let (messenger, rx) = channel();
-    let (printer, writer) = thread_printer(rx, 20);
+    let (messenger, receiver) = channel();
+    let (printer, bars) = create_messenger(receiver, 20);
 
     if let Err(e) = run(&matches, &messenger) {
-        ShellMessage::send(
-            &messenger,
-            format!("Application Error: {}", e),
-            MessageType::Exit,
-            0,
-        );
+        ShellMessage::send( &messenger,
+                    format!("Application Error: {}", e), MessageType::Exit, 0, );
 
-        writer.join().expect("Unable to wait for writer");
+        bars.join().expect("Unable to wait for writer");
         printer.join().expect("Unable to wait for printer");
         process::exit(1);
     }
 
-    ShellMessage::send(
-        &messenger,
-        "".to_owned(),
-        MessageType::Exit,
-        0,
-    );
+    ShellMessage::send( &messenger, "".to_owned(), MessageType::Exit, 0, );
 
-    writer.join().expect("Unable to wait for writer");
+    bars.join().expect("Unable to wait for writer");
     printer.join().expect("Unable to wait for printer");
 }

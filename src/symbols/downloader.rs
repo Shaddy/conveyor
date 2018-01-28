@@ -36,13 +36,13 @@ impl PdbDownloader {
 
     pub fn download(&self, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
 
+        println!("download()");
         ShellMessage::send(messenger, "Getting symbols...".to_string(), MessageType::Spinner, 0);
         let mut response = self.download_pdb()?;
+        println!("send first message");
 
-        // ShellMessage::send(messenger, "Opening path...".to_string(), MessageType::Spinner, 0);
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
-        // ShellMessage::send(messenger, "Downloading data....".to_string(), MessageType::Spinner, 0);
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
         pdb_filename.push_str(".pdb");
@@ -58,7 +58,8 @@ impl PdbDownloader {
         response.copy_to(&mut buf)?;
 
         fd.write_all(&buf)?;
-        ShellMessage::send(messenger, format!("File saved on: {}", &pdb_filename), MessageType::Exit, 0);
+        ShellMessage::send(messenger, format!("File saved on: {}", &pdb_filename),
+                                    MessageType::Spinner, 0);
 
         println!("Download complete!\n");
         Ok(())
