@@ -52,7 +52,7 @@ fn duplicate_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Re
         ShellMessage::send(messenger, format!("Elevating privilege of pid {}", style(pid).on_blue()), MessageType::Close,0);
     token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
     // debug!(logger, "success");
-        ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);
+        ShellMessage::send(messenger, format!("{}",style("Success!").bold().green()), MessageType::Close,0);
     Ok(())
 }
 
@@ -69,7 +69,7 @@ fn hijack_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resul
         ShellMessage::send(messenger, format!("Elevating privilege of pid {}", style(pid).on_blue()), MessageType::Close,0);
     token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     // debug!(logger, "success");
-        ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);
+        ShellMessage::send(messenger, format!("{}",style("Success!").bold().green()), MessageType::Close,0);
 
     Ok(())
 }
