@@ -102,6 +102,8 @@ impl ShellMessage {
         kind: MessageType,
         id: u32,
     ) -> bool {
+
+        //TODO:REVIEW:BUG: If we try to write a bigg spinner, will ignore chars from i think 256 as limit
         ShellMessage::update_bar(
             &messenger,
             ShellMessage {
