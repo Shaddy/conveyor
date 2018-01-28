@@ -1,9 +1,12 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::clap::{App, Arg, ArgMatches, SubCommand};
-use super::slog::Logger;
 
 use super::iochannel::{IoCtl, Device};
+
+use std::sync::mpsc::Sender;
+
+use super::cli::output::{ShellMessage};
 
 use super::failure::Error;
 use super::sentry::io;
@@ -47,15 +50,15 @@ pub fn bind() -> App<'static, 'static> {
                         .subcommand(SubCommand::with_name("pagefault")))
 }
 
-pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let mut test = match matches.subcommand() {
         ("guard",        Some(_))  => SentryTest::new(TestType::BasicGuard, None),
         ("region",       Some(_))  => SentryTest::new(TestType::BasicGuardedRegion, None),
         ("tracepoint",   Some(_))  => SentryTest::new(TestType::BasicTracePoint, None),
-        ("intercept",    Some(matches))  => parse_intercept(matches, logger),
+        ("intercept",    Some(matches))  => parse_intercept(matches, messenger),
         _                                => {
-            let message = format!("{}", matches.usage());
-            panic!(message);
+                let message = format!("{}", matches.usage());
+                panic!(message);
         }
     };
 
@@ -68,7 +71,7 @@ pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
     sentry_run_test(&device, test)
 }
 
-fn parse_intercept(matches: &ArgMatches, _logger: &Logger) -> SentryTest {
+fn parse_intercept(matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> SentryTest {
     match matches.subcommand() {
         ("basic",      Some(_))  => SentryTest::new(TestType::BasicIntercept, None),
         ("delay",      Some(_))  => SentryTest::new(TestType::DelayIntercept, None),

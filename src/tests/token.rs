@@ -1,7 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::clap::{App, Arg, ArgMatches, SubCommand};
-use super::slog::Logger;
 
 use std::{thread};
 use std::time::Duration;
@@ -31,16 +30,16 @@ pub fn bind() -> App<'static, 'static> {
                                 .arg(target.clone()))
 }
 
-pub fn tests(matches: &ArgMatches,  tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("protect",     Some(matches))        => protect_token(matches, &tx),
-        ("duplicate",   Some(matches))        => duplicate_token(matches, &tx),
-        ("hijack",      Some(matches))        => hijack_token(matches, &tx),
+        ("protect",     Some(matches))        => protect_token(matches, messenger),
+        ("duplicate",   Some(matches))        => duplicate_token(matches, messenger),
+        ("hijack",      Some(matches))        => hijack_token(matches, messenger),
         _                                     => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn duplicate_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn duplicate_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -49,15 +48,15 @@ fn duplicate_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<()
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     // debug!(logger, "elevating privilege of pid {}", pid);
-        ShellMessage::send(&tx, format!("Elevating privilege of pid {}", pid), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", pid), MessageType::Spinner,0);
     token::steal_token(&device, 0, pid, token::TokenType::DuplicateSource);
     // debug!(logger, "success");
-        ShellMessage::send(&tx, format!("Success"), MessageType::close,0);
+        ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);
     Ok(())
 }
 
 
-fn hijack_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn hijack_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -66,15 +65,15 @@ fn hijack_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), E
 
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     // debug!(logger, "elevating privilege of pid {}", pid);
-        ShellMessage::send(&tx, format!("Elevating privilege of pid {}", pid), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("Elevating privilege of pid {}", pid), MessageType::Spinner,0);
     token::steal_token(&device, 0, pid, token::TokenType::HijackSystem);
     // debug!(logger, "success");
-        ShellMessage::send(&tx, format!("Success"), MessageType::close,0);
+        ShellMessage::send(messenger, format!("Success"), MessageType::Close,0);
 
     Ok(())
 }
 
-fn protect_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let pid: u64 = matches.value_of("pid")
                      .expect("can't extract PID from arguments")
                      .parse()
@@ -88,8 +87,8 @@ fn protect_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), 
 
     // debug!(logger, "protecting target pid {} with token 0x{:016x}",
     //                     pid, token);
-    ShellMessage::send(&tx, format!("Protecting target pid {} with token 0x{:016x}",
-                        pid, token), MessageType::spinner,0);
+    ShellMessage::send(messenger, format!("Protecting target pid {} with token 0x{:016x}",
+                        pid, token), MessageType::Spinner,0);
 
     let partition: Partition = Partition::root();
     let mut guard = Guard::new(&partition, None);
@@ -108,8 +107,8 @@ fn protect_token(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), 
 
     let duration = Duration::from_secs(20);
     // debug!(logger, "waiting {:?}", duration);
-    ShellMessage::send(&tx, format!("Waiting {:?}...", duration), MessageType::spinner,0);
+    ShellMessage::send(messenger, format!("Waiting {:?}...", duration), MessageType::Spinner,0);
     thread::sleep(duration);
-    ShellMessage::send(&tx, "Done!".to_string(), MessageType::close,0);
+    ShellMessage::send(messenger, "Done!".to_string(), MessageType::Close,0);
     Ok(())
 }

@@ -6,7 +6,6 @@ use std::io::{Read, Write};
 use std::ffi::CStr;
 use super::error::PdbError;
 use failure::Error;
-use super::indicatif::ProgressBar;
 use std::sync::mpsc::Sender;
 use super::cli::output::{MessageType, ShellMessage};
 
@@ -35,31 +34,31 @@ impl PdbDownloader {
         Ok(resp)
     }
 
-    pub fn download(&self, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+    pub fn download(&self, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
 
-        ShellMessage::send(&tx, "Getting symbols...".to_string(), MessageType::spinner, 0);
+        ShellMessage::send(messenger, "Getting symbols...".to_string(), MessageType::Spinner, 0);
         let mut response = self.download_pdb()?;
 
-        // ShellMessage::send(&tx, "Opening path...".to_string(), MessageType::spinner, 0);
+        // ShellMessage::send(messenger, "Opening path...".to_string(), MessageType::Spinner, 0);
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
-        // ShellMessage::send(&tx, "Downloading data....".to_string(), MessageType::spinner, 0);
+        // ShellMessage::send(messenger, "Downloading data....".to_string(), MessageType::Spinner, 0);
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
         pdb_filename.push_str(".pdb");
-        ShellMessage::send(&tx, format!("Opening file {}",pdb_filename), MessageType::spinner, 0);
+        ShellMessage::send(messenger, format!("Opening file {}",pdb_filename), MessageType::Spinner, 0);
 
-        ShellMessage::send(&tx, "Writing file...".to_string(), MessageType::spinner, 0);
+        ShellMessage::send(messenger, "Writing file...".to_string(), MessageType::Spinner, 0);
         let path = Path::new(&pdb_filename);
 
         let mut fd = File::create(path)?;
 
-        ShellMessage::send(&tx, "Closing handles...".to_string(), MessageType::spinner, 0);
+        ShellMessage::send(messenger, "Closing handles...".to_string(), MessageType::Spinner, 0);
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
         fd.write_all(&buf)?;
-        ShellMessage::send(&tx, format!("File saved on: {}", &pdb_filename), MessageType::exit, 0);
+        ShellMessage::send(messenger, format!("File saved on: {}", &pdb_filename), MessageType::Exit, 0);
 
         println!("Download complete!\n");
         Ok(())

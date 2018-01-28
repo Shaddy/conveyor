@@ -1,7 +1,10 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
+
+use std::sync::mpsc::Sender;
+use super::cli::output::ShellMessage;
+
 use super::failure::Error;
 
 pub fn bind() -> App<'static, 'static> {
@@ -10,9 +13,9 @@ pub fn bind() -> App<'static, 'static> {
 }
 
 
-pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("dissasm",  Some(matches))  => test_disassembler(matches, logger),
+        ("dissasm",  Some(matches))  => test_disassembler(matches, messenger),
         _                            => Ok(println!("{}", matches.usage()))
     }
 }
@@ -75,10 +78,8 @@ pub fn tests(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
 //     Ok(())
 // }
 
-fn test_disassembler(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
+fn test_disassembler(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     // debug!(logger, "{}", ());
     // example().unwrap();
     unimplemented!()
 }
-
-

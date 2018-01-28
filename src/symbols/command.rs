@@ -1,16 +1,15 @@
 use super::parser;
 use super::clap::{App, Arg, ArgMatches, SubCommand};
-use super::slog::Logger;
 use super::failure::Error;
 use super::downloader::PdbDownloader;
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{Sender};
 use super::cli::output::{MessageType, ShellMessage};
 
-pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: &Logger) -> Result<(), Error> {
+pub fn _not_implemented_subcommand(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     unimplemented!()
 }
 
-fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
+fn _not_implemented_command(_messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     unimplemented!()
 }
 
@@ -47,42 +46,42 @@ pub fn bind() -> App<'static, 'static> {
         .subcommand(SubCommand::with_name("dump").about("dumps pdb information into console"))
 }
 
-pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("download", Some(matches))  => download_pdb(matches, logger, &tx),
-        ("parse", Some(matches))     => parse_pdb(matches, &tx),
-        ("offset", Some(matches))    => find_offset(matches, &tx),
-        ("analyze", Some(_))         => _not_implemented_command(logger),
+        ("download", Some(matches))  => download_pdb(matches, messenger),
+        ("parse", Some(matches))     => parse_pdb(matches, messenger),
+        ("offset", Some(matches))    => find_offset(matches, messenger),
+        ("analyze", Some(_))         => _not_implemented_command(messenger),
         _                            => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn find_offset(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn find_offset(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
 
-    ShellMessage::send(&tx, format!("parsing {} to find {} offset", target, name), MessageType::close, 0);
+    ShellMessage::send(messenger, format!("parsing {} to find {} offset", target, name), MessageType::Close, 0);
     // debug!(logger, "parsing {} to find {} offset", target, name);
     let _ = parser::find_offset(target, name);
     Ok(())
 }
 
-fn parse_pdb(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn parse_pdb(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
-    ShellMessage::send(&tx, format!("parsing {} searching {}", target, name),MessageType::close,0);
+    ShellMessage::send(messenger, format!("parsing {} searching {}", target, name),MessageType::Close,0);
 
     // debug!(logger, "parsing {} searching {}", target, name);
-    parser::pdb_to_c_struct(target, name, &tx);
+    parser::pdb_to_c_struct(target, name, messenger);
     Ok(())
 }
 
-fn download_pdb(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn download_pdb(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
 
     let pdb = PdbDownloader::new(target.to_string());
 
-    pdb.download(&tx).expect("Unable to download PDB");
+    pdb.download(messenger).expect("Unable to download PDB");
 
     Ok(())
 }

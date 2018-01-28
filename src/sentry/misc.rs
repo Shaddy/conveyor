@@ -27,7 +27,7 @@ pub fn get_offset(target: &str) -> Result<u16, Error> {
     match symbols::parser::find_offset("ntoskrnl.pdb", target) {
         Err(PdbError::IoError(_)) => {
             // TODO:REVIEW: Temporlal addition of channel to support printed
-            let (tx, rx) = channel();
+            let (tx, _) = channel();
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download(&tx)?;
 
             Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)

@@ -7,7 +7,6 @@ use super::structs::ServiceStatus;
 use std::sync::mpsc::Sender;
 use super::cli::output::{MessageType, ShellMessage};
 
-use super::slog::*;
 
 fn full_driver_path(name: &str) -> String {
     let mut path = std::env::current_dir().expect("error getting current dir");
@@ -17,58 +16,58 @@ fn full_driver_path(name: &str) -> String {
         .to_string()
 }
 
-pub fn query(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("Querying {}", name), MessageType::spinner, 0);
+pub fn query(name: &str, messenger: &Sender<ShellMessage>) {
+    ShellMessage::send(messenger, format!("Querying {}", name), MessageType::Spinner, 0);
 
     ShellMessage::send(
-        &tx,
+        messenger,
         format!(
             "{:?}",
             WindowsService::new(name, &full_driver_path(name)).query()
         ),
-        MessageType::close,
+        MessageType::Close,
         1,
     );
 }
 
-pub fn stop(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("Service {} Stopping ", name), MessageType::spinner, 0);
+pub fn stop(name: &str, messenger: &Sender<ShellMessage>) {
+    ShellMessage::send(messenger, format!("Service {} Stopping ", name), MessageType::Spinner, 0);
     WindowsService::new(name, &full_driver_path(name)).stop();
-    ShellMessage::send(&tx, format!("Service {} stopped", name), MessageType::close, 0);
+    ShellMessage::send(messenger, format!("Service {} stopped", name), MessageType::Close, 0);
 }
 
-pub fn start(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("Service {} starting", name), MessageType::spinner, 0);
+pub fn start(name: &str, messenger: &Sender<ShellMessage>) {
+    ShellMessage::send(messenger, format!("Service {} starting", name), MessageType::Spinner, 0);
     WindowsService::new(name, &full_driver_path(name)).start();
-    ShellMessage::send(&tx, format!("Service {} started", name), MessageType::close, 0);
+    ShellMessage::send(messenger, format!("Service {} started", name), MessageType::Close, 0);
 }
 
-pub fn install(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("Service {} installing", name), MessageType::spinner, 0);
+pub fn install(name: &str, messenger: &Sender<ShellMessage>) {
+    ShellMessage::send(messenger, format!("Service {} installing", name), MessageType::Spinner, 0);
     WindowsService::new(name, &full_driver_path(name)).install();
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("Service {} has been successfully installed", name),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
 }
 
-pub fn remove(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("Service {} removing", name), MessageType::spinner, 0);
+pub fn remove(name: &str, messenger: &Sender<ShellMessage>) {
+    ShellMessage::send(messenger, format!("Service {} removing", name), MessageType::Spinner, 0);
 
     WindowsService::new(name, &full_driver_path(name)).remove();
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("Service {} has been successfully removed", name),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
 
 }
 
-pub fn update(name: &str, tx: &Sender<ShellMessage>) {
-    ShellMessage::send(&tx, format!("Service {} updating", name), MessageType::spinner, 0);
+pub fn update(name: &str, messenger: &Sender<ShellMessage>) {
+    ShellMessage::send(messenger, format!("Service {} updating", name), MessageType::Spinner, 0);
     // debug!(logger, "updating {}", name);
 
     let mut service = WindowsService::new(name, &full_driver_path(name));
@@ -76,27 +75,27 @@ pub fn update(name: &str, tx: &Sender<ShellMessage>) {
     if service.exists() {
         service.remove();
         ShellMessage::send(
-            &tx,
+            messenger,
             format!("Service {} has been successfully removed", name),
-            MessageType::spinner,
+            MessageType::Spinner,
             0,
         );
     }
     service.install();
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("Service {} has been successfully updated", name),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
 
 }
 
-pub fn reinstall(name: &str, tx: &Sender<ShellMessage>) {
+pub fn reinstall(name: &str, messenger: &Sender<ShellMessage>) {
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("Service {} reinstalling ", name),
-        MessageType::spinner,
+        MessageType::Spinner,
         0,
     );
 
@@ -104,9 +103,9 @@ pub fn reinstall(name: &str, tx: &Sender<ShellMessage>) {
 
     if service.exists() {
         ShellMessage::send(
-            &tx,
+            messenger,
             format!("Service {} found, stopping", name),
-            MessageType::spinner,
+            MessageType::Spinner,
             0,
         );
         service.stop();
@@ -116,13 +115,13 @@ pub fn reinstall(name: &str, tx: &Sender<ShellMessage>) {
 
         while let ServiceStatus::PausePending = service.query().status {
             ShellMessage::send(
-                &tx,
+                messenger,
                 format!(
                     "Service {} stop is pending, waiting {} seconds.",
                     service.name(),
                     timeout.as_secs()
                 ),
-                MessageType::spinner,
+                MessageType::Spinner,
                 0,
             );
             // format!("{}: stop is pending, waiting {} seconds.", service.name(), timeout.as_secs());
@@ -143,15 +142,15 @@ pub fn reinstall(name: &str, tx: &Sender<ShellMessage>) {
 
         service.remove();
         ShellMessage::send(
-            &tx,
+            messenger,
             format!("Service {} removed succesfully", name),
-            MessageType::spinner,
+            MessageType::Spinner,
             0,
         );
     }
-    ShellMessage::send(&tx, format!("Installing {} service...", name), MessageType::spinner, 1);
+    ShellMessage::send(messenger, format!("Installing {} service...", name), MessageType::Spinner, 1);
 
     service.install();
 
-    ShellMessage::send(&tx, format!("Service {} succesfully reinstalled!",name), MessageType::close, 1);
+    ShellMessage::send(messenger, format!("Service {} succesfully reinstalled!",name), MessageType::Close, 1);
 }

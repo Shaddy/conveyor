@@ -1,7 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
 
 use std::{fmt};
 use super::common;
@@ -25,26 +24,26 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("map"))
 }
 
-pub fn tests(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("fuzz-kernel-map-1",      Some(matches))  => test_fuzz_memory(matches, &tx),
-        ("virtual",                Some(matches))  => test_virtual_memory(matches, &tx),
-        ("write",                  Some(matches))  => test_memory_write(matches, &tx),
-        ("map",                    Some(matches))  => test_memory_map(matches, &tx),
-        ("kernel-map",             Some(matches))  => test_kernel_map(matches, &tx),
+        ("fuzz-kernel-map-1",      Some(matches))  => test_fuzz_memory(matches, messenger),
+        ("virtual",                Some(matches))  => test_virtual_memory(matches, messenger),
+        ("write",                  Some(matches))  => test_memory_write(matches, messenger),
+        ("map",                    Some(matches))  => test_memory_map(matches, messenger),
+        ("kernel-map",             Some(matches))  => test_kernel_map(matches, messenger),
         _                                => Ok(println!("{}", matches.usage()))
     }
 }
 
 #[allow(unused_variables)]
-fn test_fuzz_memory(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_fuzz_memory(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     let _filters: Vec<Filter> = (0..1000).map(|_| Filter::new(&device)).collect();
 
     Ok(())
 }
 
-fn test_kernel_map(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_kernel_map(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     struct TestStruct {
@@ -63,10 +62,10 @@ fn test_kernel_map(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(
     // debug!(logger, "TestStruct: allocated {} bytes at:
     //                 kernel: 0x{:016x}
     //                 user:   0x{:016x}", map.size(), map.kernel_ptr(), map.as_ptr() as u64);
-        ShellMessage::send(&tx, format!("TestStruct: allocated {} bytes at:
+        ShellMessage::send(messenger, format!("TestStruct: allocated {} bytes at:
                     kernel: 0x{:016x}
                     user:   0x{:016x}", map.size(), map.kernel_ptr(), map.as_ptr() as u64),
-                    MessageType::close,0);
+                    MessageType::Close,0);
 
     unsafe {
         let test = &mut *map.as_mut_ptr();
@@ -75,7 +74,7 @@ fn test_kernel_map(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(
     }
 
     // debug!(logger, "reading kernel pointer 0x{:016x}", map.kernel_ptr());
-    ShellMessage::send(&tx, format!("reading kernel pointer 0x{:016x}", map.kernel_ptr()), MessageType::spinner,1);
+    ShellMessage::send(messenger, format!("reading kernel pointer 0x{:016x}", map.kernel_ptr()), MessageType::Spinner,1);
 
     let v = memory::read_virtual_memory(&device, map.kernel_ptr(), map.size())
                             .expect("error reading memory");
@@ -85,77 +84,77 @@ fn test_kernel_map(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(
     let k: &TestStruct = unsafe { &*(v.as_ptr() as *const TestStruct) };
 
     // debug!(logger, "from-user: {}", u);
-    ShellMessage::send(&tx, format!("from-user: {}", u), MessageType::close,2);
+    ShellMessage::send(messenger, format!("from-user: {}", u), MessageType::Close,2);
     // debug!(logger, "from-kernel: {}", k);
-    ShellMessage::send(&tx, format!("from-kernel: {}", k), MessageType::close,3);
+    ShellMessage::send(messenger, format!("from-kernel: {}", k), MessageType::Close,3);
     Ok(())
 }
 
-fn test_virtual_memory(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_virtual_memory(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     // debug!(logger, "opened sentry: {:?}", device);
-        ShellMessage::send(&tx, format!("opened sentry: {:?}", device), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("opened sentry: {:?}", device), MessageType::Spinner,0);
 
     let v = common::dummy_vector(0x200);
 
     let size = v.len();
 
     // debug!(logger, "write-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
-        ShellMessage::send(&tx, format!("write-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len()), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("write-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len()), MessageType::Spinner,0);
 
     let addr = memory::alloc_virtual_memory(&device, size).unwrap();
 
     // debug!(logger, "alloc_virtual_memory: 0x{:016x}", addr);
-        ShellMessage::send(&tx, format!("alloc_virtual_memory: 0x{:016x}", addr), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("alloc_virtual_memory: 0x{:016x}", addr), MessageType::Spinner,0);
 
     let written = memory::write_virtual_memory(&device, addr, v).unwrap();
 
     // debug!(logger, "write_virtual_memory: {} bytes written", written);
-        ShellMessage::send(&tx, format!("write_virtual_memory: {} bytes written", written), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("write_virtual_memory: {} bytes written", written), MessageType::Spinner,0);
 
     let v = memory::read_virtual_memory(&device, addr, size).unwrap();
 
     // debug!(logger, "reading 0x{:08x} bytes from 0x{:016x}", addr, size);
-        ShellMessage::send(&tx, format!("reading 0x{:08x} bytes from 0x{:016x}", addr, size), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("reading 0x{:08x} bytes from 0x{:016x}", addr, size), MessageType::Spinner,0);
 
     // debug!(logger, "read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len());
-        ShellMessage::send(&tx, format!("read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len()), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("read-buffer(0x{:016x}) with size of 0x{:08x}", v.as_ptr() as u64, v.len()), MessageType::Spinner,0);
 
     let output = common::dump_vector(&v);
 
     // debug!(logger, "{}", output);
-        ShellMessage::send(&tx, format!("{}", output), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("{}", output), MessageType::Spinner,0);
 
     // debug!(logger, "free_virtual_memory: 0x{:016x}", addr);
-        ShellMessage::send(&tx, format!("free_virtual_memory: 0x{:016x}", addr), MessageType::close,0);
+        ShellMessage::send(messenger, format!("free_virtual_memory: 0x{:016x}", addr), MessageType::Close,0);
     memory::free_virtual_memory(&device, addr).unwrap();
     Ok(())
 }
 
-fn test_memory_write(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_memory_write(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
     let addr = memory::alloc_virtual_memory(&device, 0x200).unwrap();
     // debug!(logger, "reading virtual memory");
-        ShellMessage::send(&tx, format!("reading virtual memory"), MessageType::spinner,0);
+        ShellMessage::send(messenger, format!("reading virtual memory"), MessageType::Spinner,0);
     let v = memory::read_virtual_memory(&device, addr, 0x200).unwrap();
 
     // debug!(logger, "writting virtual memory");
-        ShellMessage::send(&tx, format!("writting virtual memory"), MessageType::close,0);
+        ShellMessage::send(messenger, format!("writting virtual memory"), MessageType::Close,0);
     memory::write_virtual_memory(&device, addr, v).unwrap();
     memory::free_virtual_memory(&device, addr).unwrap();
     Ok(())
 }
 
 
-fn test_memory_map(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_memory_map(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
 
     let addr = memory::alloc_virtual_memory(&device, 0x200).unwrap();
     let map = Map::new(&device, addr, 0x200, Some(MapMode::UserMode));
 
     // debug!(logger, "map: {:?}", map);
-        ShellMessage::send(&tx, format!("map: {:?}", map), MessageType::close,0);
+        ShellMessage::send(messenger, format!("map: {:?}", map), MessageType::Close,0);
     memory::free_virtual_memory(&device, addr).unwrap();
 
     Ok(())

@@ -5,7 +5,6 @@ extern crate pdb;
 extern crate goblin;
 extern crate reqwest;
 
-use super::indicatif;
 use super::cli;
 
 pub mod command;

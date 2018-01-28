@@ -4,41 +4,36 @@ use conveyor::{iochannel, sentry, service, symbols, tests};
 extern crate clap;
 extern crate conveyor;
 extern crate failure;
-#[macro_use]
-extern crate slog;
 extern crate slog_term;
 extern crate termcolor;
 
 use failure::Error;
-use slog::{Drain, Logger};
-// mod service;
 
 use std::process;
 use clap::{App, Arg, ArgMatches};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::channel;
+use std::sync::mpsc::{Sender};
 use conveyor::cli::output::{thread_printer, MessageType, ShellMessage};
 
-fn get_logger(matches: &ArgMatches) -> Logger {
-    let _level = match matches.occurrences_of("verbose") {
-        0 => slog::Level::Info,
-        1 => slog::Level::Debug,
-        2 | _ => slog::Level::Trace,
-    };
+// fn get_logger(matches: &ArgMatches) -> Logger {
+//     let _level = match matches.occurrences_of("verbose") {
+//         0 => slog::Level::Info,
+//         1 => slog::Level::Debug,
+//         2 | _ => slog::Level::Trace,
+//     };
+//
+//     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+//
+//     Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!())
+// }
 
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
-
-    Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!())
-}
-
-fn run(app: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
-    let logger = get_logger(app);
-
+fn run(app: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match app.subcommand() {
-        ("device", Some(matches)) => iochannel::command::parse(matches, &logger, &tx),
-        ("pdb", Some(matches)) => symbols::command::parse(matches, &logger, &tx),
-        ("services", Some(matches)) => service::command::parse(matches, &logger, &tx),
-        ("tests", Some(matches)) => tests::command::parse(matches, &logger, &tx),
-        ("sentry", Some(matches)) => sentry::command::parse(matches, &logger),
+        ("device", Some(matches)) => iochannel::command::parse(matches, &messenger),
+        ("pdb", Some(matches)) => symbols::command::parse(matches, &messenger),
+        ("services", Some(matches)) => service::command::parse(matches, &messenger),
+        ("tests", Some(matches)) => tests::command::parse(matches, &messenger),
+        ("sentry", Some(matches)) => sentry::command::parse(matches, &messenger),
         _ => Ok(println!("{}", app.usage())),
     }
 }
@@ -79,31 +74,29 @@ ___________________________________________________________________________\n\n"
         .subcommand(conveyor::symbols::command::bind())
         .get_matches();
 
-    let (tx, rx) = channel();
-    let (printer_thread, multi_progress) = thread_printer(rx, 20);
+    let (messenger, rx) = channel();
+    let (printer, writer) = thread_printer(rx, 20);
 
-    if let Err(e) = run(&matches, &tx) {
-        // println!("Application error: {}", e);
+    if let Err(e) = run(&matches, &messenger) {
         ShellMessage::send(
-            &tx,
+            &messenger,
             format!("Application Error: {}", e),
-            MessageType::exit,
+            MessageType::Exit,
             0,
         );
 
-        multi_progress.join();
-        printer_thread.join();
+        writer.join().expect("Unable to wait for writer");
+        printer.join().expect("Unable to wait for printer");
         process::exit(1);
-    } else {
-        ShellMessage::send(
-            &tx,
-            "".to_owned(),
-            MessageType::exit,
-            0,
-        );
-
-        multi_progress.join();
-        printer_thread.join().expect("Something fails.");
-        // process::exit(0);
     }
+
+    ShellMessage::send(
+        &messenger,
+        "".to_owned(),
+        MessageType::Exit,
+        0,
+    );
+
+    writer.join().expect("Unable to wait for writer");
+    printer.join().expect("Unable to wait for printer");
 }

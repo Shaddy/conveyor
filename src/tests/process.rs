@@ -1,7 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
 use super::failure::Error;
 
 use super::sentry::misc;
@@ -19,60 +18,56 @@ pub fn bind() -> App<'static, 'static> {
         .subcommand(SubCommand::with_name("list"))
 }
 
-pub fn tests(
-    matches: &ArgMatches,
-    logger: &Logger,
-    tx: &Sender<ShellMessage>,
-) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("current", Some(matches)) => test_read_eprocess(matches, &tx),
-        ("list", Some(matches)) => test_walk_eprocess(matches, &tx),
-        ("find", Some(matches)) => test_find_eprocess(matches, &tx),
-        ("system", Some(matches)) => test_system_process(matches, &tx),
-        ("kernel-base", Some(matches)) => test_kernel_base(matches, &tx),
-        ("list-drivers", Some(matches)) => test_list_drivers(matches, &tx),
+        ("current", Some(matches)) => test_read_eprocess(matches, messenger),
+        ("list", Some(matches)) => test_walk_eprocess(matches, messenger),
+        ("find", Some(matches)) => test_find_eprocess(matches, messenger),
+        ("system", Some(matches)) => test_system_process(matches, messenger),
+        ("kernel-base", Some(matches)) => test_kernel_base(matches, messenger),
+        ("list-drivers", Some(matches)) => test_list_drivers(matches, messenger),
         _ => Ok(println!("{}", matches.usage())),
     }
 }
 
-fn test_list_drivers(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_list_drivers(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     misc::list_kernel_drivers();
     Ok(())
 }
 
-fn test_kernel_base(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_kernel_base(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     // debug!(logger, "base: 0x{:016x}", misc::get_kernel_base());
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("base: 0x{:016x}", misc::get_kernel_base()),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
     Ok(())
 }
 
-fn test_system_process(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_system_process(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let system = misc::Process::system().expect("system process");
     // debug!(logger, "system: 0x{:016x}", system.object());
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("base: 0x{:016x}", system.object()),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
     Ok(())
 }
 
-fn test_find_eprocess(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_find_eprocess(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     ShellMessage::send(
-        &tx,
+        messenger,
         format!(
             "{}",
             misc::WalkProcess::iter()
                 .find(|process| process.name().contains("svchost"))
                 .unwrap()
         ),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
     // debug!(logger, "{}", misc::WalkProcess::iter()
@@ -80,29 +75,29 @@ fn test_find_eprocess(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Resul
     Ok(())
 }
 
-fn test_walk_eprocess(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_walk_eprocess(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     misc::WalkProcess::iter().for_each(|process| {
         // debug!(logger, "{}", process);
         ShellMessage::send(
-            &tx,
+            messenger,
             format!("{}", process),
-            MessageType::close,
+            MessageType::Close,
             0,
         );
     });
     Ok(())
 }
 
-fn test_read_eprocess(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_read_eprocess(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let current = misc::WalkProcess::iter()
         .find(|process| process.name().contains("conveyor"))
         .unwrap();
 
     // debug!(logger, "current-eprocess: 0x{:016x}", current.object());
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("Current-eprocess: 0x{:016x}", current.object()),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
     Ok(())

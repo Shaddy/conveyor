@@ -1,16 +1,15 @@
 use super::failure::Error;
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
 use super::process;
 
 use std::sync::mpsc::Sender;
-use super::cli::output::{ShellMessage, MessageType};
+use super::cli::output::{ShellMessage};
 
-fn _not_implemented_command(_logger: &Logger) -> Result<(), Error> {
+fn _not_implemented_command(_messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     unimplemented!()
 }
 
-pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let mut services: Vec<&str> = "lynxv memguard sentry".split(' ').collect();
 
     let action: &Fn(&str, &Sender<ShellMessage>) = match matches.subcommand_name() {
@@ -20,12 +19,12 @@ pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -
         Some("start")   => { &super::functions::start },
         Some("run")     => {
             services.iter().rev().for_each(|service| {
-                super::functions::reinstall(service, &tx);
+                super::functions::reinstall(service, messenger);
             });
 
             services.iter().for_each(|service| {
-                super::functions::update(service, &tx);
-                super::functions::start(service, &tx);
+                super::functions::update(service, messenger);
+                super::functions::start(service, messenger);
             });
 
             return Ok(());
@@ -45,7 +44,7 @@ pub fn parse(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -
     };
 
     services.iter().for_each(|service| {
-        action(service, &tx);
+        action(service, messenger);
     });
 
     Ok(())

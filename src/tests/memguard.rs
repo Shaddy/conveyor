@@ -1,6 +1,5 @@
 
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
 
 use std::{thread};
 use std::time::Duration;
@@ -42,12 +41,12 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("add-a-region")))
 }
 
-pub fn tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("partition",         Some(matches))  => partition_tests(matches, logger, &tx),
-        ("guards",            Some(matches))  => guard_tests(matches, &tx),
-        ("regions",           Some(matches))  => region_tests(matches, logger, &tx),
-        ("fuzz",              Some(matches))  => fuzz_tests(matches, logger, &tx),
+        ("partition",         Some(matches))  => partition_tests(matches, messenger),
+        ("guards",            Some(matches))  => guard_tests(matches, messenger),
+        ("regions",           Some(matches))  => region_tests(matches, messenger),
+        ("fuzz",              Some(matches))  => fuzz_tests(matches, messenger),
         _                                     => Ok(println!("{}", matches.usage()))
     }
 }
@@ -56,21 +55,21 @@ pub fn tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -
 //
 // FUZZ TESTS
 //
-pub fn fuzz_tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn fuzz_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("partition-process",   Some(_))       => test_fuzz_partition_process(logger, &tx),
+        ("partition-process",   Some(_))       => test_fuzz_partition_process(messenger),
         _                                      => Ok(println!("{}", matches.usage()))
     }
 }
 
 
-fn test_fuzz_partition_process(logger: &Logger,tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_fuzz_partition_process(messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let mut rng = super::rand::thread_rng();
 
 
     (0..1000).for_each(|round| {
         {
-            ShellMessage::send(&tx, format!("Executing round {}",round), MessageType::spinner, 0);
+            ShellMessage::send(messenger, format!("Executing round {}",round), MessageType::Spinner, 0);
             // debug!(logger, "exeuting round: {}", round);
             let elapse = rng.gen::<u8>();
             let duration = Duration::from_millis(u64::from(elapse));
@@ -81,7 +80,7 @@ fn test_fuzz_partition_process(logger: &Logger,tx: &Sender<ShellMessage>) -> Res
             }
             thread::sleep(duration);
         }
-        ShellMessage::send(&tx, "Executed all iterations.".to_string(), MessageType::close, 0);
+        ShellMessage::send(messenger, "Executed all iterations.".to_string(), MessageType::Close, 0);
 
     });
 
@@ -94,40 +93,40 @@ fn test_fuzz_partition_process(logger: &Logger,tx: &Sender<ShellMessage>) -> Res
 //
 // PARTITION TESTS
 //
-pub fn partition_tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn partition_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("create",          Some(_))           => create_partition(&tx),
-        ("create-multiple", Some(_))           => create_multiple_partitions(&tx),
+        ("create",          Some(_))           => create_partition(messenger),
+        ("create-multiple", Some(_))           => create_multiple_partitions(messenger),
         ("delete",          Some(_)) |
         ("getinfo",         Some(_)) |
-        ("setinfo",         Some(_))           => super::common::_not_implemented_command(logger),
+        ("setinfo",         Some(_))           => super::common::_not_implemented_command(messenger),
         _                                      => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn create_multiple_partitions(tx: &Sender<ShellMessage>) -> Result<(), Error> {
-    ShellMessage::send(&tx, "Creating 3 partitions...".to_string(), MessageType::spinner, 0);
+fn create_multiple_partitions(messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+    ShellMessage::send(messenger, "Creating 3 partitions...".to_string(), MessageType::Spinner, 0);
     // debug!(logger, "creating 3 partitions");
     let _partition1: Partition = Partition::new().unwrap();
     let _partition2: Partition = Partition::new().unwrap();
     let _partition3: Partition = Partition::new().unwrap();
-    ShellMessage::send(&tx, "Waiting 5 seconds...".to_string(), MessageType::spinner, 0);
+    ShellMessage::send(messenger, "Waiting 5 seconds...".to_string(), MessageType::Spinner, 0);
     // debug!(logger, "Waiting 5 seconds");
     thread::sleep(Duration::from_secs(5));
-    ShellMessage::send(&tx, "Done! Destroying partitions.".to_string(), MessageType::close, 0);
+    ShellMessage::send(messenger, "Done! Destroying partitions.".to_string(), MessageType::Close, 0);
     // debug!(logger, "done, destroying partitions");
     Ok(())
 }
 
-fn create_partition(tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn create_partition(messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let partition: Partition = Partition::root();
 
-    ShellMessage::send(&tx, format!("Created partition {:?}",partition), MessageType::spinner, 0);
+    ShellMessage::send(messenger, format!("Created partition {:?}",partition), MessageType::Spinner, 0);
     // debug!(logger, "created partition: {:?}", partition);
-    ShellMessage::send(&tx, "Waiting 5 seconds...".to_string(), MessageType::spinner, 0);
+    ShellMessage::send(messenger, "Waiting 5 seconds...".to_string(), MessageType::Spinner, 0);
     // debug!(logger, "waiting 5 seconds");
     thread::sleep(Duration::from_secs(5));
-    ShellMessage::send(&tx, "Done! Destroying partitions.".to_string(), MessageType::close, 0);
+    ShellMessage::send(messenger, "Done! Destroying partitions.".to_string(), MessageType::Close, 0);
     // debug!(logger, "done, destroying partition");
 
     Ok(())
@@ -137,16 +136,16 @@ fn create_partition(tx: &Sender<ShellMessage>) -> Result<(), Error> {
 //
 // GUARD TESTS
 //
-fn guard_tests(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn guard_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("create-and-start", Some(matches))       => start_a_guard(matches, &tx),
-        ("create-10",        Some(matches))       => create_multiple_guards(matches, &tx),
-        ("filter",           Some(matches))       => test_guard_filters(matches, &tx),
+        ("create-and-start", Some(matches))       => start_a_guard(matches, messenger),
+        ("create-10",        Some(matches))       => create_multiple_guards(matches, messenger),
+        ("filter",           Some(matches))       => test_guard_filters(matches, messenger),
         _                                         => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn test_guard_filters(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_guard_filters(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let partition = Partition::root();
     let filter = Filter::process(&partition.device, "notepad", MatchType::EQUAL)
                                 .expect("can't find \"notepad\" process");
@@ -164,7 +163,7 @@ fn test_guard_filters(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Resul
                             Some(Action::NOTIFY | Action::INSPECT),
                             Access::EXECUTE).unwrap();
 
-    ShellMessage::send(&tx, format!("Adding {} to {} ...",region, guard), MessageType::spinner, 0);
+    ShellMessage::send(messenger, format!("Adding {} to {} ...",region, guard), MessageType::Spinner, 0);
     // debug!(logger, "adding {} to {}", region, guard);
     guard.add(region);
 
@@ -173,61 +172,61 @@ fn test_guard_filters(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Resul
         Response::new(Some(message), Action::CONTINUE)
     }));
 
-    ShellMessage::send(&tx, "Starting guard...".to_string(), MessageType::spinner, 0);
+    ShellMessage::send(messenger, "Starting guard...".to_string(), MessageType::Spinner, 0);
     // debug!(logger, "starting guard");
     guard.start();
 
     let duration = Duration::from_secs(10);
 
     // debug!(logger, "waiting {:?}", duration);
-    ShellMessage::send(&tx, format!("Waiting {:?}", duration), MessageType::spinner, 0);
+    ShellMessage::send(messenger, format!("Waiting {:?}", duration), MessageType::Spinner, 0);
     thread::sleep(duration);
 
     // debug!(logger, "stoping guard");
-    ShellMessage::send(&tx, "Stoping guard...".to_string(), MessageType::spinner, 0);
+    ShellMessage::send(messenger, "Stoping guard...".to_string(), MessageType::Spinner, 0);
     guard.stop();
-    ShellMessage::send(&tx, "Guard Stopped.".to_string(), MessageType::close, 0);
-    ShellMessage::send(&tx, "Done!".to_string(), MessageType::close, 1);
+    ShellMessage::send(messenger, "Guard Stopped.".to_string(), MessageType::Close, 0);
+    ShellMessage::send(messenger, "Done!".to_string(), MessageType::Close, 1);
 
     Ok(())
 }
 
-fn start_guard_a_second(guard: &Guard,tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn start_guard_a_second(guard: &Guard,messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     // debug!(logger, "starting {}", guard);
-    ShellMessage::send(&tx, format!("starting {}", guard), MessageType::spinner, 0);
+    ShellMessage::send(messenger, format!("starting {}", guard), MessageType::Spinner, 0);
     guard.start();
 
     let duration = Duration::from_secs(1);
     // debug!(logger, "waiting {:?}", duration);
-    ShellMessage::send(&tx, format!("waiting {:?}", duration), MessageType::spinner, 0);
+    ShellMessage::send(messenger, format!("waiting {:?}", duration), MessageType::Spinner, 0);
     thread::sleep(duration);
 
     // debug!(logger, "stopping {}", guard);
-    ShellMessage::send(&tx, format!("stopping {}", guard), MessageType::close, 0);
+    ShellMessage::send(messenger, format!("stopping {}", guard), MessageType::Close, 0);
     guard.stop();
 
     Ok(())
 }
-fn start_a_guard(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn start_a_guard(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let guard = Guard::new(&partition, None);
 
-    start_guard_a_second(&guard, &tx)?;
+    start_guard_a_second(&guard, messenger)?;
 
     Ok(())
 }
 
-fn create_multiple_guards(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn create_multiple_guards(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let _guard = Guard::new(&partition, None);
 
     let guards: Vec<Guard> = (0..10).map(|_| { Guard::new(&partition, None) }).collect();
 
     // debug!(logger, "guards-created: {}", guards.len());
-    ShellMessage::send(&tx, format!("guards-created: {}", guards.len()), MessageType::spinner, 0);
+    ShellMessage::send(messenger, format!("guards-created: {}", guards.len()), MessageType::Spinner, 0);
 
     // debug!(logger, "enumerate-guards");
-    ShellMessage::send(&tx, "enumerate-guards".to_string(), MessageType::spinner, 0);
+    ShellMessage::send(messenger, "enumerate-guards".to_string(), MessageType::Spinner, 0);
 
     // for guard in Guard::enumerate() {
     //     println!("guard: {}", guards);
@@ -235,7 +234,7 @@ fn create_multiple_guards(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> R
 
     for guard in guards {
         // debug!(logger, "{}", guard);
-        ShellMessage::send(&tx, format!("{}",guard), MessageType::spinner, 0);
+        ShellMessage::send(messenger, format!("{}",guard), MessageType::Spinner, 0);
     }
 
     Ok(())
@@ -245,12 +244,12 @@ fn create_multiple_guards(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> R
 //
 // REGION TESTS
 //
-fn region_tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn region_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("create",               Some(matches)) => test_create_region(matches, logger, &tx),
-        ("enumerate",            Some(matches)) => test_enumerate_region(matches, logger, &tx),
-        ("create-multiple",      Some(matches)) => test_create_multiple_regions(matches, logger, &tx),
-        ("regions-inside-guard", Some(matches)) => test_regions_inside_guard(matches, logger, &tx),
+        ("create",               Some(matches)) => test_create_region(matches, messenger),
+        ("enumerate",            Some(matches)) => test_enumerate_region(matches, messenger),
+        ("create-multiple",      Some(matches)) => test_create_multiple_regions(matches, messenger),
+        ("regions-inside-guard", Some(matches)) => test_regions_inside_guard(matches, messenger),
         _                                       => {
             println!("{}", matches.usage());
             Ok(())
@@ -258,23 +257,23 @@ fn region_tests(matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>
     }
 }
 
-fn test_enumerate_region(_matches: &ArgMatches, _logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_enumerate_region(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     unimplemented!()
 }
 
-fn test_create_multiple_regions(_matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_create_multiple_regions(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let _regions: Vec<Region> = (0..10).map(|_| {
             let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
             // debug!(logger, "{}", region);
-            ShellMessage::send(&tx, format!("{}",region), MessageType::close, 0);
+            ShellMessage::send(messenger, format!("{}",region), MessageType::Close, 0);
             region
         }).collect();
 
     Ok(())
 }
 
-fn test_regions_inside_guard(_matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_regions_inside_guard(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
 
     let partition: Partition = Partition::root();
 
@@ -285,7 +284,7 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: &Logger, tx: &Sender
 
             let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
             // println!("{}", region);
-            ShellMessage::send(&tx, format!("{}",region), MessageType::close, 0);
+            ShellMessage::send(messenger, format!("{}",region), MessageType::Close, 0);
             region
         }).collect();
 
@@ -293,16 +292,16 @@ fn test_regions_inside_guard(_matches: &ArgMatches, logger: &Logger, tx: &Sender
         guard.add(region);
     }
 
-    start_guard_a_second(&guard, &tx)?;
+    start_guard_a_second(&guard, messenger)?;
 
     Ok(())
 }
 
-fn test_create_region(_matches: &ArgMatches, logger: &Logger, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_create_region(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let partition: Partition = Partition::root();
     let region = Region::new(&partition, 0xCAFE_BABE, 0x1000, None, Access::READ).unwrap();
     // debug!(logger, "{}", region);
-    ShellMessage::send(&tx, format!("{}",region), MessageType::close, 0);
+    ShellMessage::send(messenger, format!("{}",region), MessageType::Close, 0);
 
     Ok(())
 }

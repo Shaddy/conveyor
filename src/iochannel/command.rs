@@ -1,5 +1,4 @@
 use super::clap::{App, Arg, ArgMatches, SubCommand};
-use super::slog::Logger;
 use super::Device;
 use super::failure::Error;
 
@@ -7,7 +6,7 @@ use super::failure::Error;
 use std::sync::mpsc::{Sender};
 use super::cli::output::{MessageType, ShellMessage};
 
-fn _not_implemented_command(_logger: &Logger) {
+fn _not_implemented_command(_messenger: &Sender<ShellMessage>) {
     unimplemented!()
 }
 
@@ -34,23 +33,22 @@ pub fn bind() -> App<'static, 'static> {
         )
 }
 
-fn device_call(_matches: &ArgMatches,tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn device_call(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     unimplemented!()
 }
 
 pub fn device_open(
     matches: &ArgMatches,
-    // logger: &Logger,
-    tx: &Sender<ShellMessage>,
+    messenger: &Sender<ShellMessage>,
 ) -> Result<(), Error> {
     let name = matches
         .value_of("name")
         .expect("argument `name` is not present");
 
     ShellMessage::send(
-        &tx,
+        messenger,
         format!("Opening device {}...", name),
-        MessageType::close,
+        MessageType::Close,
         0,
     );
 
@@ -58,9 +56,9 @@ pub fn device_open(
     let handle = Device::open(name)?;
 
     ShellMessage::send(
-            &tx,
+            messenger,
             format!("{} found, handle: 0x{:x}",name, handle as u64),
-            MessageType::close,
+            MessageType::Close,
             1,
         );
     // debug!(logger, "handle: 0x{:x}", handle as u64);
@@ -68,14 +66,10 @@ pub fn device_open(
     Ok(())
 }
 
-pub fn parse(
-    matches: &ArgMatches,
-    logger: &Logger,
-    tx: &Sender<ShellMessage>,
-) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("open", Some(matches)) => device_open(matches, &tx),
-        ("call", Some(matches)) => device_call(matches, &tx),
+        ("open", Some(matches)) => device_open(matches, messenger),
+        ("call", Some(matches)) => device_call(matches, messenger),
         _ => Ok(println!("{}", matches.usage())),
     }
 }

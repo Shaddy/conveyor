@@ -1,61 +1,62 @@
 extern crate indicatif;
 
-use std::sync::mpsc::{channel, Receiver, Sender};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use std::collections::HashMap;
+use std::sync::mpsc::{Receiver, Sender};
+
+use indicatif::{MultiProgress, ProgressBar};
 use std::{thread, time};
 use std::iter::Iterator;
-use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum MessageType {
-    progress,
-    spinner,
-    exit,
-    close,
+    Progress,
+    Spinner,
+    Exit,
+    Close,
 }
 
 pub struct ShellMessage {
-    out_type: MessageType,
+    kind: MessageType,
     content: String,
-    id: u32,
+    _id: u32,
 }
 
 impl ShellMessage {
-    pub fn new(content: String, out_type: MessageType, id: u32) -> ShellMessage {
+    pub fn new(content: String, kind: MessageType, id: u32) -> ShellMessage {
         ShellMessage {
             content: content,
-            out_type: out_type,
-            id: id,
+            kind: kind,
+            _id: id,
         }
     }
 
+    pub fn kind(&self) -> MessageType {
+        self.kind
+    }
+
     pub fn send(
-        tx: &Sender<ShellMessage>,
+        messenger: &Sender<ShellMessage>,
         content: String,
-        out_type: MessageType,
+        kind: MessageType,
         id: u32,
     ) -> bool {
-        tx.send(ShellMessage {
+        messenger.send(ShellMessage {
             content: content,
-            out_type: out_type,
-            id: id,
+            kind: kind,
+            _id: id,
         }).unwrap();
         true
     }
 }
 
-pub fn thread_printer(rx: Receiver<ShellMessage>, limit: usize) -> (thread::JoinHandle<()>, MultiProgress) {
-    let m = MultiProgress::new();
+pub fn thread_printer(rx: Receiver<ShellMessage>, rows: usize) -> (thread::JoinHandle<()>, MultiProgress) {
+    let multi_progress = MultiProgress::new();
     let mut container: Vec<ProgressBar> = Vec::new();
 
-    (0..limit).for_each(|idx| {
-        container.push(m.add(ProgressBar::new_spinner()));
-    });
+    (0..rows).for_each(|_| { container.push(multi_progress.add(ProgressBar::new_spinner())); });
 
     let tt = thread::spawn(move || {
         loop {
-            let message: ShellMessage = rx.recv().unwrap();
+            let message = rx.recv().unwrap();
 
             /*
             obtenemos nuestro indice desde el manager
@@ -75,26 +76,25 @@ pub fn thread_printer(rx: Receiver<ShellMessage>, limit: usize) -> (thread::Join
             */
 
 
-            match message.out_type {
-                MessageType::exit => {
+            match message.kind() {
+                MessageType::Exit => {
                     // let sp = &container[0];
                     container[0].finish_with_message(&message.content);
                     break;
                 }
-                MessageType::close => {
+                MessageType::Close => {
                     // let sp = container.to_vec()[0];
                     container[0].finish_with_message(&message.content);
                     container.remove(0);
                 }
-                MessageType::progress => {
+                MessageType::Progress => {
                     // let sp = &container[0];
                     container[0].set_message(&message.content);
                 }
-                MessageType::spinner => {
+                MessageType::Spinner => {
                     // let sp = &container[0];
                     container[0].set_message(&message.content);
                 }
-                _ => println!("Unknown message"),
             }
             // thread::sleep(time::Duration::from_secs(2))
             // m.join_and_clear().unwrap();
@@ -103,5 +103,6 @@ pub fn thread_printer(rx: Receiver<ShellMessage>, limit: usize) -> (thread::Join
 
         // helper_stdout.finish_with_message("All bars closed!");
     });
-    (tt, m)
+
+    (tt, multi_progress)
 }

@@ -1,7 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
 use super::cli::colorize;
 
 use std::{thread};
@@ -20,14 +19,14 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("patch-vuln"))
 }
 
-pub fn tests(matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("patch-vuln",      Some(matches))  => test_patch_driver(matches, &tx),
+        ("patch-vuln",      Some(matches))  => test_patch_driver(matches, messenger),
         _                                   => Ok(println!("{}", matches.usage()))
     }
 }
 
-fn test_patch_driver(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_patch_driver(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     const PAGE_SIZE: usize = 0x1000;
     const PATCH_PAGE: u64 = 0x5000;
     const PATCH_OFFSET: u64 = 0xBEC;
@@ -47,23 +46,23 @@ fn test_patch_driver(_matches: &ArgMatches, tx: &Sender<ShellMessage>) -> Result
             let _ = memory::write_virtual_memory(&device, new_code + PATCH_OFFSET, patch);
 
             let patch = Patch::new(&partition, patch_base, new_code, PAGE_SIZE as u64).unwrap();
-            ShellMessage::send(&tx,format!("{}",patch),MessageType::spinner,0);
+            ShellMessage::send(messenger,format!("{}",patch),MessageType::Spinner,0);
             // debug!(logger, "{}", patch);
 
             let mut guard = Guard::new(&partition, None);
 
             // debug!(logger, "adding {} to {}", patch, guard);
-            ShellMessage::send(&tx,format!("adding {} to {}", patch, guard),MessageType::spinner,0);
+            ShellMessage::send(messenger,format!("adding {} to {}", patch, guard),MessageType::Spinner,0);
             guard.add(patch);
 
             // debug!(logger, "starting guard, and sleeping 30 secs");
-            ShellMessage::send(&tx,"Starting guard, and sleeping 30 secs".to_string(),MessageType::spinner,0);
+            ShellMessage::send(messenger,"Starting guard, and sleeping 30 secs".to_string(),MessageType::Spinner,0);
             guard.start();
             colorize::success("HEVD patch applied.");
             thread::sleep(Duration::from_secs(30));
             guard.stop();
             colorize::info("HEVD patch revoked.");
-            ShellMessage::send(&tx,"Done!".to_string(),MessageType::close,0);
+            ShellMessage::send(messenger,"Done!".to_string(),MessageType::Close,0);
 
         }
 

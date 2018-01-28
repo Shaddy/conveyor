@@ -1,6 +1,8 @@
 use super::clap::{App, ArgMatches, SubCommand};
-use super::slog::Logger;
 use super::failure::Error;
+
+use std::sync::mpsc::Sender;
+use super::cli::output::ShellMessage;
 
 // partition functions
 // use super::core::{create_partition,
@@ -9,11 +11,11 @@ use super::failure::Error;
 //                   delete_partition};
 
 
-pub fn _not_implemented_subcommand(_matches: &ArgMatches, _logger: &Logger) {
+pub fn _not_implemented_subcommand(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) {
     unimplemented!()
 }
 
-fn _not_implemented_command(_logger: &Logger) {
+fn _not_implemented_command(_messenger: &Sender<ShellMessage>) {
     unimplemented!()
 }
 
@@ -30,9 +32,9 @@ pub fn bind() -> App<'static, 'static> {
 
 
 
-pub fn parse(matches: &ArgMatches, logger: &Logger) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
-        ("features", Some(_)) | ("region", Some(_))  => _not_implemented_command(logger),
+        ("features", Some(_)) | ("region", Some(_))  => _not_implemented_command(messenger),
         _                                            => println!("{}", matches.usage())
     }
 

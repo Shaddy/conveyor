@@ -7,11 +7,7 @@ extern crate winapi;
 extern crate byteorder;
 extern crate num;
 
-
-use super::iochannel;
-
-use super::{symbols, ffi};
-
+use super::{symbols, ffi, iochannel, cli};
 
 pub mod error;
 pub mod structs;
@@ -24,6 +20,3 @@ pub mod memguard;
 pub mod command;
 
 pub use self::io::SE_NT_DEVICE_NAME as DeviceName;
-
-
-
