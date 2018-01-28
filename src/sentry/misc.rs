@@ -23,12 +23,17 @@ use super::symbols::parser::Error as PdbError;
 use std::sync::mpsc::channel;
 use super::structs::{RTL_PROCESS_MODULE_INFORMATION, SE_GET_EXPORT_ADDRESS, RawStruct};
 
+use super::cli::output::create_messenger;
+
 pub fn get_offset(target: &str) -> Result<u16, Error> {
     match symbols::parser::find_offset("ntoskrnl.pdb", target) {
         Err(PdbError::IoError(_)) => {
             // TODO:REVIEW: Temporlal addition of channel to support printed
-            let (tx, _) = channel();
+            let (tx, rx) = channel();
+            let tt = create_messenger(rx, 0);
+
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download(&tx)?;
+            tt.join();
 
             Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)
         },
