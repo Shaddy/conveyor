@@ -7,6 +7,7 @@ use super::sentry::misc;
 
 use std::sync::mpsc::Sender;
 use super::cli::output::{ShellMessage, MessageType};
+use super::console::style;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("process")
@@ -31,6 +32,9 @@ pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
 }
 
 fn test_list_drivers(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+    // misc::Drivers::iter().for_each(|driver|
+    //     println!("{}", driver)
+    // );
     misc::list_kernel_drivers();
     Ok(())
 }
@@ -39,7 +43,7 @@ fn test_kernel_base(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> 
     // debug!(logger, "base: 0x{:016x}", misc::get_kernel_base());
     ShellMessage::send(
         messenger,
-        format!("base: 0x{:016x}", misc::get_kernel_base()),
+        format!("base: {}", style(format!("0x{:016x}",misc::get_kernel_base())).yellow()),
         MessageType::Close,
         0,
     );
@@ -51,7 +55,8 @@ fn test_system_process(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) 
     // debug!(logger, "system: 0x{:016x}", system.object());
     ShellMessage::send(
         messenger,
-        format!("base: 0x{:016x}", system.object()),
+        format!("base: {}", style(format!("0x{:016x}",system.object())).green()),
+        // format!("base: 0x{:016x}", system.object()),
         MessageType::Close,
         0,
     );
@@ -62,10 +67,10 @@ fn test_find_eprocess(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -
     ShellMessage::send(
         messenger,
         format!(
-            "{}",
-            misc::WalkProcess::iter()
+                "{}",
+            style(misc::WalkProcess::iter()
                 .find(|process| process.name().contains("svchost"))
-                .unwrap()
+                .unwrap()).cyan()
         ),
         MessageType::Close,
         0,
@@ -96,7 +101,8 @@ fn test_read_eprocess(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -
     // debug!(logger, "current-eprocess: 0x{:016x}", current.object());
     ShellMessage::send(
         messenger,
-        format!("Current-eprocess: 0x{:016x}", current.object()),
+        format!("base: {}", style(format!("0x{:016x}",current.object())).cyan()),
+        // format!("Current-eprocess: 0x{:016x}", current.object()),
         MessageType::Close,
         0,
     );
