@@ -13,6 +13,7 @@ pub enum MessageType {
     Progress,
     CreateProgress,
     CloseProgress,
+    IncProgress,
     Spinner,
     Exit,
     Close,
@@ -44,6 +45,15 @@ impl ShellMessage {
 
     pub fn kind(&self) -> MessageType {
         self.kind
+    }
+    pub fn inc(&self, tx: &Sender<ShellMessage>, amount:usize) -> () {
+
+        ShellMessage::update_bar(&tx, ShellMessage{
+            content: "".to_string(),
+            kind: MessageType::IncProgress,
+            id: self.id,
+            progress: amount,
+        });
     }
 
     pub fn set_progress(&self, tx: &Sender<ShellMessage>, completed_progress:usize) -> (){
@@ -170,6 +180,12 @@ pub fn thread_printer(
                     // let advance = (message.progress/totals[&message_id]) * 100;
                     progresses[message_id].set_position(message.progress as u64);
                 }
+                MessageType::IncProgress => {
+                    // let sp = &container[0];
+                    // 100, totals[message_id], message.progress
+                    // let advance = (message.progress/totals[&message_id]) * 100;
+                    progresses[message_id].inc(message.progress as u64);
+                }
                 MessageType::Spinner => {
                     // let sp = &container[0];
                     container[message_id].set_message(&message.content);
@@ -178,7 +194,7 @@ pub fn thread_printer(
             }
             // thread::sleep(time::Duration::from_secs(2))
             // m.join_and_clear().unwrap();
-            thread::sleep(time::Duration::from_millis(500));
+            thread::sleep(time::Duration::from_millis(100));
         }
 
         // multi_progress.join();
