@@ -69,26 +69,54 @@ pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
 //
 // BAR TESTS
 //
+// #[allow(unused_variables)]
+// fn bar_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+//
+//     let bar = ProgressBar::new(5);
+//     for _ in 0..5 {
+//         thread::sleep(Duration::from_secs(1));
+//         bar.inc(1);
+//         // ...
+//     }
+//     bar.finish();
+//     let bar = ProgressBar::new(5);
+//     bar.set_style(ProgressStyle::default_bar()
+//         .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+//         .progress_chars("##-"));
+//     for _ in 0..5 {
+//         thread::sleep(Duration::from_secs(1));
+//         bar.inc(1);
+//         // ...
+//     }
+//     bar.finish();
+//
+//     Ok(())
+// }
 #[allow(unused_variables)]
 fn bar_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+    ShellMessage::send(messenger, "Testing spinner".to_string(), MessageType::Spinner, 0);
+    ShellMessage::send(messenger, "Testing spinner".to_string(), MessageType::Spinner, 0);
+    thread::sleep(Duration::from_secs(2));
+    ShellMessage::send(messenger, format!("[*] creating {}.", style("ObjectMonitor").blue()), MessageType::Spinner, 0);
+    thread::sleep(Duration::from_secs(2));
+    ShellMessage::send(messenger, format!("[*] creating {}.", style("ObjectMonitor").blue()), MessageType::Spinner, 1);
+    thread::sleep(Duration::from_secs(1));
+    ShellMessage::send(messenger, format!("[*] protecting {}.", style("ObjectGuard").magenta()), MessageType::Spinner, 0);
+    thread::sleep(Duration::from_secs(2));
+    ShellMessage::send(messenger, format!("[*] destroying {}.", style("ObjectShadow").cyan()), MessageType::Close, 0);
 
-    let bar = ProgressBar::new(5);
-    for _ in 0..5 {
+
+    thread::sleep(Duration::from_secs(2));
+    ShellMessage::send(messenger, format!("[*] protecting {}.", style("ObjectGuard").magenta()), MessageType::Spinner, 1);
+    thread::sleep(Duration::from_secs(2));
+    ShellMessage::send(messenger, format!("[*] destroying {}.", style("ObjectShadow").cyan()), MessageType::Close, 1);
+
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(),  0, 10);
+    for i in (1..10){
         thread::sleep(Duration::from_secs(1));
-        bar.inc(1);
-        // ...
+        bar.set_progress(messenger, i);
     }
-    bar.finish();
-    let bar = ProgressBar::new(5);
-    bar.set_style(ProgressStyle::default_bar()
-        .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-        .progress_chars("##-"));
-    for _ in 0..5 {
-        thread::sleep(Duration::from_secs(1));
-        bar.inc(1);
-        // ...
-    }
-    bar.finish();
+    bar.complete(messenger);
 
     Ok(())
 }

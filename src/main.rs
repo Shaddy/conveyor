@@ -65,19 +65,19 @@ ___________________________________________________________________________\n\n"
         .get_matches();
 
     let (messenger, receiver) = channel();
-    let (printer, bars) = create_messenger(receiver, 20);
+    let printer = create_messenger(receiver, 20);
 
     if let Err(e) = run(&matches, &messenger) {
         ShellMessage::send( &messenger,
                     format!("Application Error: {}", e), MessageType::Exit, 0, );
 
-        bars.join().expect("Unable to wait for writer");
+        // bars.join().expect("Unable to wait for writer");
         printer.join().expect("Unable to wait for printer");
         process::exit(1);
     }
 
-    ShellMessage::send( &messenger, "".to_owned(), MessageType::Exit, 0, );
 
-    bars.join().expect("Unable to wait for writer");
+    ShellMessage::send( &messenger, "".to_owned(), MessageType::Exit, 0, );
+    // bars.join().expect("Unable to wait for writer");
     printer.join().expect("Unable to wait for printer");
 }

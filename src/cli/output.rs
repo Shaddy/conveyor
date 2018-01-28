@@ -110,18 +110,21 @@ impl ShellMessage {
 }
 
 pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
-            (thread::JoinHandle<()>, MultiProgress) {
+            (thread::JoinHandle<()>) {
     let multi_progress = MultiProgress::new();
     let mut container: Vec<ProgressBar> = Vec::new();
     let mut progresses: Vec<ProgressBar> = Vec::new();
     let mut totals: HashMap<usize, usize> = HashMap::new();
+    let mut mappers: HashMap<usize, usize> = HashMap::new();
 
 
     (0..rows).for_each(|_| {
-        container.push(multi_progress.add(ProgressBar::new_spinner()));
+        // container.push(multi_progress.add(ProgressBar::new_spinner()));
+        container.push(ProgressBar::new_spinner());
     });
     (0..rows).for_each(|_| {
-        progresses.push(multi_progress.add(ProgressBar::new(100)));
+        progresses.push(ProgressBar::new(100));
+        // progresses.push(multi_progress.add(ProgressBar::new(100)));
     });
 
 
@@ -187,17 +190,17 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
                 MessageType::Spinner => {
                     // let sp = &container[0];
                     container[message_id].set_message(&message.content);
-                    thread::sleep(time::Duration::from_millis(400));
+                    // thread::sleep(time::Duration::from_millis(400));
                 }
             }
             // thread::sleep(time::Duration::from_secs(2))
             // m.join_and_clear().unwrap();
-            thread::sleep(time::Duration::from_millis(100));
+            // thread::sleep(time::Duration::from_millis(100));
         }
 
         // multi_progress.join();
         // helper_stdout.finish_with_message("All bars closed!");
     });
 
-    (tt, multi_progress)
+    tt
 }
