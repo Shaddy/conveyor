@@ -114,20 +114,8 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
     // let multi_progress = MultiProgress::new();
     let mut container: HashMap<usize, ProgressBar> = HashMap::new();
     let mut progresses: HashMap<usize, ProgressBar> = HashMap::new();
-    let mut totals: HashMap<usize, usize> = HashMap::new();
-    let mut mappers: HashMap<usize, usize> = HashMap::new();
-
-    //
-    // (0..rows).for_each(|_| {
-    //     // container.push(multi_progress.add(ProgressBar::new_spinner()));
-    //     container.push(ProgressBar::new_spinner());
-    // });
-    // (0..rows).for_each(|_| {
-    //     progresses.push(ProgressBar::new(100));
-    //     // progresses.push(multi_progress.add(ProgressBar::new(100)));
-    // });
-
-
+    // let mut totals: HashMap<usize, usize> = HashMap::new();
+    // let mut mappers: HashMap<usize, usize> = HashMap::new();
 
     let tt = thread::spawn(move || {
 
@@ -197,6 +185,9 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
                         // let bar = multi_progress.add(ProgressBar::new_spinner());
                         // container.insert(message_id,bar);
                         container.insert(message_id,ProgressBar::new_spinner());
+                        container[&message_id].set_style(ProgressStyle::default_spinner()
+                                .tick_chars("/|\\- ")
+                                .template("{spinner:.dim.bold} {wide_msg}"));
                     }
                     container[&message_id].set_message(&message.content);
                 }
