@@ -121,6 +121,7 @@ fn bar_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
     bar.complete(messenger);
     bar1.complete(messenger);
 
+    ShellMessage::sleep_bar(messenger, 5);
     Ok(())
 }
 

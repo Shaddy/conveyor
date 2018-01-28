@@ -108,13 +108,14 @@ fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
 
     // let duration = Duration::from_secs(20);
     // debug!(logger, "waiting {:?}", duration);
-    ShellMessage::send(messenger, "Waiting 20 seconds".to_string(), MessageType::Spinner,0);
-    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,20);
-    for i in 0..20{
-        bar.set_progress(messenger, i);
-        thread::sleep(Duration::from_secs(1))
-    }
-    bar.complete(messenger);
+    ShellMessage::send(messenger, format!("Waiting {} seconds...",style("20").underlined().yellow()), MessageType::Spinner,0);
+    ShellMessage::sleep_bar(messenger,20);
+    // let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,20);
+    // for i in 0..20{
+    //     bar.set_progress(messenger, i);
+    //     thread::sleep(Duration::from_secs(1))
+    // }
+    // bar.complete(messenger);
     // thread::sleep(duration);
     ShellMessage::send(messenger, format!("{}",style("Done!").green()), MessageType::Close,0);
     Ok(())
