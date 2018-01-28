@@ -112,11 +112,14 @@ fn bar_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
     ShellMessage::send(messenger, format!("[*] destroying {}.", style("ObjectShadow").cyan()), MessageType::Close, 1);
 
     let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(),  0, 10);
+    let bar1 = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(),  1, 10);
     for i in (1..10){
         thread::sleep(Duration::from_secs(1));
+        bar1.set_progress(messenger, i);
         bar.set_progress(messenger, i);
     }
     bar.complete(messenger);
+    bar1.complete(messenger);
 
     Ok(())
 }

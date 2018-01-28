@@ -4,7 +4,7 @@ extern crate indicatif;
 use std::sync::mpsc::{Receiver, Sender};
 
 use std::collections::HashMap;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle, ProgressDrawTarget};
 use std::{thread, time};
 use std::iter::Iterator;
 
@@ -111,25 +111,29 @@ impl ShellMessage {
 
 pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
             (thread::JoinHandle<()>) {
-    let multi_progress = MultiProgress::new();
-    let mut container: Vec<ProgressBar> = Vec::new();
-    let mut progresses: Vec<ProgressBar> = Vec::new();
+    // let multi_progress = MultiProgress::new();
+    let mut container: HashMap<usize, ProgressBar> = HashMap::new();
+    let mut progresses: HashMap<usize, ProgressBar> = HashMap::new();
     let mut totals: HashMap<usize, usize> = HashMap::new();
     let mut mappers: HashMap<usize, usize> = HashMap::new();
 
-
-    (0..rows).for_each(|_| {
-        // container.push(multi_progress.add(ProgressBar::new_spinner()));
-        container.push(ProgressBar::new_spinner());
-    });
-    (0..rows).for_each(|_| {
-        progresses.push(ProgressBar::new(100));
-        // progresses.push(multi_progress.add(ProgressBar::new(100)));
-    });
+    //
+    // (0..rows).for_each(|_| {
+    //     // container.push(multi_progress.add(ProgressBar::new_spinner()));
+    //     container.push(ProgressBar::new_spinner());
+    // });
+    // (0..rows).for_each(|_| {
+    //     progresses.push(ProgressBar::new(100));
+    //     // progresses.push(multi_progress.add(ProgressBar::new(100)));
+    // });
 
 
 
     let tt = thread::spawn(move || {
+
+        // let multi_progress = MultiProgress::new();
+        // multi_progress.set_draw_target(ProgressDrawTarget::stdout());
+
         loop {
             let message = rx.recv().unwrap();
 
@@ -155,50 +159,56 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
             // let message_id = *message.id;
             match message.kind() {
                 MessageType::Exit => {
+                    if container.contains_key(&message_id){
                     // let sp = &container[0];
-                    container[message_id].finish_with_message(&message.content);
+                    container[&message_id].finish_with_message(&message.content);
+                    };
                     break;
+
                 }
                 MessageType::Close => {
                     // let sp = container.to_vec()[0];
-                    container[message_id].finish_with_message(&message.content);
-                    container.remove(message_id);
+                    if container.contains_key(&message_id){
+                    container[&message_id].finish_with_message(&message.content);
+                    container.remove(&message_id);
+                    }
+
+
                 }
                 MessageType::CreateProgress => {
-                    progresses[message_id].set_style(ProgressStyle::default_bar()
+                    progresses.insert(message_id, ProgressBar::new(message.progress as u64));
+                    progresses[&message_id].set_style(ProgressStyle::default_bar()
                                                     .template(&message.content)
                                         .progress_chars("##-"));
-                    progresses[message_id].set_length(message.progress as u64);
-                    totals.insert(message_id, message.progress);
                 }
                 MessageType::CloseProgress => {
-                    progresses[message_id].finish();
+                    progresses[&message_id].finish();
+                    progresses.remove(&message_id);
 
                 }
                 MessageType::Progress => {
-                    // let sp = &container[0];
-                    // 100, totals[message_id], message.progress
-                    // let advance = (message.progress/totals[&message_id]) * 100;
-                    progresses[message_id].set_position(message.progress as u64);
+                    progresses[&message_id].set_position(message.progress as u64);
                 }
                 MessageType::IncProgress => {
-                    // let sp = &container[0];
-                    // 100, totals[message_id], message.progress
-                    // let advance = (message.progress/totals[&message_id]) * 100;
-                    progresses[message_id].inc(message.progress as u64);
+                    progresses[&message_id].inc(message.progress as u64);
                 }
                 MessageType::Spinner => {
-                    // let sp = &container[0];
-                    container[message_id].set_message(&message.content);
-                    // thread::sleep(time::Duration::from_millis(400));
+                    if !container.contains_key(&message_id){
+                        // let bar = multi_progress.add(ProgressBar::new_spinner());
+                        // container.insert(message_id,bar);
+                        container.insert(message_id,ProgressBar::new_spinner());
+                    }
+                    container[&message_id].set_message(&message.content);
                 }
             }
             // thread::sleep(time::Duration::from_secs(2))
             // m.join_and_clear().unwrap();
-            // thread::sleep(time::Duration::from_millis(100));
+            thread::sleep(time::Duration::from_millis(100));
+            // multi_progress.join().unwrap();
+            // let mu
+
         }
 
-        // multi_progress.join();
         // helper_stdout.finish_with_message("All bars closed!");
     });
 
