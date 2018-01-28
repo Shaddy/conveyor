@@ -186,7 +186,7 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) ->
                         // container.insert(message_id,bar);
                         container.insert(message_id,ProgressBar::new_spinner());
                         container[&message_id].set_style(ProgressStyle::default_spinner()
-                                .tick_chars("/|\\- ")
+                                .tick_chars(".·: ")
                                 .template("{spinner:.dim.bold} {wide_msg}"));
                     }
                     container[&message_id].set_message(&message.content);

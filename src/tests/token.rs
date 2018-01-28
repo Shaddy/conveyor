@@ -105,10 +105,16 @@ fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
         Response::new(Some(message), Action::STEALTH)
     }));
 
-    let duration = Duration::from_secs(20);
+    // let duration = Duration::from_secs(20);
     // debug!(logger, "waiting {:?}", duration);
-    ShellMessage::send(messenger, format!("Waiting {:?}...", duration), MessageType::Spinner,0);
-    thread::sleep(duration);
+    ShellMessage::send(messenger, "Waiting 20 seconds".to_string(), MessageType::Spinner,0);
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,20);
+    for i in 0..20{
+        bar.set_progress(messenger, i);
+        thread::sleep(Duration::from_secs(1))
+    }
+    bar.complete(messenger);
+    // thread::sleep(duration);
     ShellMessage::send(messenger, "Done!".to_string(), MessageType::Close,0);
     Ok(())
 }
