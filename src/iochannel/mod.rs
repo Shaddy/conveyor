@@ -4,6 +4,7 @@ extern crate failure;
 extern crate clap;
 extern crate slog;
 extern crate winapi;
+extern crate console;
 
 pub mod command;
 pub mod error;

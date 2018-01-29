@@ -8,6 +8,7 @@ use super::error::PdbError;
 use failure::Error;
 use std::sync::mpsc::Sender;
 use super::cli::output::{MessageType, ShellMessage};
+use super::console::style;
 
 pub struct PdbDownloader {
     filename: String
@@ -28,7 +29,7 @@ impl PdbDownloader {
         };
 
         if !resp.status().is_success() {
-            return Err(PdbError::StatusError(format!("{}", resp.status())))
+            return Err(PdbError::StatusError(format!("{}", style(resp.status()).red())))
         }
 
         Ok(resp)
@@ -36,32 +37,33 @@ impl PdbDownloader {
 
     pub fn download(&self, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
 
-        println!("download()");
+        // println!("download()");
         ShellMessage::send(messenger, "Getting symbols...".to_string(), MessageType::Spinner, 0);
         let mut response = self.download_pdb()?;
-        println!("send first message");
+        // println!("send first message");
 
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
         pdb_filename.push_str(".pdb");
-        ShellMessage::send(messenger, format!("Opening file {}",pdb_filename), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("Opening file {}",style(&pdb_filename).blue()), MessageType::Spinner, 0);
 
-        ShellMessage::send(messenger, "Writing file...".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("{}",style("Writing file...").yellow()), MessageType::Spinner, 0);
         let path = Path::new(&pdb_filename);
 
         let mut fd = File::create(path)?;
 
-        ShellMessage::send(messenger, "Closing handles...".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("{}",style("Closing handles...").yellow()), MessageType::Spinner, 0);
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
         fd.write_all(&buf)?;
-        ShellMessage::send(messenger, format!("File saved on: {}", &pdb_filename),
-                                    MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("File saved on: {}", style(&pdb_filename).blue()),
+                                    MessageType::Close, 0);
 
-        println!("Download complete!\n");
+        ShellMessage::send(messenger, format!("{}",style("Done!").green()), MessageType::Close, 0);
+        // println!("Download complete!\n");
         Ok(())
 
     }

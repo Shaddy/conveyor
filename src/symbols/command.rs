@@ -4,6 +4,7 @@ use super::failure::Error;
 use super::downloader::PdbDownloader;
 use std::sync::mpsc::{Sender};
 use super::cli::output::{MessageType, ShellMessage};
+use super::console::style;
 
 pub fn _not_implemented_subcommand(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     unimplemented!()
@@ -60,7 +61,7 @@ fn find_offset(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
 
-    ShellMessage::send(messenger, format!("parsing {} to find {} offset", target, name), MessageType::Close, 0);
+    ShellMessage::send(messenger, format!("parsing {} to find {} offset", style(target).cyan(), style(name).magenta()), MessageType::Close, 0);
     // debug!(logger, "parsing {} to find {} offset", target, name);
     let _ = parser::find_offset(target, name);
     Ok(())
@@ -69,7 +70,7 @@ fn find_offset(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result
 fn parse_pdb(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let target = matches.value_of("target").expect("target is not specified");
     let name = matches.value_of("struct").expect("target is not specified");
-    ShellMessage::send(messenger, format!("parsing {} searching {}", target, name),MessageType::Close,0);
+    ShellMessage::send(messenger, format!("parsing {} searching {}", style(target).cyan(), style(name).magenta()  ),MessageType::Close,0);
 
     // debug!(logger, "parsing {} searching {}", target, name);
     parser::pdb_to_c_struct(target, name, messenger);

@@ -5,6 +5,7 @@ use super::failure::Error;
 
 use std::sync::mpsc::{Sender};
 use super::cli::output::{MessageType, ShellMessage};
+use super::console::style;
 
 fn _not_implemented_command(_messenger: &Sender<ShellMessage>) {
     unimplemented!()
@@ -47,7 +48,7 @@ pub fn device_open(
 
     ShellMessage::send(
         messenger,
-        format!("Opening device {}...", name),
+        format!("Opening device {}...", style(name).underlined().blue()),
         MessageType::Close,
         0,
     );
@@ -57,7 +58,7 @@ pub fn device_open(
 
     ShellMessage::send(
             messenger,
-            format!("{} found, handle: 0x{:x}",name, handle as u64),
+            format!("{} found, handle: {}", style(name).underlined().blue(), style(format!("0x{:x}",  handle as u64)).cyan()  ),
             MessageType::Close,
             1,
         );

@@ -9,8 +9,10 @@ use std::io;
 use std::fs;
 use std::sync::mpsc::{Sender};
 use super::cli::output::{MessageType, ShellMessage};
+use super::console::style;
 
 pub use super::pdb::Error;
+
 
 type TypeSet = BTreeSet<pdb::TypeIndex>;
 
@@ -547,7 +549,7 @@ fn write_class(filename: &str, class_name: &str, messenger: &Sender<ShellMessage
     }
 
     if data.classes.len() == 0 {
-        ShellMessage::send(messenger, format!("Sorry, class {} was not found", class_name),MessageType::Close,2);
+        ShellMessage::send(messenger,format!("{}", style(format!("Sorry, class {} was not found", class_name)).red()),MessageType::Close,0);
 
         // writeln!(&mut io::stderr(), "sorry, class {} was not found", class_name)
         //     .expect("stderr write");
@@ -675,8 +677,9 @@ pub fn pdb_to_c_struct(filename: &str, name: &str, messenger: &Sender<ShellMessa
     match write_class(filename, name, messenger) {
         Ok(_) => {}
         Err(e) => {
-            ShellMessage::send(messenger, format!("error dumping pdb {}", e),
-                        MessageType::Spinner, 2);
+            ShellMessage::send(messenger, format!("error dumping pdb {}", style(e).red()),
+                        MessageType::Close,
+                        0);
         }
     }
 }
