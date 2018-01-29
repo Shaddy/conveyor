@@ -70,7 +70,7 @@ ___________________________________________________________________________\n\n"
         .get_matches();
 
     let (messenger, receiver) = channel();
-    let printer = create_messenger(receiver, 20);
+    let printer = create_messenger(receiver, None, 20);
 
     if let Err(e) = run(&matches, &messenger) {
         ShellMessage::send( &messenger,

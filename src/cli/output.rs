@@ -133,7 +133,7 @@ impl ShellMessage {
 }
 
 #[allow(unused_variables)]
-pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) -> (thread::JoinHandle<()>) {
+pub fn create_messenger(rx: Receiver<ShellMessage>, elapse: Option<time::Duration>, rows: usize) -> (thread::JoinHandle<()>) {
     // let multi_progress = MultiProgress::new();
     let mut container: HashMap<usize, ProgressBar> = HashMap::new();
     let mut progresses: HashMap<usize, ProgressBar> = HashMap::new();
@@ -165,6 +165,8 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) -> (thread::Joi
             */
 
             let message_id: usize = message.id as usize;
+
+            let elapse = elapse.unwrap_or(time::Duration::from_millis(100));
 
             // let message_id = *message.id;
             match message.kind() {
@@ -222,7 +224,7 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) -> (thread::Joi
                         );
                     }
                     container[&message_id].set_message(&message.content);
-                    thread::sleep(time::Duration::from_millis(100));
+                    thread::sleep(elapse);
                 }
             }
             // thread::sleep(time::Duration::from_secs(2))

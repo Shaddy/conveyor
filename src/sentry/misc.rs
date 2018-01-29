@@ -30,7 +30,7 @@ pub fn get_offset(target: &str) -> Result<u16, Error> {
         Err(PdbError::IoError(_)) => {
             // TODO:REVIEW: Temporlal addition of channel to support printed
             let (tx, rx) = channel();
-            let tt = create_messenger(rx, 0);
+            let tt = create_messenger(rx, None, 0);
 
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download(&tx)?;
             tt.join().expect("unable to wait for channel");

@@ -39,15 +39,7 @@ pub fn monitor_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> 
     ShellMessage::send(messenger, format!("[!] {}.", style("starting").magenta()), MessageType::Spinner,0);
     filter.start().expect("unable to start filter");
 
-
-    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,30);
-
-    for _ in 0..30 {
-        thread::sleep(Duration::from_secs(1));
-        bar.inc(messenger,1);
-        // ...
-    }
-    bar.complete(messenger);
+    thread::sleep(time::Duration::from_secs(20));
 
     ShellMessage::send(messenger, format!("[!] {}.", style("stopping").magenta()), MessageType::Close,0);
     filter.stop().expect("unable to start filter");

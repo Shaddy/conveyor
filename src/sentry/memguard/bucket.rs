@@ -1,6 +1,3 @@
-extern crate byteorder;
-extern crate winapi;
-
 use std::sync::mpsc;
 use super::sync::{Event};
 use super::structs::{ ObjectType,
@@ -117,8 +114,6 @@ impl Monitor {
         format!("{:?}", m)
     }
 }
-
-
 
 #[repr(C)]
 pub struct Interception {
@@ -333,7 +328,7 @@ impl Bucket {
             }
 
             if response.has_message() {
-                let message = format!("{:?}: {:?}", id, response.message());
+                let message = format!("LAST-EVENT: {:?}", response.message());
 
                 if let Err(err) = messenger.send(message) {
                     panic!("error sending to messenger: {}", err.to_string());

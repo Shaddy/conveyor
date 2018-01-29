@@ -1,18 +1,24 @@
+extern crate byteorder;
 extern crate winapi;
+extern crate console;
 
 use super::iochannel::{Device};
+use super::cli::output::{create_messenger, ShellMessage, MessageType};
+
+use std::sync::mpsc;
 
 mod bucket;
 mod sync;
 mod structs;
 
+use self::console::style;
 use super::{io, memory, misc};
 use std::rc::{Rc, Weak};
 
-use std::{fmt, thread};
+use std::{fmt, thread, time};
 use std::thread::{JoinHandle};
 
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
 pub use self::bucket::{Interception, Response};
@@ -124,13 +130,27 @@ impl Tunnel {
 
         }).collect::<Vec<Handler>>();
 
+
+        let (messenger, recv) = mpsc::channel();
+        let handler = create_messenger(recv, Some(time::Duration::from_millis(1)), 0);
+
         handlers.push(Handler::Messenger(thread::spawn(move|| {
             loop {
                 let message = rx.recv().unwrap();
                 if message.contains(MESSENGER_FINISH_MSG) {
+                    ShellMessage::send(&messenger, "- FINISHED -".to_string(),
+                                                MessageType::Close, 0);
+                    ShellMessage::send(&messenger, "- FINISHED -".to_string(),
+                                                MessageType::Exit, 0);
+                    handler.join()
+                           .expect("unable to wait for shell messenger");
                     break;
                 }
-                println!("{}", message);
+
+                ShellMessage::send(&messenger, format!("{}",
+                                              style(message).magenta()),
+                                              MessageType::Spinner,
+                                              0);
             }
         })));
 
@@ -486,8 +506,6 @@ impl<'p> Guard<'p> {
         let id = io::register_guard(&partition.device, partition.id, filter)
             .expect("Unable to connect guard with root partition");
 
-        println!("Guard<0x{:08X}>::new()", id);
-
         Guard {
             id: id,
             partition: partition,
@@ -532,7 +550,6 @@ impl<'p> fmt::Display for Guard<'p> {
 
 impl<'p> Drop for Guard<'p> {
     fn drop(&mut self) {
-        println!("Guard<0x{:08X}>::drop()", self.id);
         if let Err(err) = io::unregister_guard(&self.partition.device, self.id) {
             println!("error unregistering guard: {}", err);
         }
