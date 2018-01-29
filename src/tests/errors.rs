@@ -9,6 +9,7 @@ use std::ptr;
 
 use std::sync::mpsc::Sender;
 use super::cli::output::{MessageType, ShellMessage};
+use super::console::style;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("errors").subcommand(SubCommand::with_name("ioctl"))
@@ -25,7 +26,7 @@ pub fn test_ioctl_incorrect_function(messenger: &Sender<ShellMessage>) -> Result
     // debug!(logger, "creating an invalid i/o call");
     ShellMessage::send(
         messenger,
-        "Creating an invalid i/o call...".to_string(),
+        format!("{}",style("Creating an invalid i/o call...").yellow()),
         MessageType::Spinner,
         0,
     );
@@ -43,7 +44,7 @@ pub fn test_ioctl_incorrect_function(messenger: &Sender<ShellMessage>) -> Result
     if let Err(err) = device.raw_call(no_name_control, ptr::null_mut(), 0) {
         ShellMessage::send(
             messenger,
-            format!("Unnamed I/O control: {}", err.to_string()),
+            format!("Unnamed I/O control: {}", style(err.to_string()).underlined().red()),
             MessageType::Close,
             0,
         );
@@ -53,7 +54,7 @@ pub fn test_ioctl_incorrect_function(messenger: &Sender<ShellMessage>) -> Result
     if let Err(err) = device.raw_call(named_control, ptr::null_mut(), 0) {
         ShellMessage::send(
             messenger,
-            format!("Named I/O control: {}", err.to_string()),
+            format!("Named I/O control: {}", style(err.to_string()).underlined().yellow()),
             MessageType::Close,
             0,
         );
