@@ -221,26 +221,28 @@ fn device_tests(matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Resu
 
 fn consume_device(device: Device, messenger: &Sender<ShellMessage>) {
     // println!("good bye - {:?}", device);
-        ShellMessage::send(messenger, format!("good bye - {:?}", device), MessageType::Close, 0);
+        ShellMessage::send(messenger, format!("good bye - {:?}", style(device).cyan()), MessageType::Close, 0);
 }
 
 fn test_double_open(_matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Result<(), Error> {
         let partition = Partition::root();
         let device_one = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
         // debug!(logger, "dropping: device_one");
-        ShellMessage::send(messenger, "Dropping device_one".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("{}",style("Dropping device_one").yellow()), MessageType::Spinner, 0);
         consume_device(device_one, messenger);
         // debug!(logger, "device_one dropped");
-        ShellMessage::send(messenger,"device_one dropped".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(messenger,format!("{} dropped",style("device_one").cyan()), MessageType::Spinner, 0);
         // debug!(logger, "creating a partition");
-        ShellMessage::send(messenger, "Creating a partition".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("{}",style("Creating partition").blue()), MessageType::Spinner, 0);
 
         if io::delete_partition(&partition.device, partition.id).is_err() {
-            colorize::failed("TEST HAS FAILED");
+            ShellMessage::send(messenger, format!("{}",style("Test ended USUCCESSFULLY").red()), MessageType::Close, 0);
+            // colorize::failed("TEST HAS FAILED");
         } else {
-            colorize::success("TEST IS SUCCESS");
+            ShellMessage::send(messenger, format!("{}",style("Test ended SUCCESSFULLY").green()), MessageType::Close, 0);
+            // colorize::success("TEST IS SUCCESS");
         }
-        ShellMessage::send(messenger, "Test ended".to_string(), MessageType::Close, 0);
+        // ShellMessage::send(messenger, "Test ended".to_string(), MessageType::Close, 0);
 
         Ok(())
 }
@@ -266,7 +268,7 @@ fn test_search_pattern(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) 
                                           &switch_context_pattern,
                                           Some("KeSynchronizeExecution")) {
 
-        ShellMessage::send(messenger, format!("Switch-content: 0x{:016x}", offset), MessageType::Close, 0);
+    ShellMessage::send(messenger, format!("Switch-content: {}", style(format!("0x{:016x}", offset)).cyan()), MessageType::Close, 0);
     }
 
     Ok(())

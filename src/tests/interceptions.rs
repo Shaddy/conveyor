@@ -24,6 +24,7 @@ use super::ssdt::SSDT_FUNCTIONS;
 
 use std::sync::mpsc::Sender;
 use super::cli::output::{ShellMessage, MessageType};
+use super::console::style;
 
 pub fn bind() -> App<'static, 'static> {
     SubCommand::with_name("interceptions")
@@ -48,7 +49,7 @@ pub fn tests(matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Result<
 }
 
 fn test_ssdt_address(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
-    ShellMessage::send(messenger, format!("{:?}", find_ssdt_address()), MessageType::Spinner, 0);
+    ShellMessage::send(messenger, format!("{:?}", find_ssdt_address(messenger)), MessageType::Spinner, 0);
     Ok(())
 }
 
@@ -74,7 +75,7 @@ impl fmt::Debug for ServiceTable {
     }
 }
 
-fn find_ssdt_address() -> ServiceTable {
+fn find_ssdt_address(messenger: &Sender<ShellMessage>) -> ServiceTable {
     let device = Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device");
     let pattern = vec![0x48, 0x89, 0xA3, 0xD8,
                        0x01, 0x00, 0x00, 0x8B,
@@ -93,7 +94,8 @@ fn find_ssdt_address() -> ServiceTable {
 
     let ssdt_reference = address.wrapping_add(rva as u64) + instruction + 4;
 
-    println!("ref: 0x{:016x}", ssdt_reference);
+    ShellMessage::send(messenger, format!("ref: {}",style(format!("0x{:016x}",ssdt_reference)).cyan()), MessageType::Spinner, 0);
+    // println!("ref: 0x{:016x}", ssdt_reference);
     let data = memory::read_virtual_memory(&device, ssdt_reference, mem::size_of::<ServiceTable>())
                     .expect("error reading ServiceTable");
 
@@ -119,7 +121,7 @@ fn test_analysis_normal(_matches: &ArgMatches, messenger: &Sender<ShellMessage>)
 fn test_analysis_interception_messaged(show: Print, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
 
     ShellMessage::send(messenger,"discovering SSDT".to_string(), MessageType::Spinner, 0);
-    let ssdt = find_ssdt_address();
+    let ssdt = find_ssdt_address(messenger);
 
     ShellMessage::send(messenger,format!("{:?}", ssdt), MessageType::Spinner, 0);
 
@@ -177,61 +179,74 @@ fn test_stealth_interception(_matches: &ArgMatches, messenger: &Sender<ShellMess
     const POOL_SIZE: usize = 0x10;
 
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
-    ShellMessage::send(messenger,format!("new pool: 0x{:016x} ({} bytes)", addr, POOL_SIZE),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("new pool: {} ({} bytes)",style(format!("0x{:016x}", addr)).cyan(), style(format!("{}", POOL_SIZE)).underlined().yellow()  ),MessageType::Spinner,0);
 
     let bytes = memory::write_virtual_memory(&partition.device, addr, vec![0; POOL_SIZE]).unwrap();
-    ShellMessage::send(messenger,format!("zeroed {} bytes", bytes),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("zeroed {} bytes", style(format!("{}", bytes)).underlined().yellow()),MessageType::Spinner,0);
 
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
     let output = common::dump_vector(&v);
-    ShellMessage::send(messenger,format!("dumping buffer 0x{:016x} \n{}", addr, output),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("dumping buffer {} \n{}", style(format!("0x{:016x}", addr)).cyan()  , output),MessageType::Spinner,0);
 
     let region = Region::new(&partition, addr, POOL_SIZE as u64, Some(Action::NOTIFY | Action::INSPECT), Access::WRITE).unwrap();
 
-    ShellMessage::send(messenger,format!("adding {} to {}", region, guard),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("adding {} to {}", style(format!("{}", region)).cyan() , style(format!("{}", guard)).blue()  ),MessageType::Spinner,0);
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
-        let message = format!("Attempt to write at 0x{:016X} - IGNORING", interception.address);
+        // TODO:REVIEW: Here we remove return message to caller, to enable beautified print
+        println!("Attempt to write at {} - IGNORING", style(format!("0x{:016X}",interception.address)).underlined().cyan());
         // TODO: set optional color for response
         // colorize::info(&message);
+        let message = "".to_string();
         Response::new(Some(message), Action::STEALTH)
     }));
 
-    ShellMessage::send(messenger,"starting guard".to_string(),MessageType::Spinner,0);
+    ShellMessage::send(messenger, format!("{}",style("Starting guard").blue()), MessageType::Spinner, 0);
+    // ShellMessage::send(messenger,"starting guard".to_string(),MessageType::Spinner,0);
     guard.start();
-    ShellMessage::send(messenger,format!("accessing memory 0x{:016x}", addr),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("accessing memory {}", style(format!("0x{:016x}",  addr)).cyan()  ),MessageType::Spinner,0);
 
     let v = common::dummy_vector(POOL_SIZE);
 
     let bytes = memory::write_virtual_memory(&partition.device, addr, v).unwrap();
-    ShellMessage::send(messenger,format!("{} bytes written", bytes),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("{} bytes written", style(format!("{}", bytes)).underlined().yellow() ),MessageType::Spinner,0);
 
     let v = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
     if v.iter().any(|&b| b != 0x00) {
-        colorize::failed("STEALTH test result has FAILED.");
+        // colorize::failed("STEALTH test result has FAILED.");
+        ShellMessage::send(messenger, format!("{}",style("STEALTH test result has FAILED.").red())  , MessageType::Spinner, 0);
+
         let output = common::dump_vector(&v);
-        ShellMessage::send(messenger, format!("inspecting buffer 0x{:016x}", addr), MessageType::Spinner, 0);
-        colorize::warning(&output);
+
+        ShellMessage::send(messenger, format!("inspecting buffer {}", style(format!("0x{:016x}", addr)).cyan()), MessageType::Spinner, 0);
+
+        ShellMessage::send(messenger, format!("{}", style(format!("{}", &output)).yellow()) , MessageType::Spinner, 0);
+        // colorize::warning(&output);
     } else {
+
+        ShellMessage::send(messenger, format!("{}",style("STEALTH test result has PASSED.").green())  , MessageType::Spinner, 0);
         colorize::success("STEALTH test result has PASSED.");
     }
 
-    ShellMessage::send(messenger, "stoping guard".to_string(), MessageType::Spinner, 0);
+    ShellMessage::send(messenger,format!("{}",style("Stoping guard!").yellow()),MessageType::Spinner,0);
+    // ShellMessage::send(messenger, "stoping guard".to_string(), MessageType::Spinner, 0);
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr).unwrap();
+    ShellMessage::send(messenger,format!("{}",style("Done!").green()),MessageType::Close, 0);
     Ok(())
 }
 
 // example of declared function as callback
 #[allow(dead_code)]
 fn callback_test(interception: Interception) -> Action {
-    println!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
-                                    interception.access);
-    // ShellMessage::send(messenger,format!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
-    //                                 interception.access),MessageType::Spinner,0);
-    //
+    // println!(format!("The offensive address is {} (accessing: {})", style(format!("0x{:016x}",interception.address)).on_red(),
+    //                                     style(format!("{:?}",interception.access)).underlined().cyan());
+    println!("The offensive address is 0x{:016x} (accessing {:?})", interception.address, interception.access);
+    // println!("The offensive address is {} (accessing {})",
+    //         style(format!("0x{:016x}", interception.address)).red(),
+    //     style(format!("{:?}", interception.access)).underlined().cyan());
     Action::CONTINUE
 }
 
@@ -249,27 +264,38 @@ fn test_interception_callback(_matches: &ArgMatches, messenger: &Sender<ShellMes
     let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
     ShellMessage::send(messenger,
-            format!("Adding {} to {}", region, guard), MessageType::Spinner, 0);
+            format!("Adding {} to {}", style(format!("{}",region)).green(), style(format!("{}",guard)).blue()), MessageType::Spinner, 0);
     guard.add(region);
 
     guard.set_callback(Box::new(|interception| {
-        let message = format!("The offensive address is 0x{:016X} (accessing {:?})", interception.address,
-                                        interception.access);
+        // let message = format!("The offensive address is 0x{:016X} (accessing: {:?})",interception.address,interception.access);
+        //
+        // REVIEW:TODO: Here we remove message from caller, in order to print lines beautified
+        println!("The offensive address is {} ( {} access)",
+                style(format!("0x{:016x}", interception.address)).red(),
+            style(format!("{:?}", interception.access)).underlined().cyan());
+
+        let message = "".to_string();
 
         Response::new(Some(message), Action::CONTINUE)
     }));
 
-    ShellMessage::send(messenger, "Starting guard".to_string(), MessageType::Spinner, 0);
+    ShellMessage::send(messenger, format!("{}",style("Starting guard").blue()), MessageType::Spinner, 0);
     guard.start();
 
-    ShellMessage::send(messenger,
-        format!("Accessing memory 0x{:016x}", addr),MessageType::Spinner, 0);
+    ShellMessage::send(
+        messenger,
+        format!("Accessing memory: {}",style(format!("0x{:016x}",addr)).underlined().cyan()),
+        MessageType::Spinner,
+        0
+    );
 
     let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
-    ShellMessage::send(messenger,"Stoping guard".to_string(),MessageType::Spinner, 0);
+    ShellMessage::send(messenger,format!("{}",style("Stoping guard...").yellow()),MessageType::Spinner, 0);
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr).unwrap();
+    ShellMessage::send(messenger,format!("{}",style("Done!").green()),MessageType::Close, 0);
     Ok(())
 }
 
@@ -279,28 +305,28 @@ fn test_intercept_kernel_region(_matches: &ArgMatches, messenger: &Sender<ShellM
 
     const POOL_SIZE: usize = 0x100;
 
-    ShellMessage::send(messenger,"Allocating pool...".to_string(),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("{}",style("Allocating pool...").yellow()),MessageType::Spinner,0);
 
     let addr = memory::alloc_virtual_memory(&partition.device, POOL_SIZE).unwrap();
-    ShellMessage::send(messenger,format!("Addr: 0x{:016x}",addr),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("Addr: {}",style(format!("0x{:016x}",addr)).cyan()),MessageType::Spinner,0);
 
     let region = Region::new(&partition, addr, POOL_SIZE as u64, None, Access::READ).unwrap();
 
-    ShellMessage::send(messenger,format!("Adding {} to {}",region , guard),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("Adding {} to {}",style(format!("{}",region)).green() , style(format!("{}",guard)).blue()),MessageType::Spinner,0);
 
     guard.add(region);
-    ShellMessage::send(messenger,"Starting guard...".to_string(),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("{}",style("Starting guard!").on_blue()),MessageType::Spinner,0);
 
     guard.start();
-    ShellMessage::send(messenger,format!("Accesing memory 0x{:016x}",addr),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("Accesing memory {}",style(format!("0x{:016x}",addr)).cyan()),MessageType::Spinner,0);
 
     let _ = memory::read_virtual_memory(&partition.device, addr, POOL_SIZE).unwrap();
-    ShellMessage::send(messenger,"Stoping guard".to_string(),MessageType::Spinner,0);
+    ShellMessage::send(messenger,format!("{}",style("Stoping guard!").yellow()),MessageType::Spinner,0);
 
     guard.stop();
 
     memory::free_virtual_memory(&partition.device, addr).unwrap();
-    ShellMessage::send(messenger,"Done!".to_string(),MessageType::Close,0);
+    ShellMessage::send(messenger,format!("{}",style("Done!").green()),MessageType::Close,0);
 
     Ok(())
 }
