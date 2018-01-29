@@ -139,7 +139,7 @@ impl WindowsService {
 
         let mut status: winsvc::SERVICE_STATUS = unsafe {zeroed()};
 
-        let success = unsafe {
+        let _success = unsafe {
             winsvc::ControlService(
             service,
             winsvc::SERVICE_CONTROL_STOP,
@@ -156,7 +156,7 @@ impl WindowsService {
     pub fn start(&self) -> &Self {
         let service = self.open().expect("Unable to open service");
 
-        let success = unsafe {
+        let _success = unsafe {
             ffi::StartServiceW(
                 service,
                 0,

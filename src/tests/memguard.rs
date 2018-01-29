@@ -70,17 +70,15 @@ fn test_fuzz_partition_process(messenger: &Sender<ShellMessage>) -> Result<(), E
 
 
     let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,1000);
-    (0..1000).for_each(|round| {
+    (0..1000).for_each(|_| {
         {
-            // ShellMessage::send(messenger, format!("Executing round {}",style(round).cyan()), MessageType::Spinner, 0);
-            // debug!(logger, "exeuting round: {}", round);
             let elapse = rng.gen::<u8>();
             let duration = Duration::from_millis(u64::from(elapse));
             let _partition = Partition::root();
             let _device = Device::new(io::SE_NT_DEVICE_NAME).expect("Can't open sentry");
             if let Ok(process) = misc::Process::system() {
                 let _ = process.to_string();
-            bar.inc(messenger,1);
+                bar.inc(messenger,1);
             }
 
             thread::sleep(duration);
@@ -183,9 +181,6 @@ fn test_guard_filters(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) -
     // debug!(logger, "starting guard");
     guard.start();
 
-    let duration = Duration::from_secs(10);
-
-    // debug!(logger, "waiting {:?}", duration);
     ShellMessage::send(messenger, format!("Waiting {}", style("10 secs").cyan()), MessageType::Spinner, 0);
     ShellMessage::sleep_bar(messenger,10);
     // thread::sleep(duration);

@@ -12,9 +12,7 @@ extern crate num;
 
 use super::{iochannel, cli, sentry};
 
-
 mod ssdt;
-mod token;
 mod memguard;
 mod errors;
 mod process;
@@ -24,6 +22,7 @@ mod mem;
 mod common;
 mod interceptions;
 mod structs;
-mod patches;
-
+pub mod token;
+pub mod patches;
+pub mod monitor;
 pub mod command;

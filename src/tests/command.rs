@@ -1,8 +1,6 @@
 
 use super::clap::{App, ArgMatches, SubCommand};
-use super::cli::colorize;
-use super::console::{Term, style};
-use super::indicatif::{ProgressBar, ProgressStyle};
+use super::console::{style};
 use std::{thread, time};
 
 use self::time::Duration;
@@ -10,7 +8,7 @@ use self::time::Duration;
 use super::failure::Error;
 use super::sentry::{io, search};
 use super::iochannel::{Device};
-use super::sentry::memguard::{ Partition, ObjectFilter };
+use super::sentry::memguard::{ Partition};
 
 use std::sync::mpsc::Sender;
 use super::cli::output::{ShellMessage, MessageType};
@@ -35,7 +33,6 @@ pub fn bind() -> App<'static, 'static> {
             .subcommand(super::process::bind())
             .subcommand(SubCommand::with_name("search-pattern"))
             .subcommand(SubCommand::with_name("bars"))
-            .subcommand(SubCommand::with_name("monitor"))
             .subcommand(super::miscellaneous::bind())
             .subcommand(SubCommand::with_name("device")
                 .subcommand(SubCommand::with_name("double-open")))
@@ -52,11 +49,8 @@ pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
         ("sentry",            Some(matches))  => super::kernel::tests(matches, messenger),
         ("process",           Some(matches))  => super::process::tests(matches, messenger),
         ("memory",            Some(matches))  => super::mem::tests(matches, messenger),
-        ("patches",           Some(matches))  => super::patches::tests(matches, messenger),
-        ("token",             Some(matches))  => super::token::tests(matches,  messenger),
         ("errors",            Some(matches))  => super::errors::tests(matches, messenger),
         ("device",            Some(matches))  => device_tests(matches, messenger),
-        ("monitor",           Some(matches))  => monitor_tests(matches, messenger),
         ("bars",              Some(matches))  => bar_tests(matches, messenger),
         ("search-pattern",    Some(matches))  => test_search_pattern(matches, messenger),
         ("misc",              Some(matches))  => super::miscellaneous::tests(matches, messenger),
@@ -113,7 +107,7 @@ fn bar_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
 
     let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(),  0, 10);
     let bar1 = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(),  1, 10);
-    for i in (1..10){
+    for i in 1..10 {
         thread::sleep(Duration::from_secs(1));
         bar1.set_progress(messenger, i);
         bar.set_progress(messenger, i);
@@ -122,89 +116,6 @@ fn bar_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
     bar1.complete(messenger);
 
     ShellMessage::sleep_bar(messenger, 5);
-    Ok(())
-}
-
-
-/////////////////////////////////////////////////////////////////////////
-//
-// MONITOR TESTS
-//
-#[allow(unused_variables)]
-fn monitor_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
-
-    let term = Term::stdout();
-
-    // println!("[*] creating {}.", style("ObjectMonitor").cyan());
-    ShellMessage::send(messenger, format!("[*] creating {}.", style("ObjectMonitor").cyan()), MessageType::Spinner,0);
-
-    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,30);
-    // let bar = ProgressBar::new(30);
-
-    for _ in 0..30 {
-        thread::sleep(Duration::from_millis(50));
-        bar.inc(messenger, 1);
-    }
-    bar.complete(messenger);
-    // println!("[?] are you {}?", style("ready").red());
-    ShellMessage::send(messenger, format!("[?] are you {}?", style("ready").red()), MessageType::Spinner,0);
-
-    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,5);
-    // bar.set_style(ProgressStyle::default_bar()
-    //     .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-    //     .progress_chars("##-"));
-    //
-    for _ in 0..5 {
-        thread::sleep(Duration::from_secs(1));
-        bar.inc(messenger, 1);
-    }
-    bar.complete(messenger);
-
-    (0..5).for_each(|n| {
-        let mut msg = String::new();
-
-        (0..n).for_each(|_| {
-            msg.push_str("    ");
-        });
-
-        msg.push_str("GOOOO");
-
-        // println!("[!] {}", style(msg).red());
-        ShellMessage::send(messenger, format!("[!] {}", style(&msg).red()), MessageType::Spinner,0);
-    });
-
-    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,5);
-    // let bar = ProgressBar::new(5);
-
-    for _ in 0..5 {
-        thread::sleep(Duration::from_secs(1));
-        bar.inc(messenger,1);
-    }
-    bar.complete(messenger);
-    let filter = ObjectFilter::new()
-                .expect("can't create object filter");
-
-    // println!("[!] {}.", style("starting").magenta());
-        ShellMessage::send(messenger, format!("[!] {}.", style("starting").magenta()), MessageType::Spinner,0);
-    filter.start().expect("unable to start filter");
-
-
-    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,30);
-    // let bar = ProgressBar::new(30);
-    // bar.set_style(ProgressStyle::default_bar()
-    //     .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-    //     .progress_chars("##-"));
-
-    for _ in 0..30 {
-        thread::sleep(Duration::from_secs(1));
-        bar.inc(messenger,1);
-        // ...
-    }
-    bar.complete(messenger);
-
-    // println!("[!] {}.", style("stopping").magenta());
-        ShellMessage::send(messenger, format!("[!] {}.", style("stopping").magenta()), MessageType::Close,0);
-    filter.stop().expect("unable to start filter");
     Ok(())
 }
 

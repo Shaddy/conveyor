@@ -2,10 +2,7 @@
 
 use super::clap::{App, Arg, ArgMatches, SubCommand};
 
-use std::{thread};
-use std::time::Duration;
 use super::failure::Error;
-
 
 use super::sentry::memguard::{Response, Partition, Region, Guard, Access, Action};
 use super::sentry::{misc, io, token};
@@ -31,7 +28,7 @@ pub fn bind() -> App<'static, 'static> {
                                 .arg(target.clone()))
 }
 
-pub fn tests(matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
         ("protect",     Some(matches))        => protect_token(matches, messenger),
         ("duplicate",   Some(matches))        => duplicate_token(matches, messenger),
@@ -86,8 +83,6 @@ fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
     let token = process.token() & !0xF;
     let token_offset = misc::get_offset("_EPROCESS.Token").expect("Token offset");
 
-    // debug!(logger, "protecting target pid {} with token 0x{:016x}",
-    //                     pid, token);
     ShellMessage::send(messenger, format!("Protecting target pid {} with token {}",
                         style(pid).blue(), style(format!("0x{:016x}",token)).cyan()), MessageType::Spinner,0);
 
@@ -106,17 +101,10 @@ fn protect_token(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Resu
         Response::new(Some(message), Action::STEALTH)
     }));
 
-    // let duration = Duration::from_secs(20);
-    // debug!(logger, "waiting {:?}", duration);
     ShellMessage::send(messenger, format!("Waiting {} seconds...",style("20").underlined().yellow()), MessageType::Spinner,0);
+    guard.start();
     ShellMessage::sleep_bar(messenger,20);
-    // let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,20);
-    // for i in 0..20{
-    //     bar.set_progress(messenger, i);
-    //     thread::sleep(Duration::from_secs(1))
-    // }
-    // bar.complete(messenger);
-    // thread::sleep(duration);
+    guard.stop();
     ShellMessage::send(messenger, format!("{}",style("Done!").green()), MessageType::Close,0);
     Ok(())
 }

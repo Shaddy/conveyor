@@ -19,7 +19,7 @@ pub fn bind() -> App<'static, 'static> {
                 .subcommand(SubCommand::with_name("patch-vuln"))
 }
 
-pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match matches.subcommand() {
         ("patch-vuln",      Some(matches))  => test_patch_driver(matches, messenger),
         _                                   => Ok(println!("{}", matches.usage()))
@@ -47,15 +47,12 @@ fn test_patch_driver(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) ->
 
             let patch = Patch::new(&partition, patch_base, new_code, PAGE_SIZE as u64).unwrap();
             ShellMessage::send(messenger,format!("{}",patch),MessageType::Spinner,0);
-            // debug!(logger, "{}", patch);
 
             let mut guard = Guard::new(&partition, None);
 
-            // debug!(logger, "adding {} to {}", patch, guard);
             ShellMessage::send(messenger,format!("adding {} to {}", patch, guard),MessageType::Spinner,0);
             guard.add(patch);
 
-            // debug!(logger, "starting guard, and sleeping 30 secs");
             ShellMessage::send(messenger,"Starting guard, and sleeping 30 secs".to_string(),MessageType::Spinner,0);
             guard.start();
             colorize::success("HEVD patch applied.");

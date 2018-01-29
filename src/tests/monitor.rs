@@ -1,0 +1,55 @@
+use super::clap::{App, ArgMatches, SubCommand};
+
+use std::{thread, time};
+use self::time::Duration;
+
+use super::console::{style};
+use super::console::Term;
+use std::sync::mpsc::Sender;
+use super::failure::Error;
+use super::cli::output::{ShellMessage, MessageType};
+use super::sentry::memguard::{ ObjectFilter };
+
+pub fn bind() -> App<'static, 'static> {
+    SubCommand::with_name("monitor")
+                .subcommand(SubCommand::with_name("obfilter"))
+}
+
+
+pub fn parse(matches: &ArgMatches,  messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+    match matches.subcommand() {
+        ("obfilter",     Some(matches))  => monitor_tests(matches, messenger),
+        _                                => Ok(println!("{}", matches.usage()))
+    }
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+//
+// MONITOR TESTS
+//
+#[allow(unused_variables)]
+pub fn monitor_tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+
+    let term = Term::stdout();
+
+    let filter = ObjectFilter::new()
+                .expect("can't create object filter");
+
+    ShellMessage::send(messenger, format!("[!] {}.", style("starting").magenta()), MessageType::Spinner,0);
+    filter.start().expect("unable to start filter");
+
+
+    let bar = ShellMessage::new(messenger, "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}".to_string(), 0,30);
+
+    for _ in 0..30 {
+        thread::sleep(Duration::from_secs(1));
+        bar.inc(messenger,1);
+        // ...
+    }
+    bar.complete(messenger);
+
+    ShellMessage::send(messenger, format!("[!] {}.", style("stopping").magenta()), MessageType::Close,0);
+    filter.stop().expect("unable to start filter");
+    Ok(())
+}

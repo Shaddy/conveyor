@@ -37,24 +37,19 @@ impl PdbDownloader {
 
     pub fn download(&self, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
 
-        // println!("download()");
-        ShellMessage::send(messenger, "Getting symbols...".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, "Generating Microsoft URL".to_string(), MessageType::Spinner, 0);
         let mut response = self.download_pdb()?;
-        // println!("send first message");
 
         let filename = Path::new(&self.filename).file_stem().unwrap();
 
         let mut pdb_filename = String::from(filename.to_str().unwrap());
 
         pdb_filename.push_str(".pdb");
-        ShellMessage::send(messenger, format!("Opening file {}",style(&pdb_filename).blue()), MessageType::Spinner, 0);
-
-        ShellMessage::send(messenger, format!("{}",style("Writing file...").yellow()), MessageType::Spinner, 0);
         let path = Path::new(&pdb_filename);
 
         let mut fd = File::create(path)?;
 
-        ShellMessage::send(messenger, format!("{}",style("Closing handles...").yellow()), MessageType::Spinner, 0);
+        ShellMessage::send(messenger, format!("{}",style("Downloading PDB...").yellow()), MessageType::Spinner, 0);
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
@@ -63,7 +58,6 @@ impl PdbDownloader {
                                     MessageType::Close, 0);
 
         ShellMessage::send(messenger, format!("{}",style("Done!").green()), MessageType::Close, 0);
-        // println!("Download complete!\n");
         Ok(())
 
     }

@@ -21,13 +21,15 @@ fn run(app: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> 
         ("pdb", Some(matches)) => symbols::command::parse(matches, &messenger),
         ("services", Some(matches)) => service::command::parse(matches, &messenger),
         ("tests", Some(matches)) => tests::command::parse(matches, &messenger),
+        ("monitor", Some(matches)) => conveyor::tests::monitor::parse(matches, &messenger),
+        ("patch", Some(matches)) => conveyor::tests::patches::parse(matches, &messenger),
+        ("token", Some(matches)) => conveyor::tests::token::parse(matches, &messenger),
         ("sentry", Some(matches)) => sentry::command::parse(matches, &messenger),
         _ => Ok(println!("{}", app.usage())),
     }
 }
 
 fn main() {
-/*
     print!(
         "\n      .;:
      ::::
@@ -50,7 +52,6 @@ Sherab G. <sherab.giovannini@byteheed.com>
 A gate between humans and dragons.
 ___________________________________________________________________________\n\n"
     );
-*/
 
 
     let matches = App::new("conveyor")
@@ -63,6 +64,9 @@ ___________________________________________________________________________\n\n"
         .subcommand(conveyor::tests::command::bind())
         // .subcommand(conveyor::sentry::command::bind())
         .subcommand(conveyor::symbols::command::bind())
+        .subcommand(conveyor::tests::patches::bind())
+        .subcommand(conveyor::tests::token::bind())
+        .subcommand(conveyor::tests::monitor::bind())
         .get_matches();
 
     let (messenger, receiver) = channel();

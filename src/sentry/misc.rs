@@ -33,7 +33,7 @@ pub fn get_offset(target: &str) -> Result<u16, Error> {
             let tt = create_messenger(rx, 0);
 
             symbols::downloader::PdbDownloader::new("c:\\windows\\system32\\ntoskrnl.exe".to_string()).download(&tx)?;
-            tt.join();
+            tt.join().expect("unable to wait for channel");
 
             Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)
         },

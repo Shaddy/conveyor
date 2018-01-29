@@ -3,9 +3,8 @@ extern crate indicatif;
 use std::sync::mpsc::{Receiver, Sender};
 
 use std::collections::HashMap;
-use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::{thread, time};
-use std::iter::Iterator;
 
 #[derive(Clone, Copy)]
 pub enum MessageType {
@@ -133,6 +132,7 @@ impl ShellMessage {
     }
 }
 
+#[allow(unused_variables)]
 pub fn create_messenger(rx: Receiver<ShellMessage>, rows: usize) -> (thread::JoinHandle<()>) {
     // let multi_progress = MultiProgress::new();
     let mut container: HashMap<usize, ProgressBar> = HashMap::new();
