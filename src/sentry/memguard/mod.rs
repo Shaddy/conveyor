@@ -139,6 +139,8 @@ impl Tunnel {
                 let message = rx.recv().unwrap();
                 if message.contains(MESSENGER_FINISH_MSG) {
                     ShellMessage::send(&messenger, "- FINISHED -".to_string(),
+                                                MessageType::Spinner, 0);
+                    ShellMessage::send(&messenger, "- FINISHED -".to_string(),
                                                 MessageType::Close, 0);
                     ShellMessage::send(&messenger, "- FINISHED -".to_string(),
                                                 MessageType::Exit, 0);

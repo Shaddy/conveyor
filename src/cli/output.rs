@@ -166,7 +166,7 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, elapse: Option<time::Duratio
 
             let message_id: usize = message.id as usize;
 
-            let elapse = elapse.unwrap_or(time::Duration::from_millis(100));
+            let elapse = elapse.unwrap_or(time::Duration::from_millis(10));
 
             // let message_id = *message.id;
             match message.kind() {
@@ -192,7 +192,7 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, elapse: Option<time::Duratio
                         bar.finish_with_message(&message.content);
                     }
 
-                    thread::sleep(time::Duration::from_millis(100));
+                    thread::sleep(elapse);
                 }
                 MessageType::CreateProgress => {
                     progresses.insert(message_id, ProgressBar::new(message.progress as u64));

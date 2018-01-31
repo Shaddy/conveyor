@@ -10,7 +10,7 @@ extern crate winapi;
 extern crate byteorder;
 extern crate num;
 
-use super::{iochannel, cli, sentry};
+use super::{iochannel, cli, sentry, service};
 
 mod ssdt;
 mod memguard;

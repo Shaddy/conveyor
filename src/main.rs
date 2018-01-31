@@ -10,7 +10,7 @@ extern crate termcolor;
 use failure::Error;
 
 use std::process;
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender};
 use conveyor::cli::output::{create_messenger, MessageType, ShellMessage};
@@ -18,6 +18,24 @@ use conveyor::cli::output::{create_messenger, MessageType, ShellMessage};
 fn run(app: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     match app.subcommand() {
         ("device", Some(matches)) => iochannel::command::parse(matches, &messenger),
+        ("load", Some(matches)) => {
+            let target = matches.value_of("target")
+                             .expect("can't extract TARGET from arguments");
+
+             service::install(target, messenger);
+             service::start(target, messenger);
+
+            Ok(())
+        },
+        ("unload", Some(matches)) => {
+            let target = matches.value_of("target")
+                             .expect("can't extract TARGET from arguments");
+
+             service::stop(target, messenger);
+             service::remove(target, messenger);
+
+            Ok(())
+        },
         ("pdb", Some(matches)) => symbols::command::parse(matches, &messenger),
         ("services", Some(matches)) => service::command::parse(matches, &messenger),
         ("tests", Some(matches)) => tests::command::parse(matches, &messenger),
@@ -52,6 +70,11 @@ Sherab G. <sherab.giovannini@byteheed.com>
 A gate between humans and dragons.
 ___________________________________________________________________________\n\n"
     );
+    let target = Arg::with_name("target").short("t")
+                            .required(true)
+                            .value_name("TARGET")
+                            .help("service target");
+
 
 
     let matches = App::new("conveyor")
@@ -66,6 +89,10 @@ ___________________________________________________________________________\n\n"
         .subcommand(conveyor::symbols::command::bind())
         .subcommand(conveyor::tests::patches::bind())
         .subcommand(conveyor::tests::token::bind())
+        .subcommand(SubCommand::with_name("load")
+                                .arg(target.clone()))
+        .subcommand(SubCommand::with_name("unload")
+                                .arg(target.clone()))
         .subcommand(conveyor::tests::monitor::bind())
         .get_matches();
 

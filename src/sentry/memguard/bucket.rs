@@ -9,7 +9,7 @@ use super::structs::{ ObjectType,
                       QUERYNAME_MESSAGE,
                       OKAYTOCLOSE_MESSAGE };
 
-use std::{mem, fmt, thread, slice};
+use std::{mem, fmt, slice};
 
 use std::fmt::Debug;
 use super::{Action, Access, CallbackMap};
@@ -225,7 +225,7 @@ impl Bucket {
             slice::from_raw_parts(ptr, len)
         };
 
-        let id = thread::current().id();
+        // let id = thread::current().id();
 
         loop {
             // println!("#{:?} - waiting for new messsage.", thread::current().id());
