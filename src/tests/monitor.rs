@@ -1,7 +1,6 @@
 use super::clap::{App, ArgMatches, SubCommand};
 
 use std::{thread, time};
-use self::time::Duration;
 
 use super::console::{style};
 use super::console::Term;

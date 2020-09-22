@@ -133,7 +133,7 @@ impl ShellMessage {
 }
 
 #[allow(unused_variables)]
-pub fn create_messenger(rx: Receiver<ShellMessage>, elapse: Option<time::Duration>, rows: usize) -> (thread::JoinHandle<()>) {
+pub fn create_messenger(rx: Receiver<ShellMessage>, elapse: Option<time::Duration>, rows: usize) -> thread::JoinHandle<()> {
     // let multi_progress = MultiProgress::new();
     let mut container: HashMap<usize, ProgressBar> = HashMap::new();
     let mut progresses: HashMap<usize, ProgressBar> = HashMap::new();
@@ -183,7 +183,7 @@ pub fn create_messenger(rx: Receiver<ShellMessage>, elapse: Option<time::Duratio
                         container[&message_id].finish_with_message(&message.content);
                         container.remove(&message_id);
                     } else {
-                        let mut bar = ProgressBar::new_spinner();
+                        let bar = ProgressBar::new_spinner();
                         bar.set_style(
                             ProgressStyle::default_spinner()
                                 .tick_chars(".·: ")

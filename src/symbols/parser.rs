@@ -498,7 +498,7 @@ impl<'p> Data<'p> {
 
             other => {
                 // ignore
-                writeln!(&mut io::stderr(), "warning: don't know how to add {:?}", other).expect("stderr write");;
+                writeln!(&mut io::stderr(), "warning: don't know how to add {:?}", other).expect("stderr write");
             }
         }
 

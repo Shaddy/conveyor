@@ -79,7 +79,7 @@ fn test_patch_driver(_matches: &ArgMatches, messenger: &Sender<ShellMessage>) ->
 
         let _ = memory::free_virtual_memory(&device, new_code);
 
-        let mut services: Vec<&str> = "lynxv memguard sentry".split(' ').collect();
+        let services: Vec<&str> = "lynxv memguard sentry".split(' ').collect();
 
         services.iter().rev().for_each(|service| {
             service::stop(service, messenger);

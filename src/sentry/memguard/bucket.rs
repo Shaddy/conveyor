@@ -14,7 +14,7 @@ use std::{mem, fmt, slice};
 use std::fmt::Debug;
 use super::{Action, Access, CallbackMap};
 
-const BUCKET_SIZE: usize = (240 + 16);
+const BUCKET_SIZE: usize = 240 + 16;
 
 bitflags! {
     pub struct ControlFlags: u32 {
@@ -213,7 +213,7 @@ impl Bucket {
         }
     }
 
-    pub fn handler(messenger: mpsc::Sender<String>, mapping: Vec<u8>, default: Box<Fn(Interception) -> Response>, callbacks: CallbackMap) {
+    pub fn handler(messenger: mpsc::Sender<String>, mapping: Vec<u8>, default: Box<dyn Fn(Interception) -> Response>, callbacks: CallbackMap) {
         let sync = unsafe{ Syncronizers::from_raw(mapping.as_ptr()) } ;
         // println!("#{:?} - {:?}", thread::current().id(), sync);
 

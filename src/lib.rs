@@ -1,4 +1,4 @@
-#![feature(iterator_step_by, asm)]
+#![feature(asm)]
 #[allow(unused_imports)]
 #[macro_use] extern crate failure;
 #[macro_use] extern crate failure_derive;

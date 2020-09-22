@@ -12,7 +12,7 @@ fn _not_implemented_command(_messenger: &Sender<ShellMessage>) -> Result<(), Err
 pub fn parse(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     let mut services: Vec<&str> = "lynxv memguard sentry".split(' ').collect();
 
-    let action: &Fn(&str, &Sender<ShellMessage>) = match matches.subcommand_name() {
+    let action: &dyn Fn(&str, &Sender<ShellMessage>) = match matches.subcommand_name() {
         Some("install") => { &super::functions::install },
         Some("remove")  => { &super::functions::remove },
         Some("update")  => { &super::functions::update },

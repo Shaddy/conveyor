@@ -85,7 +85,7 @@ impl Access {
     }
 }
 
-pub type SyncCallback = Box<Fn(bucket::Interception) -> Response + Send + Sync>;
+pub type SyncCallback = Box<dyn Fn(bucket::Interception) -> Response + Send + Sync>;
 pub type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 
 #[derive(Debug)]
