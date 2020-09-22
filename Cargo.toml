@@ -3,9 +3,6 @@ name = "conveyor"
 version = "0.1.0"
 authors = ["Sherab Giovannini <sherab.giovannini@byteheed.com>"]
 
-[dev-dependencies]
-stainless = "*"
-
 [dependencies]
 clap = "2.27.1"
 termcolor = "0.3"

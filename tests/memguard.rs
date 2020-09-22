@@ -1,8 +1,7 @@
 #![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
 extern crate conveyor;
 
-use conveyor::sentry::{Guard, Range, Access, Action, Sentinel};
+// use conveyor::sentry::{Guard, Range, Access, Action, Sentinel};
 
 use conveyor::sentry;
 

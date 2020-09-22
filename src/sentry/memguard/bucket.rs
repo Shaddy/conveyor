@@ -207,7 +207,7 @@ impl Bucket {
     fn set_action(&self, ptr: *const u8, action: Action) {
         unsafe {
             // let intercept: &mut Interception = &mut mapping.as_mut_ptr().offset(mem::size_of::<Syncronizers>() as isize) as *mut Interception;
-            let intercept: &mut Interception = mem::transmute::<*const u8, &mut Interception>(ptr
+            let intercept: &mut Interception = mem::transmute(ptr
                                                 .offset(mem::size_of::<Syncronizers>() as isize));
             intercept.action = action;
         }

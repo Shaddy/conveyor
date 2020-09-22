@@ -1,5 +1,4 @@
 #![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
 extern crate conveyor;
 extern crate winapi;
 
@@ -9,6 +8,7 @@ use conveyor::iochannel::Device;
 use conveyor::iochannel::IoCtl;
 
 
+/*
 describe! ioctl_from_create_partition {
     before_each {
         let ioctl = IoCtl::from(0xB080E800);
@@ -76,6 +76,7 @@ describe! ioctl_into_write_memory {
         assert_eq!(ioctl.code(), 0xb080e964);
     }
 }
+*/
 
 
 #[test]
