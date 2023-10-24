@@ -14,7 +14,7 @@ Conveyor is a cutting-edge project crafted in the Rust programming language that
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/yourusername/conveyor.git
+   git clone https://github.com/Shaddy/conveyor.git
    ```
 
 2. **Install Dependencies**
