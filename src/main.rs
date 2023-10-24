@@ -1,7 +1,6 @@
 // Copyright © ByteHeed.  All rights reserved.
 use conveyor::{iochannel, sentry, service, symbols, tests};
 
-extern crate clap;
 extern crate conveyor;
 extern crate failure;
 extern crate slog_term;
@@ -9,41 +8,33 @@ extern crate termcolor;
 
 use failure::Error;
 
-use std::process;
-use clap::{App, Arg, ArgMatches, SubCommand};
-use std::sync::mpsc::channel;
-use std::sync::mpsc::{Sender};
+use clap::Parser;
+use conveyor::cli::commands::CliCommands;
 use conveyor::cli::output::{create_messenger, MessageType, ShellMessage};
+use std::process;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender;
 
-fn run(app: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
-    match app.subcommand() {
-        ("device", Some(matches)) => iochannel::command::parse(matches, &messenger),
-        ("load", Some(matches)) => {
-            let target = matches.value_of("target")
-                             .expect("can't extract TARGET from arguments");
-
-             service::install(target, messenger);
-             service::start(target, messenger);
+fn run(commands: CliCommands, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+    match commands {
+        CliCommands::Pdb { command } => symbols::command::parse(&command, messenger),
+        // CliCommands::Tests(commands) => tests::command::parse(&commands, messenger),
+        // CliCommands::Sentry(commands) => sentry::command::parse(&commands, messenger),
+        // CliCommands::Service(commands) => service::command::parse(&commands, messenger),
+        CliCommands::Load { target } => {
+            service::install(&target, messenger);
+            service::start(&target, messenger);
+            Ok(())
+        }
+        CliCommands::Unload { target } => {
+            service::stop(&target, messenger);
+            service::remove(&target, messenger);
 
             Ok(())
-        },
-        ("unload", Some(matches)) => {
-            let target = matches.value_of("target")
-                             .expect("can't extract TARGET from arguments");
+        }
 
-             service::stop(target, messenger);
-             service::remove(target, messenger);
-
-            Ok(())
-        },
-        ("pdb", Some(matches)) => symbols::command::parse(matches, &messenger),
-        ("services", Some(matches)) => service::command::parse(matches, &messenger),
-        ("tests", Some(matches)) => tests::command::parse(matches, &messenger),
-        ("monitor", Some(matches)) => conveyor::tests::monitor::parse(matches, &messenger),
-        ("patch", Some(matches)) => conveyor::tests::patches::parse(matches, &messenger),
-        ("token", Some(matches)) => conveyor::tests::token::parse(matches, &messenger),
-        ("sentry", Some(matches)) => sentry::command::parse(matches, &messenger),
-        _ => Ok(println!("{}", app.usage())),
+        // CliCommands::IoChannel(commands) => iochannel::command::parse(&commands, messenger),
+        _ => unimplemented!("Command not implemented"),
     }
 }
 
@@ -70,46 +61,24 @@ Sherab G. <sherab.giovannini@byteheed.com>
 A gate between humans and dragons.
 ___________________________________________________________________________\n\n"
     );
-    let target = Arg::with_name("target").short("t")
-                            .required(true)
-                            .value_name("TARGET")
-                            .help("service target");
 
-
-
-    let matches = App::new("conveyor")
-        .about("A gate between humans and dragons.")
-        .version("1.0")
-        .author("Sherab G. <sherab.giovannini@byteheed.com>")
-        .arg(Arg::with_name("v") .short("v") .multiple(true) .help("Sets the level of verbosity"))
-        .subcommand(conveyor::service::command::bind())
-        .subcommand(conveyor::iochannel::command::bind())
-        .subcommand(conveyor::tests::command::bind())
-        // .subcommand(conveyor::sentry::command::bind())
-        .subcommand(conveyor::symbols::command::bind())
-        .subcommand(conveyor::tests::patches::bind())
-        .subcommand(conveyor::tests::token::bind())
-        .subcommand(SubCommand::with_name("load")
-                                .arg(target.clone()))
-        .subcommand(SubCommand::with_name("unload")
-                                .arg(target.clone()))
-        .subcommand(conveyor::tests::monitor::bind())
-        .get_matches();
+    let commands = conveyor::cli::commands::Cli::parse();
 
     let (messenger, receiver) = channel();
     let printer = create_messenger(receiver, None, 20);
 
-    if let Err(e) = run(&matches, &messenger) {
-        ShellMessage::send( &messenger,
-                    format!("Application Error: {}", e), MessageType::Exit, 0, );
+    if let Err(e) = run(commands.command, &messenger) {
+        ShellMessage::send(
+            &messenger,
+            format!("Application Error: {}", e),
+            MessageType::Exit,
+            0,
+        );
 
-        // bars.join().expect("Unable to wait for writer");
         printer.join().expect("Unable to wait for printer");
         process::exit(1);
     }
 
-
-    ShellMessage::send( &messenger, "".to_owned(), MessageType::Exit, 0, );
-    // bars.join().expect("Unable to wait for writer");
+    ShellMessage::send(&messenger, "".to_owned(), MessageType::Exit, 0);
     printer.join().expect("Unable to wait for printer");
 }

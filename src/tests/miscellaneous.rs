@@ -1,25 +1,23 @@
 // Copyright © ByteHeed.  All rights reserved.
 
-use super::clap::{App, ArgMatches, SubCommand};
-
-use std::sync::mpsc::Sender;
 use super::cli::output::ShellMessage;
+use std::sync::mpsc::Sender;
 
 use super::failure::Error;
 
-pub fn bind() -> App<'static, 'static> {
-    SubCommand::with_name("misc")
-            .subcommand(SubCommand::with_name("dissasm"))
-}
-
-
-pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
-    match matches.subcommand() {
-        ("dissasm",  Some(matches))  => test_disassembler(matches, messenger),
-        _                            => Ok(println!("{}", matches.usage()))
-    }
-}
-
+// pub fn bind() -> App<'static, 'static> {
+//     SubCommand::with_name("misc")
+//             .subcommand(SubCommand::with_name("dissasm"))
+// }
+//
+//
+// pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+//     match matches.subcommand() {
+//         ("dissasm",  Some(matches))  => test_disassembler(matches, messenger),
+//         _                            => Ok(println!("{}", matches.usage()))
+//     }
+// }
+//
 // const CODE: &'static [u8] =
 //     b"\x55\x48\x8b\x05\xb8\x13\x00\x00\xe8\x4a\xed\xff\xff\xe9\x14\x9e\x08\x00\x45\x31\xe4";
 
@@ -78,7 +76,7 @@ pub fn tests(matches: &ArgMatches, messenger: &Sender<ShellMessage>) -> Result<(
 //     Ok(())
 // }
 
-fn test_disassembler(_matches: &ArgMatches, _messenger: &Sender<ShellMessage>) -> Result<(), Error> {
+fn test_disassembler(_messenger: &Sender<ShellMessage>) -> Result<(), Error> {
     // debug!(logger, "{}", ());
     // example().unwrap();
     unimplemented!()

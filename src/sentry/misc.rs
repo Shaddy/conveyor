@@ -1,3 +1,4 @@
+use core::arch::asm;
 use std::fmt;
 use std::sync::Arc;
 
@@ -19,31 +20,32 @@ use super::iochannel::{Device, IoCtl};
 use super::winapi::shared::minwindef::{HMODULE, LPVOID};
 
 use super::structs::{RawStruct, RTL_PROCESS_MODULE_INFORMATION, SE_GET_EXPORT_ADDRESS};
-use super::symbols::parser::Error as PdbError;
+//use super::symbols::parser::Error as PdbError;
 use std::sync::mpsc::channel;
 
 use super::cli::output::create_messenger;
 
 pub fn get_offset(target: &str) -> Result<u16, Error> {
-    match symbols::parser::find_offset("ntoskrnl.pdb", target) {
-        Err(PdbError::IoError(_)) => {
-            // TODO:REVIEW: Temporlal addition of channel to support printed
-            let (tx, rx) = channel();
-            let tt = create_messenger(rx, None, 0);
-
-            symbols::downloader::PdbDownloader::new(
-                "c:\\windows\\system32\\ntoskrnl.exe".to_string(),
-            )
-            .download(&tx)?;
-            tt.join().expect("unable to wait for channel");
-
-            Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)
-        }
-        Err(err) => {
-            panic!("error parsing PDB {}", err);
-        }
-        Ok(offset) => Ok(offset),
-    }
+    unimplemented!("Temporally unimmplemented")
+    // match symbols::parser::find_offset("ntoskrnl.pdb", target) {
+    //     Err(PdbError::IoError(_)) => {
+    //         // TODO:REVIEW: Temporlal addition of channel to support printed
+    //         let (tx, rx) = channel();
+    //         let tt = create_messenger(rx, None, 0);
+    //
+    //         symbols::downloader::PdbDownloader::new(
+    //             "c:\\windows\\system32\\ntoskrnl.exe".to_string(),
+    //         )
+    //         .download(&tx)?;
+    //         tt.join().expect("unable to wait for channel");
+    //
+    //         Ok(symbols::parser::find_offset("ntoskrnl.pdb", target)?)
+    //     }
+    //     Err(err) => {
+    //         panic!("error parsing PDB {}", err);
+    //     }
+    //     Ok(offset) => Ok(offset),
+    // }
 }
 
 #[derive(Clone)]
@@ -317,7 +319,7 @@ impl Iterator for Drivers {
             return None;
         }
 
-        let module = self.drivers[self.curr];
+        let module = &self.drivers[self.curr];
 
         self.curr += 1;
 

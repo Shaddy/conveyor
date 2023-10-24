@@ -1,25 +1,26 @@
 extern crate byteorder;
-extern crate winapi;
 extern crate console;
+extern crate winapi;
 
-use super::iochannel::{Device};
-use super::cli::output::{create_messenger, ShellMessage, MessageType};
+use super::cli::output::{create_messenger, MessageType, ShellMessage};
+use super::iochannel::Device;
 
 use std::sync::mpsc;
 
 mod bucket;
-mod sync;
 mod structs;
+mod sync;
 
 use self::console::style;
 use super::{io, memory, misc};
 use std::rc::{Rc, Weak};
 
+use std::thread::JoinHandle;
 use std::{fmt, thread, time};
-use std::thread::{JoinHandle};
 
-use std::sync::{Arc, RwLock};
+use bitflags::Flags;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 pub use self::bucket::{Interception, Response};
 
@@ -27,22 +28,18 @@ pub use self::structs::MatchType;
 
 use super::failure::Error;
 
-use self::structs::{FieldKey,
-                    ValueType,
-                    MG_GUARD_CONDITION,
-                    MG_GUARD_FILTER,
-                    MG_FIELD_VALUE};
+use self::structs::{FieldKey, ValueType, MG_FIELD_VALUE, MG_GUARD_CONDITION, MG_GUARD_FILTER};
 
 const _PARTITION_ROOT_ID: u64 = 4;
 pub const MESSENGER_FINISH_MSG: &str = "END-LOOP-MSG";
 
-
 pub enum ControlGuard {
     Start = 1,
-    Stop
+    Stop,
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Action: u16 {
         const NOTIFY    = 0x0000_1000;
         const CONTINUE  = 0x0000_0001;
@@ -53,6 +50,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct GuardFlags: u32 {
         const STARTED      = 0x0000_0000;
         const STOPPED      = 0x0000_0001;
@@ -61,10 +59,11 @@ bitflags! {
 
 pub enum RegionStatus {
     Enable = 1,
-    Disable
+    Disable,
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct RegionFlags: u32 {
         const ENABLED    = 0x0000_0000;
         const DISABLED   = 0x0000_0001;
@@ -72,7 +71,9 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Access: u16 {
+        const NONE       = 0x0000_0000;
         const READ       = 0x0000_0001;
         const WRITE      = 0x0000_0002;
         const EXECUTE    = 0x0000_0004;
@@ -81,7 +82,7 @@ bitflags! {
 
 impl Access {
     pub fn clear(&mut self) {
-        self.bits = 0;
+        *self = Access::NONE;
     }
 }
 
@@ -91,13 +92,13 @@ pub type CallbackMap = Arc<RwLock<HashMap<u64, SyncCallback>>>;
 #[derive(Debug)]
 pub enum Handler {
     Interceptor(JoinHandle<()>),
-    Messenger(JoinHandle<()>)
+    Messenger(JoinHandle<()>),
 }
 
 struct Tunnel {
     workers: Vec<Handler>,
     messenger: mpsc::Sender<String>,
-    callbacks: CallbackMap
+    callbacks: CallbackMap,
 }
 
 impl Tunnel {
@@ -106,54 +107,65 @@ impl Tunnel {
     }
 
     pub fn register_callback(&self, guard: &Guard, callback: SyncCallback) {
-        let mut map = self.callbacks.write().expect("Failed to unlock as a writer");
+        let mut map = self
+            .callbacks
+            .write()
+            .expect("Failed to unlock as a writer");
         map.insert(guard.id, callback);
     }
 
-    fn create_workers(&self,
-                      tx: mpsc::Sender<String>,
-                      rx: mpsc::Receiver<String>,
-                      buckets: Vec<Vec<u8>>,
-                      callbacks: &CallbackMap) -> Vec<Handler> {
-
-        let mut handlers = buckets.into_iter().map(|bucket|
-        {
-            let callbacks = Arc::clone(callbacks);
-            let sender = tx.clone();
-            Handler::Interceptor(
-                thread::spawn(move|| bucket::Bucket::handler(sender,
-                                        bucket,
-                                        Box::new(Tunnel::default_callback),
-                                        callbacks)
-                 )
-            )
-
-        }).collect::<Vec<Handler>>();
-
+    fn create_workers(
+        &self,
+        tx: mpsc::Sender<String>,
+        rx: mpsc::Receiver<String>,
+        buckets: Vec<Vec<u8>>,
+        callbacks: &CallbackMap,
+    ) -> Vec<Handler> {
+        let mut handlers = buckets
+            .into_iter()
+            .map(|bucket| {
+                let callbacks = Arc::clone(callbacks);
+                let sender = tx.clone();
+                Handler::Interceptor(thread::spawn(move || {
+                    bucket::Bucket::handler(
+                        sender,
+                        bucket,
+                        Box::new(Tunnel::default_callback),
+                        callbacks,
+                    )
+                }))
+            })
+            .collect::<Vec<Handler>>();
 
         let (messenger, recv) = mpsc::channel();
         let handler = create_messenger(recv, Some(time::Duration::from_millis(1)), 0);
 
-        handlers.push(Handler::Messenger(thread::spawn(move|| {
-            loop {
-                let message = rx.recv().unwrap();
-                if message.contains(MESSENGER_FINISH_MSG) {
-                    ShellMessage::send(&messenger, "- FINISHED -".to_string(),
-                                                MessageType::Spinner, 0);
-                    ShellMessage::send(&messenger, "- FINISHED -".to_string(),
-                                                MessageType::Close, 0);
-                    ShellMessage::send(&messenger, "- FINISHED -".to_string(),
-                                                MessageType::Exit, 0);
-                    handler.join()
-                           .expect("unable to wait for shell messenger");
-                    break;
-                }
-
-                ShellMessage::send(&messenger, format!("{}",
-                                              style(message).magenta()),
-                                              MessageType::Spinner,
-                                              0);
+        handlers.push(Handler::Messenger(thread::spawn(move || loop {
+            let message = rx.recv().unwrap();
+            if message.contains(MESSENGER_FINISH_MSG) {
+                ShellMessage::send(
+                    &messenger,
+                    "- FINISHED -".to_string(),
+                    MessageType::Spinner,
+                    0,
+                );
+                ShellMessage::send(
+                    &messenger,
+                    "- FINISHED -".to_string(),
+                    MessageType::Close,
+                    0,
+                );
+                ShellMessage::send(&messenger, "- FINISHED -".to_string(), MessageType::Exit, 0);
+                handler.join().expect("unable to wait for shell messenger");
+                break;
             }
+
+            ShellMessage::send(
+                &messenger,
+                format!("{}", style(message).magenta()),
+                MessageType::Spinner,
+                0,
+            );
         })));
 
         handlers
@@ -167,45 +179,43 @@ impl Tunnel {
         let mut tunnel = Tunnel {
             callbacks: Arc::clone(&callbacks),
             messenger: tx.clone(),
-            workers: Vec::new()
+            workers: Vec::new(),
         };
 
         let workers = tunnel.create_workers(
             tx,
             rx,
             bucket::Bucket::slice_buckets(channel.address, channel.size as usize),
-            &callbacks
+            &callbacks,
         );
 
         tunnel.workers.extend(workers.into_iter());
 
         Ok(tunnel)
-
     }
 
     fn close_workers(&mut self) {
         let mut handler: Option<JoinHandle<()>> = None;
 
         while let Some(handle) = self.workers.pop() {
-             match handle {
-                 Handler::Messenger(messenger) => {
-                     handler = Some(messenger);
-                 },
-                 Handler::Interceptor(interceptor) => {
-                 interceptor.join()
-                            .expect("wait error for interceptor");
-                 }
-             }
+            match handle {
+                Handler::Messenger(messenger) => {
+                    handler = Some(messenger);
+                }
+                Handler::Interceptor(interceptor) => {
+                    interceptor.join().expect("wait error for interceptor");
+                }
+            }
         }
 
-        self.messenger.send(MESSENGER_FINISH_MSG.to_string())
-                    .expect("error finishing displayer thread");
+        self.messenger
+            .send(MESSENGER_FINISH_MSG.to_string())
+            .expect("error finishing displayer thread");
 
         if let Some(handle) = handler {
             handle.join().expect("wait error for messenger");
         }
     }
-
 }
 
 impl Drop for Tunnel {
@@ -226,13 +236,11 @@ impl ObjectFilter {
         let channel = io::create_monitor(&device)?;
         let tunnel = Tunnel::new(&channel)?;
 
-        Ok(
-            ObjectFilter {
-                id: channel.id,
-                device: Rc::clone(&device),
-                _tunnel: tunnel
-            }
-        )
+        Ok(ObjectFilter {
+            id: channel.id,
+            device: Rc::clone(&device),
+            _tunnel: tunnel,
+        })
     }
 
     pub fn start(&self) -> Result<(), Error> {
@@ -243,7 +251,6 @@ impl ObjectFilter {
         Ok(io::stop_monitor(&self.device, self.id)?)
     }
 }
-
 
 impl Drop for ObjectFilter {
     fn drop(&mut self) {
@@ -265,20 +272,17 @@ pub struct Partition {
     tunnel: Tunnel,
 }
 
-impl Partition
-{
+impl Partition {
     pub fn new() -> Result<Partition, Error> {
         let device = Rc::new(Device::new(io::SE_NT_DEVICE_NAME).expect("sentry device"));
         let channel = io::create_partition(&device)?;
         let tunnel = Tunnel::new(&channel)?;
 
-        Ok(
-            Partition {
-                id: channel.id,
-                device: Rc::clone(&device),
-                tunnel: tunnel
-            }
-        )
+        Ok(Partition {
+            id: channel.id,
+            device: Rc::clone(&device),
+            tunnel: tunnel,
+        })
     }
 
     pub fn register_callback(&self, guard: &Guard, callback: SyncCallback) {
@@ -311,14 +315,14 @@ impl fmt::Debug for Partition {
 #[derive(Debug)]
 pub struct Range {
     pub base: u64,
-    pub limit: u64
+    pub limit: u64,
 }
 
 impl Range {
     pub fn new(base: u64, limit: u64) -> Range {
         Range {
             base: base,
-            limit: limit
+            limit: limit,
         }
     }
 }
@@ -334,34 +338,47 @@ pub struct Region<'p> {
     partition: &'p Partition,
     range: Range,
     access: Access,
-    action: Action
+    action: Action,
 }
 
 impl<'p> Region<'p> {
-    pub fn new(partition: &'p Partition, base: u64, limit: u64, action: Option<Action>, access: Access) -> Result<Region<'p>, Error> {
+    pub fn new(
+        partition: &'p Partition,
+        base: u64,
+        limit: u64,
+        action: Option<Action>,
+        access: Access,
+    ) -> Result<Region<'p>, Error> {
         let range = Range::new(base, limit);
 
         let action = action.unwrap_or(Action::INSPECT | Action::NOTIFY);
 
-        let id = io::create_region(&partition.device, partition.id, &range, action, access, Some(0x100))?;
+        let id = io::create_region(
+            &partition.device,
+            partition.id,
+            &range,
+            action,
+            access,
+            Some(0x100),
+        )?;
 
-        Ok(
-            Region {
-                id: id,
-                partition: partition,
-                range: range,
-                access: access,
-                action: action
+        Ok(Region {
+            id: id,
+            partition: partition,
+            range: range,
+            access,
+            action,
         })
     }
 }
 
 impl<'p> fmt::Display for Region<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})",
-                        self.id,
-                        self.range.base,
-                        self.range.limit)
+        write!(
+            f,
+            "Region(id: 0x{:08X}, base: 0x{:08X} limit: 0x{:X})",
+            self.id, self.range.base, self.range.limit
+        )
     }
 }
 
@@ -381,34 +398,37 @@ pub struct Patch<'p> {
     partition: &'p Partition,
     base: u64,
     patch: u64,
-    limit: u64
+    limit: u64,
 }
 
 impl<'p> Patch<'p> {
-    pub fn new(partition: &'p Partition, base: u64, patch: u64, limit: u64) -> Result<Patch<'p>, Error> {
+    pub fn new(
+        partition: &'p Partition,
+        base: u64,
+        patch: u64,
+        limit: u64,
+    ) -> Result<Patch<'p>, Error> {
         let patch_range = Range::new(patch, limit);
 
         let id = io::create_patch(&partition.device, partition.id, base, &patch_range)?;
 
-        Ok(
-            Patch {
-                id: id,
-                partition: partition,
-                base: base,
-                patch: patch,
-                limit: limit
+        Ok(Patch {
+            id: id,
+            partition: partition,
+            base: base,
+            patch: patch,
+            limit: limit,
         })
-
     }
 }
 
 impl<'p> fmt::Display for Patch<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Patch(id: 0x{:08X}, base: 0x{:08X} patch: 0x{:08X} limit: 0x{:X} )",
-                        self.id,
-                        self.base,
-                        self.patch,
-                        self.limit)
+        write!(
+            f,
+            "Patch(id: 0x{:08X}, base: 0x{:08X} patch: 0x{:08X} limit: 0x{:X} )",
+            self.id, self.base, self.patch, self.limit
+        )
     }
 }
 
@@ -425,7 +445,7 @@ impl<'p> Sentinel for Patch<'p> {
 #[derive(Debug)]
 pub struct Filter<'a> {
     pub alloc: memory::KernelAlloc<'a, MG_GUARD_FILTER>,
-    pub filter: &'a mut MG_GUARD_FILTER
+    pub filter: &'a mut MG_GUARD_FILTER,
 }
 
 impl<'a> Filter<'a> {
@@ -455,18 +475,19 @@ impl<'a> Filter<'a> {
         current.Value.Value = condition.condition.Value.Value;
 
         self.filter.NumberOfConditions += 1;
-
     }
 
     pub fn process(device: &'a Device, name: &str, cmp: MatchType) -> Option<Filter<'a>> {
         if let Some(current) = misc::WalkProcess::iter().find(|p| p.name().contains(name)) {
             let mut filter = Filter::new(device);
-            filter.add(&Condition::new(FieldKey::PROCESS_ID,
-                                    cmp,
-                                    ValueType::UINT64,
-                                    current.id()));
+            filter.add(&Condition::new(
+                FieldKey::PROCESS_ID,
+                cmp,
+                ValueType::UINT64,
+                current.id(),
+            ));
 
-            return Some(filter)
+            return Some(filter);
         }
 
         None
@@ -479,7 +500,7 @@ impl<'a> Filter<'a> {
 
 #[derive(Debug)]
 pub struct Condition {
-    pub condition: MG_GUARD_CONDITION
+    pub condition: MG_GUARD_CONDITION,
 }
 
 impl Condition {
@@ -490,9 +511,9 @@ impl Condition {
                 Match: cmp,
                 Value: MG_FIELD_VALUE {
                     Kind: kind,
-                    Value: value
-                }
-            }
+                    Value: value,
+                },
+            },
         }
     }
 }
@@ -516,33 +537,38 @@ impl<'p> Guard<'p> {
     }
 
     pub fn start(&self) -> &Self {
-        io::start_guard(&self.partition.device, self.id)
-                            .expect("start error");
+        io::start_guard(&self.partition.device, self.id).expect("start error");
 
         self
     }
 
     pub fn stop(&self) -> &Self {
-        io::stop_guard(&self.partition.device, self.id)
-                            .expect("stop error");
+        io::stop_guard(&self.partition.device, self.id).expect("stop error");
         self
     }
 
-    pub fn remove<T>(&mut self, sentinel: T) where T:
-        Sentinel + fmt::Display {
-        sentinel.remove(self).expect(format!("Unable to register {}", sentinel).as_ref());
+    pub fn remove<T>(&mut self, sentinel: T)
+    where
+        T: Sentinel + fmt::Display,
+    {
+        sentinel
+            .remove(self)
+            .expect(format!("Unable to register {}", sentinel).as_ref());
     }
 
     pub fn set_callback(&self, callback: SyncCallback) {
         self.partition.register_callback(self, callback)
     }
 
-    pub fn add<T>(&mut self, sentinel: T) where T:
-        Sentinel + fmt::Display {
-        sentinel.register(self).expect(format!("Unable to register {}", sentinel).as_ref());
+    pub fn add<T>(&mut self, sentinel: T)
+    where
+        T: Sentinel + fmt::Display,
+    {
+        sentinel
+            .register(self)
+            .expect(format!("Unable to register {}", sentinel).as_ref());
     }
 }
-
 
 impl<'p> fmt::Display for Guard<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

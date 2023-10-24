@@ -2,16 +2,16 @@
 
 // use ffi::traits::EncodeUtf16;
 
-use super::winapi::shared::minwindef::{LPVOID, LPHANDLE};
+use super::winapi::shared::minwindef::{LPHANDLE, LPVOID};
 
-use super::winapi::um::{ processthreadsapi};
+use super::winapi::um::processthreadsapi;
 
 use super::byteorder::{LittleEndian, ReadBytesExt};
 
-use std::marker::PhantomData;
 use std::io::Cursor;
+use std::marker::PhantomData;
 
-use std::{slice, mem};
+use std::{mem, slice};
 
 use super::failure::Error;
 use super::io::IOCTL_SENTRY_TYPE;
@@ -20,45 +20,33 @@ use super::structs;
 
 pub use super::structs::MapMode;
 
-use super::structs::{RawStruct,
-                     SE_MAP_VIRTUAL_MEMORY,
-                     SE_UNMAP_VIRTUAL_MEMORY,
-                     SE_READ_PROCESS_MEMORY, 
-                     SE_WRITE_PROCESS_MEMORY, 
-                     SE_ALLOC_VIRTUAL_MEMORY, 
-                     SE_FREE_VIRTUAL_MEMORY, 
-                     SE_SECURE_VIRTUAL_MEMORY, 
-                     SE_UNSECURE_VIRTUAL_MEMORY, 
-                     SE_COPY_VIRTUAL_MEMORY, 
-                     SE_READ_VIRTUAL_MEMORY, 
-                     SE_WRITE_VIRTUAL_MEMORY, 
-                     SE_ALLOC_PROCESS_MEMORY, 
-                     SE_FREE_PROCESS_MEMORY};
+use super::structs::{
+    RawStruct, SE_ALLOC_PROCESS_MEMORY, SE_ALLOC_VIRTUAL_MEMORY, SE_COPY_VIRTUAL_MEMORY,
+    SE_FREE_PROCESS_MEMORY, SE_FREE_VIRTUAL_MEMORY, SE_MAP_VIRTUAL_MEMORY, SE_READ_PROCESS_MEMORY,
+    SE_READ_VIRTUAL_MEMORY, SE_SECURE_VIRTUAL_MEMORY, SE_UNMAP_VIRTUAL_MEMORY,
+    SE_UNSECURE_VIRTUAL_MEMORY, SE_WRITE_PROCESS_MEMORY, SE_WRITE_VIRTUAL_MEMORY,
+};
 
 #[derive(Debug)]
 pub struct KernelAlloc<'a, T> {
     device: &'a Device,
     map: mem::ManuallyDrop<Map<'a>>,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<'a, T> KernelAlloc<'a, T> {
     pub fn new(device: &'a Device) -> KernelAlloc<'a, T> {
         let size = mem::size_of::<T>();
-        let ptr = alloc_virtual_memory(device, size)
-                        .expect("failed to allocate memory");
+        let ptr = alloc_virtual_memory(device, size).expect("failed to allocate memory");
 
         // memset
         let v: Vec<u8> = vec![0; size];
         write_virtual_memory(device, ptr, v).expect("write memory");
 
-
         KernelAlloc {
             device: device,
-            map: mem::ManuallyDrop::new(
-                            Map::new(device, ptr, size, Some(MapMode::UserMode))
-                      ),
-            phantom: PhantomData
+            map: mem::ManuallyDrop::new(Map::new(device, ptr, size, Some(MapMode::UserMode))),
+            phantom: PhantomData,
         }
     }
 
@@ -96,13 +84,12 @@ pub struct Map<'a> {
     device: &'a Device,
     address: u64,
     size: usize,
-    raw: structs::SE_MAP_VIRTUAL_MEMORY
+    raw: structs::SE_MAP_VIRTUAL_MEMORY,
 }
 
 impl<'a> Map<'a> {
     pub fn new(device: &'a Device, address: u64, size: usize, mode: Option<MapMode>) -> Map<'a> {
-        let raw = map_memory(device, address, size, mode)
-                            .expect("failed to map memory");
+        let raw = map_memory(device, address, size, mode).expect("failed to map memory");
 
         Map {
             device: device,
@@ -133,13 +120,18 @@ impl<'a> Map<'a> {
 
 impl<'a> Drop for Map<'a> {
     fn drop(&mut self) {
-        unmap_memory(self.device, self.raw)
-                .expect("unmap error");
+        unmap_memory(self.device, &self.raw).expect("unmap error");
     }
 }
 
 pub fn alloc_virtual_memory(device: &Device, size: usize) -> Result<u64, Error> {
-    let control = IoCtl::new(Some("SE_ALLOC_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A50, None, None);
+    let control = IoCtl::new(
+        Some("SE_ALLOC_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A50,
+        None,
+        None,
+    );
 
     let mut alloc = SE_ALLOC_VIRTUAL_MEMORY::init();
 
@@ -149,12 +141,17 @@ pub fn alloc_virtual_memory(device: &Device, size: usize) -> Result<u64, Error> 
 
     device.raw_call(control, ptr, len)?;
 
-    
     Ok(alloc.BaseAddress as u64)
 }
 
 pub fn free_virtual_memory(device: &Device, address: u64) -> Result<(), Error> {
-    let control = IoCtl::new(Some("SE_FREE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A51, None, None);
+    let control = IoCtl::new(
+        Some("SE_FREE_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A51,
+        None,
+        None,
+    );
 
     let mut alloc = SE_FREE_VIRTUAL_MEMORY::init();
 
@@ -165,48 +162,63 @@ pub fn free_virtual_memory(device: &Device, address: u64) -> Result<(), Error> {
     device.raw_call(control, ptr, len)?;
 
     Ok(())
-
 }
 
 #[allow(dead_code)]
 pub fn copy_virtual_memory(device: &Device, from: u64, to: u64, size: usize) -> Result<(), Error> {
-    let control = IoCtl::new(Some("SE_COPY_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A52, None, None);
+    let control = IoCtl::new(
+        Some("SE_COPY_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A52,
+        None,
+        None,
+    );
 
     let mut copy = SE_COPY_VIRTUAL_MEMORY::init();
 
-    copy.ToAddress     = to as LPVOID;
-    copy.FromAddress   = from as LPVOID;
-    copy.Size          = size;
+    copy.ToAddress = to as LPVOID;
+    copy.FromAddress = from as LPVOID;
+    copy.Size = size;
 
     let (ptr, len) = (copy.as_ptr(), copy.size());
 
     device.raw_call(control, ptr, len)?;
 
     Ok(())
-
 }
 
 #[allow(dead_code)]
 pub fn secure_virtual_memory(device: &Device, address: u64, size: usize) -> Result<u64, Error> {
-    let control = IoCtl::new(Some("SE_SECURE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A53, None, None);
+    let control = IoCtl::new(
+        Some("SE_SECURE_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A53,
+        None,
+        None,
+    );
 
     let mut secure = SE_SECURE_VIRTUAL_MEMORY::init();
 
     secure.BaseAddress = address as LPVOID;
-    secure.Size        = size;
-    secure.ProbeMode   = 0;
+    secure.Size = size;
+    secure.ProbeMode = 0;
 
     let (ptr, len) = (secure.as_ptr(), secure.size());
 
     device.raw_call(control, ptr, len)?;
 
     Ok(secure.SecureHandle as u64)
-
 }
 
 #[allow(dead_code)]
 pub fn unsecure_virtual_memory(device: &Device, handle: u64) -> Result<(), Error> {
-    let control = IoCtl::new(Some("SE_UNSECURE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A54, None, None);
+    let control = IoCtl::new(
+        Some("SE_UNSECURE_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A54,
+        None,
+        None,
+    );
 
     let mut secure = SE_UNSECURE_VIRTUAL_MEMORY::init();
 
@@ -217,15 +229,25 @@ pub fn unsecure_virtual_memory(device: &Device, handle: u64) -> Result<(), Error
     device.raw_call(control, ptr, len)?;
 
     Ok(())
-
 }
 
-pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMode>) -> Result<SE_MAP_VIRTUAL_MEMORY, Error> {
-    let control = IoCtl::new(Some("SE_MAP_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A55, None, None);
+pub fn map_memory(
+    device: &Device,
+    address: u64,
+    size: usize,
+    mode: Option<MapMode>,
+) -> Result<SE_MAP_VIRTUAL_MEMORY, Error> {
+    let control = IoCtl::new(
+        Some("SE_MAP_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A55,
+        None,
+        None,
+    );
 
     let mut map = SE_MAP_VIRTUAL_MEMORY::init();
 
-    map.ToProcessId = u64::from(unsafe { processthreadsapi::GetCurrentProcessId()});
+    map.ToProcessId = u64::from(unsafe { processthreadsapi::GetCurrentProcessId() });
     map.BaseAddress = address as LPVOID;
     map.MapMode = mode.unwrap_or(MapMode::UserMode);
     map.Size = size as u32;
@@ -235,12 +257,17 @@ pub fn map_memory(device: &Device, address: u64, size: usize, mode: Option<MapMo
 
     device.raw_call(control, ptr, len)?;
 
-    
     Ok(map)
 }
 
-pub fn unmap_memory(device: &Device, map: SE_MAP_VIRTUAL_MEMORY) -> Result<(), Error> {
-    let control = IoCtl::new(Some("SE_UNMAP_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A56, None, None);
+pub fn unmap_memory(device: &Device, map: &SE_MAP_VIRTUAL_MEMORY) -> Result<(), Error> {
+    let control = IoCtl::new(
+        Some("SE_UNMAP_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A56,
+        None,
+        None,
+    );
 
     let mut unmap = SE_UNMAP_VIRTUAL_MEMORY::init();
 
@@ -256,7 +283,13 @@ pub fn unmap_memory(device: &Device, map: SE_MAP_VIRTUAL_MEMORY) -> Result<(), E
 
 // TODO: Evaluate if we should shrink_to_if output vector to BytesCopied
 pub fn read_virtual_memory(device: &Device, address: u64, size: usize) -> Result<Vec<u8>, Error> {
-    let control = IoCtl::new(Some("SE_READ_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A57, None, None);
+    let control = IoCtl::new(
+        Some("SE_READ_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A57,
+        None,
+        None,
+    );
 
     let mut read = SE_READ_VIRTUAL_MEMORY::init();
 
@@ -275,8 +308,18 @@ pub fn read_virtual_memory(device: &Device, address: u64, size: usize) -> Result
     Ok(v)
 }
 
-pub fn write_virtual_memory(device: &Device, address: u64, mut data: Vec<u8>) -> Result<usize, Error> {
-    let control = IoCtl::new(Some("SE_WRITE_VIRTUAL_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A58, None, None);
+pub fn write_virtual_memory(
+    device: &Device,
+    address: u64,
+    mut data: Vec<u8>,
+) -> Result<usize, Error> {
+    let control = IoCtl::new(
+        Some("SE_WRITE_VIRTUAL_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A58,
+        None,
+        None,
+    );
 
     let mut write = SE_WRITE_VIRTUAL_MEMORY::init();
 
@@ -293,7 +336,13 @@ pub fn write_virtual_memory(device: &Device, address: u64, mut data: Vec<u8>) ->
 
 #[allow(dead_code)]
 pub fn alloc_process_memory(device: &Device, pid: u64, size: usize) -> Result<u64, Error> {
-    let control = IoCtl::new(Some("SE_ALLOC_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A59, None, None);
+    let control = IoCtl::new(
+        Some("SE_ALLOC_PROCESS_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A59,
+        None,
+        None,
+    );
 
     let mut alloc = SE_ALLOC_PROCESS_MEMORY::init();
 
@@ -309,7 +358,13 @@ pub fn alloc_process_memory(device: &Device, pid: u64, size: usize) -> Result<u6
 
 #[allow(dead_code)]
 pub fn free_process_memory(device: &Device, pid: u64, address: u64) -> Result<(), Error> {
-    let control = IoCtl::new(Some("SE_FREE_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A5A, None, None);
+    let control = IoCtl::new(
+        Some("SE_FREE_PROCESS_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A5A,
+        None,
+        None,
+    );
 
     let mut alloc = SE_FREE_PROCESS_MEMORY::init();
 
@@ -321,12 +376,22 @@ pub fn free_process_memory(device: &Device, pid: u64, address: u64) -> Result<()
     device.raw_call(control, ptr, len)?;
 
     Ok(())
-
 }
 
 #[allow(dead_code)]
-pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize) -> Result<Vec<u8>, Error> {
-    let control = IoCtl::new(Some("SE_READ_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A5B, None, None);
+pub fn read_process_memory(
+    device: &Device,
+    pid: u64,
+    address: u64,
+    size: usize,
+) -> Result<Vec<u8>, Error> {
+    let control = IoCtl::new(
+        Some("SE_READ_PROCESS_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A5B,
+        None,
+        None,
+    );
 
     let mut read = SE_READ_PROCESS_MEMORY::init();
 
@@ -342,13 +407,23 @@ pub fn read_process_memory(device: &Device, pid: u64, address: u64, size: usize)
 
     device.raw_call(control, ptr, len)?;
 
-    
     Ok(v)
 }
 
 #[allow(dead_code)]
-pub fn write_process_memory(device: &Device, pid: u64, address: u64, mut data: Vec<u8>) -> Result<(), Error> {
-    let control = IoCtl::new(Some("SE_WRITE_PROCESS_MEMORY"), IOCTL_SENTRY_TYPE, 0x0A5C, None, None);
+pub fn write_process_memory(
+    device: &Device,
+    pid: u64,
+    address: u64,
+    mut data: Vec<u8>,
+) -> Result<(), Error> {
+    let control = IoCtl::new(
+        Some("SE_WRITE_PROCESS_MEMORY"),
+        IOCTL_SENTRY_TYPE,
+        0x0A5C,
+        None,
+        None,
+    );
 
     let mut write = SE_WRITE_PROCESS_MEMORY::init();
 
@@ -383,7 +458,7 @@ pub fn read_u32(device: &Device, address: u64) -> Result<u32, Error> {
 
     let mut cursor = Cursor::new(v);
 
-    Ok( cursor.read_u32::<LittleEndian>()? )
+    Ok(cursor.read_u32::<LittleEndian>()?)
 }
 
 #[allow(dead_code)]
@@ -392,5 +467,5 @@ pub fn read_u16(device: &Device, address: u64) -> Result<u16, Error> {
 
     let mut cursor = Cursor::new(v);
 
-    Ok( cursor.read_u16::<LittleEndian>()? )
+    Ok(cursor.read_u16::<LittleEndian>()?)
 }

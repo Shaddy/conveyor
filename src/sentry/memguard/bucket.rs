@@ -1,22 +1,19 @@
+use super::structs::{
+    ObjectType, CLOSE_MESSAGE, DELETE_MESSAGE, OKAYTOCLOSE_MESSAGE, OPEN_MESSAGE, PARSE_MESSAGE,
+    QUERYNAME_MESSAGE, SECURITY_MESSAGE,
+};
+use super::sync::Event;
 use std::sync::mpsc;
-use super::sync::{Event};
-use super::structs::{ ObjectType,
-                      OPEN_MESSAGE,
-                      CLOSE_MESSAGE,
-                      DELETE_MESSAGE,
-                      PARSE_MESSAGE,
-                      SECURITY_MESSAGE,
-                      QUERYNAME_MESSAGE,
-                      OKAYTOCLOSE_MESSAGE };
 
-use std::{mem, fmt, slice};
+use std::{fmt, mem, slice};
 
+use super::{Access, Action, CallbackMap};
 use std::fmt::Debug;
-use super::{Action, Access, CallbackMap};
 
 const BUCKET_SIZE: usize = 240 + 16;
 
 bitflags! {
+    #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct ControlFlags: u32 {
         const SE_MESSAGE_NORMAL       = 0x0000_0000;
         const SE_MESSAGE_ASYNCHRONOUS = 0x0000_0001;
@@ -26,7 +23,7 @@ bitflags! {
 #[derive(Debug)]
 #[repr(C)]
 pub struct Bucket {
-    header: MessageHeader
+    header: MessageHeader,
 }
 
 #[derive(Debug)]
@@ -57,7 +54,7 @@ enum MessageType {
 struct MessageHeader {
     id: u64,
     control: ControlFlags,
-    kind: MessageType
+    kind: MessageType,
 }
 
 // impl MessageHeader {
@@ -93,7 +90,7 @@ pub struct FrameContext {
     rcx: u64,
     rax: u64,
     rip: u64,
-    rflags: u64
+    rflags: u64,
 }
 
 const MAX_INST_LENGHT: usize = 16;
@@ -110,7 +107,7 @@ impl Monitor {
     }
 
     unsafe fn get_message<T: Debug>(ptr: *const u8) -> String {
-        let m =  mem::transmute_copy::<T, T> (&*(ptr as *const T));
+        let m = mem::transmute_copy::<T, T>(&*(ptr as *const T));
         format!("{:?}", m)
     }
 }
@@ -128,7 +125,7 @@ pub struct Interception {
     pub access: Access,
     pub flags: u32,
     pub context: u64,
-    pub action: Action
+    pub action: Action,
 }
 
 impl Interception {
@@ -139,18 +136,18 @@ impl Interception {
 
 impl Debug for Interception {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Region(0x{:016X}) => 0x{:016x} - ({:?}) - ({:?})",
-                self.region_id,
-                self.address,
-                self.access,
-                self.action)
+        write!(
+            f,
+            "Region(0x{:016X}) => 0x{:016x} - ({:?}) - ({:?})",
+            self.region_id, self.address, self.access, self.action
+        )
     }
 }
 
 #[derive(Debug)]
 pub struct Response {
     message: Option<String>,
-    action: Action
+    action: Action,
 }
 
 impl Response {
@@ -160,7 +157,7 @@ impl Response {
 
     pub fn message(&self) -> String {
         if let Some(ref msg) = self.message {
-            return msg.clone()
+            return msg.clone();
         }
 
         String::from("")
@@ -169,7 +166,7 @@ impl Response {
     pub fn empty() -> Response {
         Response {
             message: None,
-            action: Action::CONTINUE
+            action: Action::CONTINUE,
         }
     }
 
@@ -180,7 +177,7 @@ impl Response {
     pub fn new(message: Option<String>, action: Action) -> Response {
         Response {
             message: message,
-            action: action
+            action: action,
         }
     }
 }
@@ -197,8 +194,12 @@ impl Bucket {
             let mut buffers: Vec<Vec<u8>> = Vec::new();
 
             for current in (0..capacity).step_by(BUCKET_SIZE) {
-                buffers.push(Vec::from_raw_parts(ptr.offset(current as isize), size, size));
-            };
+                buffers.push(Vec::from_raw_parts(
+                    ptr.offset(current as isize),
+                    size,
+                    size,
+                ));
+            }
 
             buffers
         }
@@ -207,14 +208,19 @@ impl Bucket {
     fn set_action(&self, ptr: *const u8, action: Action) {
         unsafe {
             // let intercept: &mut Interception = &mut mapping.as_mut_ptr().offset(mem::size_of::<Syncronizers>() as isize) as *mut Interception;
-            let intercept: &mut Interception = mem::transmute(ptr
-                                                .offset(mem::size_of::<Syncronizers>() as isize));
+            let intercept: &mut Interception =
+                mem::transmute(ptr.offset(mem::size_of::<Syncronizers>() as isize));
             intercept.action = action;
         }
     }
 
-    pub fn handler(messenger: mpsc::Sender<String>, mapping: Vec<u8>, default: Box<dyn Fn(Interception) -> Response>, callbacks: CallbackMap) {
-        let sync = unsafe{ Syncronizers::from_raw(mapping.as_ptr()) } ;
+    pub fn handler(
+        messenger: mpsc::Sender<String>,
+        mapping: Vec<u8>,
+        default: Box<dyn Fn(Interception) -> Response>,
+        callbacks: CallbackMap,
+    ) {
+        let sync = unsafe { Syncronizers::from_raw(mapping.as_ptr()) };
         // println!("#{:?} - {:?}", thread::current().id(), sync);
 
         // in order to prevent heapfree over false Vec reference
@@ -234,9 +240,14 @@ impl Bucket {
 
             // println!("#{:?} - got bucket", thread::current().id());
 
-            let bucket = unsafe{ Bucket::from_raw(mapping.as_ptr()
-                                            // skip events
-                                            .offset(mem::size_of::<Syncronizers>() as isize)) } ;
+            let bucket = unsafe {
+                Bucket::from_raw(
+                    mapping
+                        .as_ptr()
+                        // skip events
+                        .offset(mem::size_of::<Syncronizers>() as isize),
+                )
+            };
 
             // println!("#{:?} - parsed bucket", thread::current().id());
 
@@ -244,86 +255,84 @@ impl Bucket {
                 MessageType::Terminate => {
                     // println!("#{:?} - terminate message.", thread::current().id());
                     sync.user.signal();
-                    break
-                },
+                    break;
+                }
                 MessageType::Intercept => {
                     // println!("#{:?} - redirecting interception", thread::current().id());
-                    let interception = unsafe { Interception::from_raw(mapping.as_ptr()
-                                    .offset(mem::size_of::<Syncronizers>() as isize)) };
+                    let interception = unsafe {
+                        Interception::from_raw(
+                            mapping
+                                .as_ptr()
+                                .offset(mem::size_of::<Syncronizers>() as isize),
+                        )
+                    };
 
-                    let map = callbacks.read().expect("Unable to unlock callbacks for reading");
+                    let map = callbacks
+                        .read()
+                        .expect("Unable to unlock callbacks for reading");
 
                     let response = match map.get(&interception.guard_id) {
                         Some(callback) => callback(interception),
-                        None => default(interception)
+                        None => default(interception),
                     };
 
                     bucket.set_action(mapping.as_ptr(), response.action());
 
                     response
-                },
+                }
                 MessageType::Monitor => {
-                    let monitor = unsafe { Monitor::from_raw(mapping.as_ptr()
-                                    .offset(mem::size_of::<Syncronizers>() as isize)) };
+                    let monitor = unsafe {
+                        Monitor::from_raw(
+                            mapping
+                                .as_ptr()
+                                .offset(mem::size_of::<Syncronizers>() as isize),
+                        )
+                    };
 
-                    let offset = mem::size_of::<Syncronizers>() as isize +
-                                 mem::size_of::<Monitor>() as isize;
+                    let offset = mem::size_of::<Syncronizers>() as isize
+                        + mem::size_of::<Monitor>() as isize;
 
                     let message = match monitor.kind {
-                            ObjectType::OpenMessage => {
-                                unsafe {
-                                    Monitor::get_message::<OPEN_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            },
-                            ObjectType::CloseMessage => {
-                                unsafe {
-                                    Monitor::get_message::<CLOSE_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            },
-                            ObjectType::DeleteMessage => {
-                                unsafe {
-                                    Monitor::get_message::<DELETE_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            },
-                            ObjectType::ParseMessage => {
-                                unsafe {
-                                    Monitor::get_message::<PARSE_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            },
-                            ObjectType::SecurityMessage => {
-                                unsafe {
-                                    Monitor::get_message::<SECURITY_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            },
-                            ObjectType::QueryNameMessage => {
-                                unsafe {
-                                    Monitor::get_message::<QUERYNAME_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            },
-                            ObjectType::OkayToCloseMessage => {
-                                unsafe {
-                                    Monitor::get_message::<OKAYTOCLOSE_MESSAGE>
-                                            (mapping.as_ptr().offset(offset))
-                                }
-                            }
+                        ObjectType::OpenMessage => unsafe {
+                            Monitor::get_message::<OPEN_MESSAGE>(mapping.as_ptr().offset(offset))
+                        },
+                        ObjectType::CloseMessage => unsafe {
+                            Monitor::get_message::<CLOSE_MESSAGE>(mapping.as_ptr().offset(offset))
+                        },
+                        ObjectType::DeleteMessage => unsafe {
+                            Monitor::get_message::<DELETE_MESSAGE>(mapping.as_ptr().offset(offset))
+                        },
+                        ObjectType::ParseMessage => unsafe {
+                            Monitor::get_message::<PARSE_MESSAGE>(mapping.as_ptr().offset(offset))
+                        },
+                        ObjectType::SecurityMessage => unsafe {
+                            Monitor::get_message::<SECURITY_MESSAGE>(
+                                mapping.as_ptr().offset(offset),
+                            )
+                        },
+                        ObjectType::QueryNameMessage => unsafe {
+                            Monitor::get_message::<QUERYNAME_MESSAGE>(
+                                mapping.as_ptr().offset(offset),
+                            )
+                        },
+                        ObjectType::OkayToCloseMessage => unsafe {
+                            Monitor::get_message::<OKAYTOCLOSE_MESSAGE>(
+                                mapping.as_ptr().offset(offset),
+                            )
+                        },
                     };
 
                     Response::new(Some(message), Action::CONTINUE)
-
                 }
-                _ => { Response::empty() }
+                _ => Response::empty(),
             };
 
             // println!("#{:?} message-ready, notifying back.", thread::current().id());
 
             // TODO: Convert this check into something more fancy.
-            if (bucket.header.control & ControlFlags::SE_MESSAGE_ASYNCHRONOUS) != ControlFlags::SE_MESSAGE_ASYNCHRONOUS {
+            if (bucket.header.control & ControlFlags::SE_MESSAGE_ASYNCHRONOUS)
+                != ControlFlags::SE_MESSAGE_ASYNCHRONOUS
+            {
                 sync.user.signal();
             }
 
@@ -340,7 +349,6 @@ impl Bucket {
     pub unsafe fn from_raw(ptr: *const u8) -> Bucket {
         mem::transmute_copy(&*ptr)
     }
-
 }
 
 // DEPRECATED DUE TO mem::transmute, just keeping it until all tests are guaranteed.

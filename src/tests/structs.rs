@@ -1,7 +1,7 @@
 // Copyright © ByteHeed.  All rights reserved.
 #![allow(non_camel_case_types, non_snake_case, dead_code)]
 
-use super::winapi::shared::minwindef::{LPVOID};
+use super::winapi::shared::minwindef::LPVOID;
 use std::mem;
 
 type ULONG64 = u64;
@@ -26,7 +26,6 @@ pub trait RawStruct<T> {
     }
 }
 
-
 #[derive(Debug, Copy, Clone)]
 pub enum TestType {
     BasicGuard = 1,
@@ -37,22 +36,21 @@ pub enum TestType {
     SetEvent,
     PageFaultIntercept,
     PriorityIntercept,
-    TimerIntercept
+    TimerIntercept,
 }
 
 bitflags! {
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct TestFlags: u32 {
         const INTERCEPT_NORMAL          = 0x0000_0000;
         const INTERCEPT_STRESS_AFFINITY = 0x0000_0001;
     }
 }
 
-STRUCT!{
-    #[derive(Debug)]
-    struct SE_RUN_TEST {
-        Kind: TestType,
-        Flags: TestFlags,
-    }
+#[derive(Debug, Clone)]
+pub(crate) struct SE_RUN_TEST {
+    Kind: TestType,
+    Flags: TestFlags,
 }
 
-impl RawStruct<SE_RUN_TEST> for SE_RUN_TEST { }
+impl RawStruct<SE_RUN_TEST> for SE_RUN_TEST {}

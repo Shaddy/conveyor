@@ -2,21 +2,24 @@ use super::pdb::FallibleIterator;
 
 use super::pdb;
 
-use std::fmt;
-use std::io::Write;
-use std::collections::BTreeSet;
-use std::io;
-use std::fs;
-use std::sync::mpsc::{Sender};
 use super::cli::output::{MessageType, ShellMessage};
 use super::console::style;
+use std::collections::BTreeSet;
+use std::fmt;
+use std::fs;
+use std::io;
+use std::io::Write;
+use std::sync::mpsc::Sender;
 
 pub use super::pdb::Error;
 
-
 type TypeSet = BTreeSet<pdb::TypeIndex>;
 
-pub fn type_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet) -> pdb::Result<String> {
+pub fn type_name<'p>(
+    type_finder: &pdb::TypeFinder<'p>,
+    type_index: pdb::TypeIndex,
+    needed_types: &mut TypeSet,
+) -> pdb::Result<String> {
     let mut name = match type_finder.find(type_index)?.parse()? {
         pdb::TypeData::Primitive(data) => {
             let mut name = match data.kind {
@@ -42,42 +45,54 @@ pub fn type_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeInd
             };
 
             match data.indirection {
-                pdb::Indirection::None => {},
-                _ => { name.push(' '); name.push('*'); },
+                None => {}
+                _ => {
+                    name.push(' ');
+                    name.push('*');
+                }
             }
 
             name
-        },
+        }
 
         pdb::TypeData::Class(data) => {
             needed_types.insert(type_index);
             data.name.to_string().into_owned()
-        },
+        }
 
         pdb::TypeData::Enumeration(data) => {
             needed_types.insert(type_index);
             data.name.to_string().into_owned()
-        },
+        }
 
         pdb::TypeData::Union(data) => {
             needed_types.insert(type_index);
             data.name.to_string().into_owned()
-        },
+        }
 
         pdb::TypeData::Pointer(data) => {
-            format!("{}*", type_name(type_finder, data.underlying_type, needed_types)?)
-        },
+            format!(
+                "{}*",
+                type_name(type_finder, data.underlying_type, needed_types)?
+            )
+        }
 
         pdb::TypeData::Modifier(data) => {
             if data.constant {
-                format!("const {}", type_name(type_finder, data.underlying_type, needed_types)?)
+                format!(
+                    "const {}",
+                    type_name(type_finder, data.underlying_type, needed_types)?
+                )
             } else if data.volatile {
-                format!("volatile {}", type_name(type_finder, data.underlying_type, needed_types)?)
+                format!(
+                    "volatile {}",
+                    type_name(type_finder, data.underlying_type, needed_types)?
+                )
             } else {
                 // ?
                 type_name(type_finder, data.underlying_type, needed_types)?
             }
-        },
+        }
 
         pdb::TypeData::Array(data) => {
             let mut name = type_name(type_finder, data.element_type, needed_types)?;
@@ -85,9 +100,9 @@ pub fn type_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeInd
                 name = format!("{}[{}]", name, size);
             }
             name
-        },
+        }
 
-        _ => format!("Type{} /* TODO: figure out how to name it */", type_index)
+        _ => format!("Type{} /* TODO: figure out how to name it */", type_index),
     };
 
     // TODO: search and replace std:: patterns
@@ -98,7 +113,7 @@ pub fn type_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeInd
     Ok(name)
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Class<'p> {
     kind: pdb::ClassKind,
     name: pdb::RawString<'p>,
@@ -109,12 +124,22 @@ struct Class<'p> {
 }
 
 impl<'p> Class<'p> {
-    fn add_derived_from(&mut self, _: &pdb::TypeFinder<'p>, _: pdb::TypeIndex, _: &mut TypeSet) -> pdb::Result<()> {
+    fn add_derived_from(
+        &mut self,
+        _: &pdb::TypeFinder<'p>,
+        _: pdb::TypeIndex,
+        _: &mut TypeSet,
+    ) -> pdb::Result<()> {
         // TODO
         Ok(())
     }
 
-    fn add_fields(&mut self, type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet) -> pdb::Result<()> {
+    fn add_fields(
+        &mut self,
+        type_finder: &pdb::TypeFinder<'p>,
+        type_index: pdb::TypeIndex,
+        needed_types: &mut TypeSet,
+    ) -> pdb::Result<()> {
         match type_finder.find(type_index)?.parse()? {
             pdb::TypeData::FieldList(data) => {
                 for ref field in data.fields {
@@ -127,7 +152,10 @@ impl<'p> Class<'p> {
                 }
             }
             other => {
-                println!("trying to Class::add_fields() got {} -> {:?}", type_index, other);
+                println!(
+                    "trying to Class::add_fields() got {} -> {:?}",
+                    type_index, other
+                );
                 panic!("unexpected type in Class::add_fields()");
             }
         }
@@ -135,25 +163,36 @@ impl<'p> Class<'p> {
         Ok(())
     }
 
-    fn add_field(&mut self, type_finder: &pdb::TypeFinder<'p>, field: &pdb::TypeData<'p>, needed_types: &mut TypeSet) -> pdb::Result<()> {
+    fn add_field(
+        &mut self,
+        type_finder: &pdb::TypeFinder<'p>,
+        field: &pdb::TypeData<'p>,
+        needed_types: &mut TypeSet,
+    ) -> pdb::Result<()> {
         match field {
             &pdb::TypeData::Member(ref data) => {
                 // TODO: attributes (static, virtual, etc.)
-                self.fields.push(Field{
+                self.fields.push(Field {
                     type_name: type_name(type_finder, data.field_type, needed_types)?,
                     name: data.name.clone(),
                     offset: data.offset,
                 });
-            },
+            }
 
             &pdb::TypeData::Method(ref data) => {
-                let method = Method::find(data.name.clone(), data.attributes, type_finder, data.method_type, needed_types)?;
+                let method = Method::find(
+                    data.name.clone(),
+                    data.attributes,
+                    type_finder,
+                    data.method_type,
+                    needed_types,
+                )?;
                 if data.attributes.is_static() {
                     self.static_methods.push(method);
                 } else {
                     self.instance_methods.push(method);
                 }
-            },
+            }
 
             &pdb::TypeData::OverloadedMethod(ref data) => {
                 // this just means we have more than one method with the same name
@@ -161,9 +200,20 @@ impl<'p> Class<'p> {
                 match type_finder.find(data.method_list)?.parse()? {
                     pdb::TypeData::MethodList(method_list) => {
                         let mut iter = method_list.methods.into_iter();
-                        while let Some(pdb::MethodListEntry { attributes, method_type, .. }) = iter.next() {
+                        while let Some(pdb::MethodListEntry {
+                            attributes,
+                            method_type,
+                            ..
+                        }) = iter.next()
+                        {
                             // hooray
-                            let method = Method::find(data.name.clone(), attributes, type_finder, method_type, needed_types)?;
+                            let method = Method::find(
+                                data.name.clone(),
+                                attributes,
+                                type_finder,
+                                method_type,
+                                needed_types,
+                            )?;
                             if attributes.is_static() {
                                 self.static_methods.push(method);
                             } else {
@@ -172,25 +222,24 @@ impl<'p> Class<'p> {
                         }
                     }
                     other => {
-                        println!("processing OverloadedMethod, expected MethodList, got {} -> {:?}", data.method_list, other);
+                        println!(
+                            "processing OverloadedMethod, expected MethodList, got {} -> {:?}",
+                            data.method_list, other
+                        );
                         panic!("unexpected type in Class::add_field()");
                     }
                 }
-            },
+            }
 
-            &pdb::TypeData::BaseClass(ref data) => {
-                self.base_classes.push(BaseClass{
-                    type_name: type_name(type_finder, data.base_class, needed_types)?,
-                    offset: data.offset,
-                })
-            },
+            &pdb::TypeData::BaseClass(ref data) => self.base_classes.push(BaseClass {
+                type_name: type_name(type_finder, data.base_class, needed_types)?,
+                offset: data.offset,
+            }),
 
-            &pdb::TypeData::VirtualBaseClass(ref data) => {
-                self.base_classes.push(BaseClass{
-                    type_name: type_name(type_finder, data.base_class, needed_types)?,
-                    offset: data.base_pointer_offset,
-                })
-            },
+            &pdb::TypeData::VirtualBaseClass(ref data) => self.base_classes.push(BaseClass {
+                type_name: type_name(type_finder, data.base_class, needed_types)?,
+                offset: data.base_pointer_offset,
+            }),
 
             _ => {
                 // ignore everything else even though that's sad
@@ -203,17 +252,22 @@ impl<'p> Class<'p> {
 
 impl<'p> fmt::Display for Class<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} ", match self.kind {
-            pdb::ClassKind::Class => "class",
-            pdb::ClassKind::Struct => "struct",
-            pdb::ClassKind::Interface => "interface",   // when can this happen?
-        }, self.name.to_string())?;
+        write!(
+            f,
+            "{} {} ",
+            match self.kind {
+                pdb::ClassKind::Class => "class",
+                pdb::ClassKind::Struct => "struct",
+                pdb::ClassKind::Interface => "interface", // when can this happen?
+            },
+            self.name.to_string()
+        )?;
 
         if self.base_classes.len() > 0 {
             for (i, base) in self.base_classes.iter().enumerate() {
                 let prefix = match i {
                     0 => ":",
-                    _ => ","
+                    _ => ",",
                 };
                 write!(f, "{} {}", prefix, base.type_name)?;
             }
@@ -222,21 +276,33 @@ impl<'p> fmt::Display for Class<'p> {
         writeln!(f, " {{")?;
 
         for base in &self.base_classes {
-            writeln!(f, "\t/* offset {:3} */ /* fields for {} */", base.offset, base.type_name)?;
+            writeln!(
+                f,
+                "\t/* offset {:3} */ /* fields for {} */",
+                base.offset, base.type_name
+            )?;
         }
 
         for ref field in &self.fields {
-            writeln!(f, "\t/* offset {:3} */ {} {};", field.offset, field.type_name, field.name.to_string())?;
+            writeln!(
+                f,
+                "\t/* offset {:3} */ {} {};",
+                field.offset,
+                field.type_name,
+                field.name.to_string()
+            )?;
         }
 
         if !self.instance_methods.is_empty() {
             writeln!(f, "\t")?;
             for method in self.instance_methods.iter() {
-                writeln!(f, "\t{}{} {}({});",
-                         if method.is_virtual { "virtual " } else { "" },
-                         method.return_type_name,
-                         method.name.to_string(),
-                         method.arguments.join(", ")
+                writeln!(
+                    f,
+                    "\t{}{} {}({});",
+                    if method.is_virtual { "virtual " } else { "" },
+                    method.return_type_name,
+                    method.name.to_string(),
+                    method.arguments.join(", ")
                 )?;
             }
         }
@@ -244,11 +310,13 @@ impl<'p> fmt::Display for Class<'p> {
         if !self.static_methods.is_empty() {
             writeln!(f, "\t")?;
             for method in self.static_methods.iter() {
-                writeln!(f, "\t{}static {} {}({});",
-                         if method.is_virtual { "virtual " } else { "" },
-                         method.return_type_name,
-                         method.name.to_string(),
-                         method.arguments.join(", ")
+                writeln!(
+                    f,
+                    "\t{}static {} {}({});",
+                    if method.is_virtual { "virtual " } else { "" },
+                    method.return_type_name,
+                    method.name.to_string(),
+                    method.arguments.join(", ")
                 )?;
             }
         }
@@ -259,20 +327,20 @@ impl<'p> fmt::Display for Class<'p> {
     }
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct BaseClass {
     type_name: String,
     offset: u32,
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Field<'p> {
     type_name: String,
     name: pdb::RawString<'p>,
     offset: u16,
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Method<'p> {
     name: pdb::RawString<'p>,
     return_type_name: String,
@@ -282,19 +350,19 @@ struct Method<'p> {
 
 impl<'p> Method<'p> {
     fn find(
-        name: pdb::RawString<'p>, attributes: pdb::FieldAttributes,
-        type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet
-    ) -> pdb::Result<Method<'p>>
-    {
+        name: pdb::RawString<'p>,
+        attributes: pdb::FieldAttributes,
+        type_finder: &pdb::TypeFinder<'p>,
+        type_index: pdb::TypeIndex,
+        needed_types: &mut TypeSet,
+    ) -> pdb::Result<Method<'p>> {
         match type_finder.find(type_index)?.parse()? {
-            pdb::TypeData::MemberFunction(data) => {
-                Ok(Method{
-                    name: name,
-                    return_type_name: type_name(type_finder, data.return_type, needed_types)?,
-                    arguments: argument_list(type_finder, data.argument_list, needed_types)?,
-                    is_virtual: attributes.is_virtual(),
-                })
-            },
+            pdb::TypeData::MemberFunction(data) => Ok(Method {
+                name: name,
+                return_type_name: type_name(type_finder, data.return_type, needed_types)?,
+                arguments: argument_list(type_finder, data.argument_list, needed_types)?,
+                is_virtual: attributes.is_virtual(),
+            }),
 
             other => {
                 println!("other: {:?}", other);
@@ -304,7 +372,11 @@ impl<'p> Method<'p> {
     }
 }
 
-fn argument_list<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet) -> pdb::Result<Vec<String>> {
+fn argument_list<'p>(
+    type_finder: &pdb::TypeFinder<'p>,
+    type_index: pdb::TypeIndex,
+    needed_types: &mut TypeSet,
+) -> pdb::Result<Vec<String>> {
     match type_finder.find(type_index)?.parse()? {
         pdb::TypeData::ArgumentList(data) => {
             let mut args: Vec<String> = Vec::new();
@@ -313,13 +385,13 @@ fn argument_list<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeInd
             }
             Ok(args)
         }
-        _ => {
-            Err(pdb::Error::UnimplementedFeature("argument list of non-argument-list type"))
-        }
+        _ => Err(pdb::Error::UnimplementedFeature(
+            "argument list of non-argument-list type",
+        )),
     }
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Enum<'p> {
     name: pdb::RawString<'p>,
     underlying_type_name: String,
@@ -327,7 +399,12 @@ struct Enum<'p> {
 }
 
 impl<'p> Enum<'p> {
-    fn add_fields(&mut self, type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet) -> pdb::Result<()> {
+    fn add_fields(
+        &mut self,
+        type_finder: &pdb::TypeFinder<'p>,
+        type_index: pdb::TypeIndex,
+        needed_types: &mut TypeSet,
+    ) -> pdb::Result<()> {
         match type_finder.find(type_index)?.parse()? {
             pdb::TypeData::FieldList(data) => {
                 for ref field in data.fields {
@@ -340,7 +417,10 @@ impl<'p> Enum<'p> {
                 }
             }
             other => {
-                println!("trying to Enum::add_fields() got {} -> {:?}", type_index, other);
+                println!(
+                    "trying to Enum::add_fields() got {} -> {:?}",
+                    type_index, other
+                );
                 panic!("unexpected type in Enum::add_fields()");
             }
         }
@@ -348,14 +428,19 @@ impl<'p> Enum<'p> {
         Ok(())
     }
 
-    fn add_field(&mut self, _: &pdb::TypeFinder<'p>, field: &pdb::TypeData<'p>, _: &mut TypeSet) -> pdb::Result<()> {
+    fn add_field(
+        &mut self,
+        _: &pdb::TypeFinder<'p>,
+        field: &pdb::TypeData<'p>,
+        _: &mut TypeSet,
+    ) -> pdb::Result<()> {
         match field {
             &pdb::TypeData::Enumerate(ref data) => {
-                self.values.push(EnumValue{
+                self.values.push(EnumValue {
                     name: data.name.clone(),
                     value: data.value,
                 });
-            },
+            }
 
             _ => {
                 // ignore everything else even though that's sad
@@ -368,19 +453,29 @@ impl<'p> Enum<'p> {
 
 impl<'p> fmt::Display for Enum<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "enum {} /* stored as {} */ {{", self.name.to_string(), self.underlying_type_name)?;
+        writeln!(
+            f,
+            "enum {} /* stored as {} */ {{",
+            self.name.to_string(),
+            self.underlying_type_name
+        )?;
 
         for value in &self.values {
-            writeln!(f, "\t{} = {},", value.name.to_string(), match value.value {
-                pdb::Variant::U8(v) => format!("0x{:02x}", v),
-                pdb::Variant::U16(v) => format!("0x{:04x}", v),
-                pdb::Variant::U32(v) => format!("0x{:08x}", v),
-                pdb::Variant::U64(v) => format!("0x{:16x}", v),
-                pdb::Variant::I8(v) => format!("{}", v),
-                pdb::Variant::I16(v) => format!("{}", v),
-                pdb::Variant::I32(v) => format!("{}", v),
-                pdb::Variant::I64(v) => format!("{}", v),
-            })?;
+            writeln!(
+                f,
+                "\t{} = {},",
+                value.name.to_string(),
+                match value.value {
+                    pdb::Variant::U8(v) => format!("0x{:02x}", v),
+                    pdb::Variant::U16(v) => format!("0x{:04x}", v),
+                    pdb::Variant::U32(v) => format!("0x{:08x}", v),
+                    pdb::Variant::U64(v) => format!("0x{:16x}", v),
+                    pdb::Variant::I8(v) => format!("{}", v),
+                    pdb::Variant::I16(v) => format!("{}", v),
+                    pdb::Variant::I32(v) => format!("{}", v),
+                    pdb::Variant::I64(v) => format!("{}", v),
+                }
+            )?;
         }
         writeln!(f, "}}")?;
 
@@ -388,13 +483,13 @@ impl<'p> fmt::Display for Enum<'p> {
     }
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct EnumValue<'p> {
     name: pdb::RawString<'p>,
     value: pdb::Variant,
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ForwardReference<'p> {
     kind: pdb::ClassKind,
     name: pdb::RawString<'p>,
@@ -402,16 +497,20 @@ struct ForwardReference<'p> {
 
 impl<'p> fmt::Display for ForwardReference<'p> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{} {};", match self.kind {
-            pdb::ClassKind::Class => "class",
-            pdb::ClassKind::Struct => "struct",
-            pdb::ClassKind::Interface => "interface",   // when can this happen?
-        }, self.name.to_string())
+        writeln!(
+            f,
+            "{} {};",
+            match self.kind {
+                pdb::ClassKind::Class => "class",
+                pdb::ClassKind::Struct => "struct",
+                pdb::ClassKind::Interface => "interface", // when can this happen?
+            },
+            self.name.to_string()
+        )
     }
 }
 
-
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Data<'p> {
     forward_references: Vec<ForwardReference<'p>>,
     classes: Vec<Class<'p>>,
@@ -445,18 +544,23 @@ impl<'p> fmt::Display for Data<'p> {
 
 impl<'p> Data<'p> {
     fn new() -> Data<'p> {
-        Data{
+        Data {
             forward_references: Vec::new(),
             classes: Vec::new(),
             enums: Vec::new(),
         }
     }
 
-    fn add(&mut self, type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex, needed_types: &mut TypeSet) -> pdb::Result<()> {
+    fn add(
+        &mut self,
+        type_finder: &pdb::TypeFinder<'p>,
+        type_index: pdb::TypeIndex,
+        needed_types: &mut TypeSet,
+    ) -> pdb::Result<()> {
         match type_finder.find(type_index)?.parse()? {
             pdb::TypeData::Class(data) => {
                 if data.properties.forward_reference() {
-                    self.forward_references.push(ForwardReference{
+                    self.forward_references.push(ForwardReference {
                         kind: data.kind,
                         name: data.name,
                     });
@@ -464,7 +568,7 @@ impl<'p> Data<'p> {
                     return Ok(());
                 }
 
-                let mut class = Class{
+                let mut class = Class {
                     kind: data.kind,
                     name: data.name,
                     fields: Vec::new(),
@@ -485,9 +589,13 @@ impl<'p> Data<'p> {
             }
 
             pdb::TypeData::Enumeration(data) => {
-                let mut e = Enum{
+                let mut e = Enum {
                     name: data.name,
-                    underlying_type_name: type_name(type_finder, data.underlying_type, needed_types)?,
+                    underlying_type_name: type_name(
+                        type_finder,
+                        data.underlying_type,
+                        needed_types,
+                    )?,
                     values: Vec::new(),
                 };
 
@@ -498,7 +606,12 @@ impl<'p> Data<'p> {
 
             other => {
                 // ignore
-                writeln!(&mut io::stderr(), "warning: don't know how to add {:?}", other).expect("stderr write");
+                writeln!(
+                    &mut io::stderr(),
+                    "warning: don't know how to add {:?}",
+                    other
+                )
+                .expect("stderr write");
             }
         }
 
@@ -506,7 +619,11 @@ impl<'p> Data<'p> {
     }
 }
 
-fn write_class(filename: &str, class_name: &str, messenger: &Sender<ShellMessage>) -> pdb::Result<()> {
+fn write_class(
+    filename: &str,
+    class_name: &str,
+    messenger: &Sender<ShellMessage>,
+) -> pdb::Result<()> {
     let file = fs::File::open(filename)?;
     let mut pdb = pdb::PDB::open(file)?;
 
@@ -522,7 +639,9 @@ fn write_class(filename: &str, class_name: &str, messenger: &Sender<ShellMessage
         type_finder.update(&type_iter);
 
         if let Ok(pdb::TypeData::Class(class)) = typ.parse() {
-            if class.name.as_bytes() == class_name.as_bytes() && !class.properties.forward_reference() {
+            if class.name.as_bytes() == class_name.as_bytes()
+                && !class.properties.forward_reference()
+            {
                 data.add(&type_finder, typ.type_index(), &mut needed_types)?;
                 break;
             }
@@ -534,7 +653,7 @@ fn write_class(filename: &str, class_name: &str, messenger: &Sender<ShellMessage
         // get the last element in needed_types without holding an immutable borrow
         let last = match needed_types.iter().next_back() {
             Some(n) => Some(*n),
-            None => None
+            None => None,
         };
 
         if let Some(type_index) = last {
@@ -544,12 +663,20 @@ fn write_class(filename: &str, class_name: &str, messenger: &Sender<ShellMessage
             // add the type
             data.add(&type_finder, type_index, &mut needed_types)?;
         } else {
-            break
+            break;
         }
     }
 
     if data.classes.len() == 0 {
-        ShellMessage::send(messenger,format!("{}", style(format!("Sorry, class {} was not found", class_name)).red()),MessageType::Close,0);
+        ShellMessage::send(
+            messenger,
+            format!(
+                "{}",
+                style(format!("Sorry, class {} was not found", class_name)).red()
+            ),
+            MessageType::Close,
+            0,
+        );
 
         // writeln!(&mut io::stderr(), "sorry, class {} was not found", class_name)
         //     .expect("stderr write");
@@ -560,7 +687,10 @@ fn write_class(filename: &str, class_name: &str, messenger: &Sender<ShellMessage
     Ok(())
 }
 
-pub fn parse_struct_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb::TypeIndex) -> pdb::Result<String> {
+pub fn parse_struct_name<'p>(
+    type_finder: &pdb::TypeFinder<'p>,
+    type_index: pdb::TypeIndex,
+) -> pdb::Result<String> {
     let mut name = match type_finder.find(type_index)?.parse()? {
         pdb::TypeData::Primitive(data) => {
             let mut name = match data.kind {
@@ -586,39 +716,42 @@ pub fn parse_struct_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb:
             };
 
             match data.indirection {
-                pdb::Indirection::None => {},
-                _ => { name.push(' '); name.push('*'); },
+                pdb::Indirection::None => {}
+                _ => {
+                    name.push(' ');
+                    name.push('*');
+                }
             }
 
             name
-        },
+        }
 
-        pdb::TypeData::Class(data) => {
-            data.name.to_string().into_owned()
-        },
+        pdb::TypeData::Class(data) => data.name.to_string().into_owned(),
 
-        pdb::TypeData::Enumeration(data) => {
-            data.name.to_string().into_owned()
-        },
+        pdb::TypeData::Enumeration(data) => data.name.to_string().into_owned(),
 
-        pdb::TypeData::Union(data) => {
-            data.name.to_string().into_owned()
-        },
+        pdb::TypeData::Union(data) => data.name.to_string().into_owned(),
 
         pdb::TypeData::Pointer(data) => {
             format!("{}*", parse_struct_name(type_finder, data.underlying_type)?)
-        },
+        }
 
         pdb::TypeData::Modifier(data) => {
             if data.constant {
-                format!("const {}", parse_struct_name(type_finder, data.underlying_type)?)
+                format!(
+                    "const {}",
+                    parse_struct_name(type_finder, data.underlying_type)?
+                )
             } else if data.volatile {
-                format!("volatile {}", parse_struct_name(type_finder, data.underlying_type)?)
+                format!(
+                    "volatile {}",
+                    parse_struct_name(type_finder, data.underlying_type)?
+                )
             } else {
                 // ?
                 parse_struct_name(type_finder, data.underlying_type)?
             }
-        },
+        }
 
         pdb::TypeData::Array(data) => {
             let mut name = parse_struct_name(type_finder, data.element_type)?;
@@ -626,9 +759,9 @@ pub fn parse_struct_name<'p>(type_finder: &pdb::TypeFinder<'p>, type_index: pdb:
                 name = format!("{}[{}]", name, size);
             }
             name
-        },
+        }
 
-        _ => format!("Type{} /* TODO: figure out how to name it */", type_index)
+        _ => format!("Type{} /* TODO: figure out how to name it */", type_index),
     };
 
     // TODO: search and replace std:: patterns
@@ -650,14 +783,18 @@ fn find_struct_offset(filename: &str, struct_name: &str, field_name: &str) -> pd
         type_finder.update(&type_iter);
 
         if let Ok(pdb::TypeData::Class(class)) = typ.parse() {
-            if class.name.as_bytes() == struct_name.as_bytes() && !class.properties.forward_reference() {
+            if class.name.as_bytes() == struct_name.as_bytes()
+                && !class.properties.forward_reference()
+            {
                 if let Some(test) = class.fields {
                     let parsed = type_finder.find(test)?.parse()?;
                     if let pdb::TypeData::FieldList(list) = parsed {
                         for field in list.fields {
                             if let pdb::TypeData::Member(member) = field {
                                 if member.name.as_bytes() == field_name.as_bytes() {
-                                    let _type_name = parse_struct_name(&type_finder, member.field_type).expect("can't get struct name");
+                                    let _type_name =
+                                        parse_struct_name(&type_finder, member.field_type)
+                                            .expect("can't get struct name");
                                     // println!("0x{:X} {} {}.{}", member.offset, type_name, struct_name, field_name);
                                     return Ok(member.offset);
                                 }
@@ -677,9 +814,12 @@ pub fn pdb_to_c_struct(filename: &str, name: &str, messenger: &Sender<ShellMessa
     match write_class(filename, name, messenger) {
         Ok(_) => {}
         Err(e) => {
-            ShellMessage::send(messenger, format!("error dumping pdb {}", style(e).red()),
-                        MessageType::Close,
-                        0);
+            ShellMessage::send(
+                messenger,
+                format!("error dumping pdb {}", style(e).red()),
+                MessageType::Close,
+                0,
+            );
         }
     }
 }

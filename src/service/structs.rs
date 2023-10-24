@@ -1,11 +1,9 @@
 // Copyright © ByteHeed.  All rights reserved.
 #![allow(non_camel_case_types, non_snake_case, dead_code)]
 
-use super::winapi::shared::minwindef::{DWORD};
+use super::winapi::shared::minwindef::DWORD;
 
-
-STRUCT!{
-    #[derive(Debug)]
+STRUCT! {
     struct SERVICE_STATUS_PROCESS  {
         dwServiceType: DWORD,
         dwCurrentState: DWORD,
@@ -34,17 +32,17 @@ pub struct ServiceInfo {
     pub kind: ServiceType,
     pub status: ServiceStatus,
     pub pid: u32,
-    pub system: bool
+    pub system: bool,
 }
 
 impl From<SERVICE_STATUS_PROCESS> for ServiceInfo {
     fn from(info: SERVICE_STATUS_PROCESS) -> Self {
         ServiceInfo {
             kind: ServiceType::from_bits(info.dwServiceType)
-            .expect("Unable to parse dwServiceType"),
+                .expect("Unable to parse dwServiceType"),
             status: ServiceStatus::from(info.dwCurrentState),
             pid: info.dwProcessId,
-            system: info.dwServiceFlags == 1
+            system: info.dwServiceFlags == 1,
         }
     }
 }
@@ -58,10 +56,11 @@ pub enum ServiceStatus {
     Running,
     StartPending,
     StopPending,
-    Stopped
+    Stopped,
 }
 
 bitflags! {
+    #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct ServiceType: u32 {
         const FILE_SYSTEM_DRIVER       = 0x0000_0001;
         const KERNEL_DRIVER            = 0x0000_0002;
@@ -80,8 +79,7 @@ impl From<u32> for ServiceStatus {
             5 => ServiceStatus::ContinuePending,
             6 => ServiceStatus::PausePending,
             7 => ServiceStatus::Paused,
-            _ => panic!("Unable to convert value: {} to ServiceStatus", value)
+            _ => panic!("Unable to convert value: {} to ServiceStatus", value),
         }
-
     }
 }

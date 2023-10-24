@@ -6,13 +6,9 @@ macro_rules! STRUCT {
         $($field:ident: $ftype:ty,)+
     }) => (
         #[repr(C)] $(#[$attrs])*
+        #[derive(Debug, Clone)]
         pub struct $name {
             $(pub $field: $ftype,)+
-        }
-        impl Copy for $name {}
-        impl Clone for $name {
-            #[inline]
-            fn clone(&self) -> $name { *self }
         }
     );
 }

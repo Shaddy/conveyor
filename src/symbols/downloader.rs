@@ -1,43 +1,48 @@
-use super::reqwest;
-use super::goblin;
-use std::path::Path;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::ffi::CStr;
-use super::error::PdbError;
-use failure::Error;
-use std::sync::mpsc::Sender;
 use super::cli::output::{MessageType, ShellMessage};
 use super::console::style;
+use super::error::PdbError;
+use super::goblin;
+use super::reqwest;
+use failure::Error;
+use std::ffi::CStr;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
+use std::sync::mpsc::Sender;
 
 pub struct PdbDownloader {
-    filename: String
+    filename: String,
 }
 
 impl PdbDownloader {
     pub fn new(filename: String) -> PdbDownloader {
-        PdbDownloader{
-            filename: filename
-        }
+        PdbDownloader { filename }
     }
 
     fn download_pdb(&self) -> Result<reqwest::Response, PdbError> {
         let url = self.generate_url();
         let resp = match reqwest::get(&url) {
             Err(err) => return Err(PdbError::DownloadFailed(err.to_string())),
-            Ok(resp) => resp
+            Ok(resp) => resp,
         };
 
         if !resp.status().is_success() {
-            return Err(PdbError::StatusError(format!("{}", style(resp.status()).red())))
+            return Err(PdbError::StatusError(format!(
+                "{}",
+                style(resp.status()).red()
+            )));
         }
 
         Ok(resp)
     }
 
     pub fn download(&self, messenger: &Sender<ShellMessage>) -> Result<(), Error> {
-
-        ShellMessage::send(messenger, "Generating Microsoft URL".to_string(), MessageType::Spinner, 0);
+        ShellMessage::send(
+            messenger,
+            "Generating Microsoft URL".to_string(),
+            MessageType::Spinner,
+            0,
+        );
         let mut response = self.download_pdb()?;
 
         let filename = Path::new(&self.filename).file_stem().unwrap();
@@ -49,22 +54,39 @@ impl PdbDownloader {
 
         let mut fd = File::create(path)?;
 
-        ShellMessage::send(messenger, format!("{}",style("Downloading PDB...").yellow()), MessageType::Spinner, 0);
+        ShellMessage::send(
+            messenger,
+            format!("{}", style("Downloading PDB...").yellow()),
+            MessageType::Spinner,
+            0,
+        );
         let mut buf: Vec<u8> = vec![];
         response.copy_to(&mut buf)?;
 
         fd.write_all(&buf)?;
-        ShellMessage::send(messenger, format!("File saved on: {}", style(&pdb_filename).blue()),
-                                    MessageType::Close, 0);
+        ShellMessage::send(
+            messenger,
+            format!("File saved on: {}", style(&pdb_filename).blue()),
+            MessageType::Close,
+            0,
+        );
 
-        ShellMessage::send(messenger, format!("{}",style("Done!").green()), MessageType::Close, 0);
+        ShellMessage::send(
+            messenger,
+            format!("{}", style("Done!").green()),
+            MessageType::Close,
+            0,
+        );
         Ok(())
-
     }
 
     fn generate_url(&self) -> String {
         let mut fd = File::open(Path::new(&self.filename)).expect("Can't open file");
-        let buffer = { let mut v = Vec::new(); fd.read_to_end(&mut v).unwrap(); v};
+        let buffer = {
+            let mut v = Vec::new();
+            fd.read_to_end(&mut v).unwrap();
+            v
+        };
         let res = goblin::Object::parse(&buffer).expect("Can't parse PE");
 
         if let goblin::Object::PE(pe) = res {
@@ -80,7 +102,10 @@ impl PdbDownloader {
 
             let file = CStr::from_bytes_with_nul(file).unwrap().to_str().unwrap();
 
-            let url = format!("{}/{}/{}/{}", "https://msdl.microsoft.com/download/symbols", file, guid_str, file);
+            let url = format!(
+                "{}/{}/{}/{}",
+                "https://msdl.microsoft.com/download/symbols", file, guid_str, file
+            );
 
             return url;
         }

@@ -2,21 +2,22 @@
 name = "conveyor"
 version = "0.1.0"
 authors = ["Sherab Giovannini <sherab.giovannini@byteheed.com>"]
+edition = "2021"
 
 [dependencies]
-clap = "2.27.1"
-termcolor = "0.3"
+clap = { version = "4.4.6", features = ["derive"] }
+termcolor = "1.3.0"
 slog = "2.0"
 slog-term = "2.2.0"
-bitflags = "1.0"
+bitflags = { version = "2.4.1", features = [] }
 byteorder = "1.1"
-num = "0.1"
-pdb = "0.2"
+num = "0.4.1"
+pdb = "0.8.0"
 failure = "*"
 failure_derive = "*"
-goblin = "0.0.13"
-reqwest = "0.8"
-rand = "0.4"
+goblin = "0.7.1"
+reqwest = { version = "0.11.22" }
+rand = "0.8.5"
 enum_primitive = "0.1"
 indicatif = "*"
 console = "*"
